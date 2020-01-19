@@ -145,10 +145,6 @@
     (action->return r)))
 
 (defn map-action [binding instantiate e f & args]
-  (handle-action+ binding instantiate e action-mapper f args))
-
-;; TODO: need to add args to reacl/reduce-action first
-#_(defn map-action [binding instantiate e f & args]
   (-> (instantiate binding e)
       (reacl/reduce-action action-mapper f args)))
 
@@ -174,6 +170,7 @@
 
 (defrecord ^:private AsyncAction [v])
 
+;; TODO: can't we make the element returned by f fixed?
 (reacl/defclass with-async-action this state [instantiate f & args]
   local-state [deliver! (fn [action]
                           (reacl/send-message! this (AsyncAction. action)))]
@@ -187,7 +184,7 @@
       (reacl/return :action (:v msg)))))
 
 ;; TODO: add component that emits action on-mount and on-unmount? or state? Would that be more primitive?
-(reacl/defclass while-mounted this state [instantiate e mount unmount!]
+(reacl/defclass ^:private while-mounted+ this [raw-element mount unmount!]
   validate (do (assert (ifn? mount))
                (assert (ifn? unmount!)))
   local-state [mounted-state nil]
@@ -201,8 +198,10 @@
     (unmount! mounted-state) ;; TODO: really a side effect?
     (reacl/return :local-state nil))
 
-  render
-  (instantiate (reacl/bind this) e))
+  render raw-element)
+
+(defn while-mounted [binding instantiate e mount unmount!]
+  (while-mounted+ (instantiate binding e) mount unmount!))
 
 (defrecord ^:private MonitorMessage [new-state])
 
