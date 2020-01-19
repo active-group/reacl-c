@@ -4,70 +4,53 @@
             [reacl2.core :as reacl]
             [reacl2.dom :as rdom]))
 
-(defn- instantiate-child [binding v]
-  (cond
-    (satisfies? base/E v) (base/-instantiate v binding)
-    
-    #_(reacl/reacl-class? e) #_(if (reacl/has-app-state? e)
-                             (e binding)
-                             (e))
-
-    ;; any other arg as is (strings, components, elements)
-    :else v
-    ))
-
-(defn- instantiate [binding e]
-  ;; OPT: fragment only needed if it is a string etc.
-  ;; TODO: e=nil an empty fragment?
-  (rdom/fragment (instantiate-child binding e)))
-
-(defn- instantiate-toplevel [binding e]
-  ;; TODO: must have an app-state?
+(defn- instantiate-child
+  "Instantiates e, returning a value suitable as a child of a Reacl dom element."
+  [binding e]
   (cond
     (satisfies? base/E e) (base/-instantiate e binding)
 
-    :else (assert false (pr-str e))
-    #_(reacl/reacl-class? e) #_(e binding)))
+    ;; any other arg as is (esp. strings, maybe components and other dom elements)
+    :else e))
+
+(defn- instantiate 
+  "Instantiates e, returning a value suitable as the value of a Reacl render clause."
+  [binding e]
+  ;; TODO: e=nil an empty fragment?
+  (cond
+    (satisfies? base/E e) (base/-instantiate e binding)
+    
+    :else (rdom/fragment e)))
 
 (defn run [dom e initial-state]
-  (impl/run dom instantiate-toplevel e initial-state))
+  (impl/run dom instantiate e initial-state))
 
 (defrecord Element [f args]
   base/E
   (-instantiate [this binding]
+    ;; must return a Reacl component or dom element.
     (apply f binding args)))
 
-(defn- invoke-ctor [ctor args]
-  (let [{f :f fixed-args :fixed-args} ctor]
-    ;; TODO: some way to check at least the arity; very hard to find places where too many args were given (also too little?!)
-    (Element. f (concat fixed-args args))))
+(defn- ignore-binding [binding class & args]
+  (apply class args))
 
-#_(defrecord Container [f fixed-args]
-  IFn
-  (-invoke [this] (invoke-ctor this nil))
-  (-invoke [this a1] (invoke-ctor this (list a1)))
-  (-invoke [this a1 a2] (invoke-ctor this (list a1 a2)))
-  (-invoke [this a1 a2 a3] (invoke-ctor this (list a1 a2 a3)))
-  (-invoke [this a1 a2 a3 a4] (invoke-ctor this (list a1 a2 a3 a4)))
-  (-invoke [this a1 a2 a3 a4 a5] (invoke-ctor this (list a1 a2 a3 a4 a5)))
-  (-invoke [this a1 a2 a3 a4 a5 a6] (invoke-ctor this (list a1 a2 a3 a4 a5 a6)))
-  (-invoke [this a1 a2 a3 a4 a5 a6 a7] (invoke-ctor this (list a1 a2 a3 a4 a5 a6 a7)))
-  (-invoke [this a1 a2 a3 a4 a5 a6 a7 a8] (invoke-ctor this (list a1 a2 a3 a4 a5 a6 a7 a8)))
-  (-invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9] (invoke-ctor this (list a1 a2 a3 a4 a5 a6 a7 a8 a9)))
-  (-invoke [this a1 a2 a3 a4 a5 a6 a7 a8 a9 a10] (invoke-ctor this (list a1 a2 a3 a4 a5 a6 a7 a8 a9 a10)))
-  ;; TODO: rest
-  )
+(defn- elem [class-or-function & args]
+  (if (and (reacl/reacl-class? class-or-function) (not (reacl/has-app-state? class-or-function)))
+    (Element. ignore-binding (cons class-or-function args))
+    (Element. class-or-function args)))
 
-(defn- prim-elem [class & args]
-  (Element. impl/render (cons class args)))
+(defn- wrapper-elem [wrapper e & args]
+  ;; wrapper must take an instantiate fn as first arg, then e, then args.
+  (apply elem wrapper instantiate e args))
 
-(defn- prim-container [class & fixed-args]
+(defn- lift [class-or-function & fixed-args]
   (fn [& args]
     ;; TODO: checking arity at least would be nice
-    (apply prim-elem class (concat fixed-args args))))
+    (apply elem class-or-function (concat fixed-args args))))
 
 (defn- dom [f]
-  (prim-container impl/dom instantiate-child f))
+  ;; TODO: use raw dom element if no Element children and no events (and maybe split the two things)
+  (lift impl/dom instantiate-child f))
 
 (def div (dom rdom/div))
 (def input (dom rdom/input))
@@ -75,13 +58,14 @@
 (def button (dom rdom/button))
 (def h3 (dom rdom/h3))
 (def fragment (dom rdom/fragment))
-;; TODO: rest of dom
+;; TODO: rest of dom; other namespace?
 
 (defn dynamic [f & args]
-  (apply prim-elem impl/dynamic instantiate f args))
+  ;; FIXME: we can't copy/change the key at runtime (can we?) so always give this a fixed but random key? or add dynamic-keyed? or leave it up to the user to use 'keyed' at the right places.
+  (apply elem impl/with-state instantiate f args))
 
 (defn focus [e lens]
-  (prim-elem impl/focus instantiate e lens))
+  (wrapper-elem impl/focus e lens))
 
 (def pass-action impl/pass-action)
 
@@ -91,7 +75,7 @@
 (def no-action (multi-action))
 
 (defn handle-actions [e f & args]
-  (apply prim-elem impl/handle-action instantiate e f args))
+  (apply wrapper-elem impl/handle-action e f args))
 
 (let [h (fn [app-state action pred f args]
           (if (pred action)
@@ -101,7 +85,7 @@
     (handle-actions e h pred f args)))
 
 (defn map-actions [e f & args]
-  (apply prim-elem impl/map-action instantiate e f args))
+  (apply wrapper-elem impl/map-action e f args))
 
 (defrecord ^:private SetStateAction [new-state])
 
@@ -150,7 +134,7 @@
   ([_ v] v))
 
 (defn add-state [initial lens e] ;; aka extend-state?
-  (prim-elem impl/add-state instantiate initial lens e))
+  (wrapper-elem impl/local-state e initial lens))
 
 (defn hide-state [e initial lens]
   (add-state initial lens e))
@@ -166,11 +150,11 @@
   (add-state initial-state isolate-lens e))
 
 (defn keyed [e key]
-  ;; TODO: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
-  (prim-elem impl/keyed instantiate e key))
+  ;; FIXME: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
+  (wrapper-elem impl/keyed e key))
 
 (defn while-mounted [e mount unmount]
-  (prim-elem impl/while-mounted instantiate e mount unmount))
+  (wrapper-elem impl/while-mounted e mount unmount))
 
 (defrecord ^:private EffectAction [f args]
   base/Effect
@@ -180,8 +164,9 @@
   (EffectAction. f args))
 
 (defn with-async-actions [f & args]
-  (apply prim-elem impl/with-async-action instantiate f args))
+  (apply elem impl/with-async-action instantiate f args))
 
+;; Note: subscriptions are already a high level feature to 'deliver async actions while mounted'.
 (letfn [(stu [deliver! f args]
           (while-mounted (fragment) ;; TODO: fragment, or wrap an existing element?
                          (fn []
@@ -192,4 +177,6 @@
     (with-async-actions stu f args)))
 
 (defn monitor-state [e f & args]
-  (apply prim-elem impl/monitor-state instantiate e f args))
+  (apply wrapper-elem impl/monitor-state e f args))
+
+;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe)
