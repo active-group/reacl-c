@@ -134,7 +134,7 @@
   ([_ v] v))
 
 (defn add-state [initial lens e] ;; aka extend-state?
-  (wrapper-elem impl/local-state e initial lens))
+  (wrapper-elem impl/local-state (focus e lens) initial))
 
 (defn hide-state [e initial lens]
   (add-state initial lens e))

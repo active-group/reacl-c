@@ -110,7 +110,9 @@
   (MultiAction. actions))
 
 (reacl/defclass ^:private handle-action+ this state [instantiate e f & args]
-  local-state [action-to-message (fn [_ action] (reacl/return :message [this (ActionMessage. action)]))]
+  local-state [action-to-message
+               (fn [_ action]
+                 (reacl/return :message [this (ActionMessage. action)]))]
 
   handle-message
   (fn [msg]
@@ -150,11 +152,17 @@
 
 (defrecord ^:private NewIsoState [state])
 
-(reacl/defclass local-state this astate [instantiate e initial lens]
+(defn- id-state [st1 st2]
+  ;; TODO: use = instead? or allow the user to specify it?
+  (if (identical? st1 st2)
+    reacl/keep-state
+    st2))
+
+(reacl/defclass local-state this astate [instantiate e initial]
   local-state [lstate initial]
   
   render
-  (instantiate (reacl/use-reaction (lens [astate lstate])
+  (instantiate (reacl/use-reaction [astate lstate]
                                    (reacl/reaction this ->NewIsoState))
                e)
   
@@ -162,11 +170,9 @@
   (fn [msg]
     (cond
       (instance? NewIsoState msg)
-      (let [{new-state :state} msg
-            [new-app-state new-local-state] (lens [astate lstate] new-state)]
-        (reacl/merge-returned
-         (if-not (identical? astate new-app-state) (reacl/return :app-state new-app-state) (reacl/return))
-         (if-not (identical? lstate new-local-state) (reacl/return :local-state new-local-state) (reacl/return)))))))
+      (let [{[new-app-state new-local-state] :state} msg]
+        (reacl/return :app-state (id-state astate new-app-state)
+                      :local-state (id-state lstate new-local-state))))))
 
 (defrecord ^:private AsyncAction [v])
 
