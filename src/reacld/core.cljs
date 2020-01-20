@@ -5,6 +5,8 @@
 (defn run [dom e initial-state] ;; TODO: move to reacl/react namespace?
   (impl/run dom e initial-state))
 
+;; TODO: send-message from outside to application and/or components? (and a 'handle-message' element?)
+
 (defn dom-attributes? [v]
   (and (map? v)
        (not (satisfies? base/E v))))
@@ -29,7 +31,7 @@
   (base/WithAsyncActions. f args))
 
 (defn- dom [f]
-  ;; TODO: use (with-async-actions (fn [deliver! ])) ?
+  ;; Note: could also use (with-async-actions (fn [deliver! ])) and event handlers that call deliver! - but then they aren't pure anymore (at least after a translation)
   (fn [& args]
     (let [[attrs_ children] (analyze-dom-args args)
           [attrs events] (split-events attrs_)]

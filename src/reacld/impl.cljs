@@ -35,8 +35,6 @@
 
 (defrecord ^:private ActionMessage [action])
 
-;; TODO: send-message from outside to application and/or components?
-
 (reacl/defclass ^:private toplevel this state [e]
   render
   (-> (instantiate (reacl/bind this) e)
