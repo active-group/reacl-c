@@ -63,9 +63,7 @@
 
 (defrecord ^:private Event [f ev])
 
-(reacl/defclass dom+ this [type attrs events children]
-  handle-message
-  (fn [msg]
+(defn- dom-message-to-action [msg]
     (cond
       (instance? Event msg)
       (let [{f :f ev :ev} msg]
@@ -75,22 +73,39 @@
       
       ;; TODO else messages to children?
       ))
-  
-  render
+
+(defn- merge-dom-attrs [target attrs events]
   (let [r-events (into {} (map (fn [[k v]]
                                  [k (fn [ev]
                                       ;; TODO: make fixed via cache (or local state)
-                                      (reacl/send-message! this (Event. v ev)))])
-                               events))
-        r-attrs (merge attrs r-events)]
-    (apply rdom/element type r-attrs children)))
+                                      (reacl/send-message! target (Event. v ev)))])
+                               events))]
+    (merge attrs r-events)))
+
+(reacl/defclass dom++ this state [type attrs events children]
+  handle-message dom-message-to-action
+  
+  render
+  (apply rdom/element type (merge-dom-attrs this attrs events)
+         (map (partial instantiate (reacl/bind this)) children)))
+
+(reacl/defclass dom+ this [type attrs events]
+  handle-message dom-message-to-action
+  
+  render
+  (rdom/element type (merge-dom-attrs this attrs events)))
+
+(defn dom- [binding type attrs children]
+  (apply rdom/element type attrs (map (partial instantiate-child binding) children)))
 
 (defn dom [binding type attrs events children]
   ;; optimize for dom element without event handlers:
-  (let [r-children (map (partial instantiate-child binding) children)]
-    (if (not-empty events)
-      (dom+ type attrs events r-children)
-      (apply rdom/element type attrs r-children))))
+  (if (not-empty events)
+    (if (empty? children)
+      (dom+ type attrs events)
+      ;; OPT: if no child needs state, then we can use a non-stateful class here too
+      (dom++ binding type attrs events children))
+    (dom- binding type attrs children)))
 
 (extend-type base/Dom
   IReacl
@@ -225,7 +240,7 @@
     (apply with-async-action f args)))
 
 ;; TODO: add component that emits action on-mount and on-unmount? or state? Would that be more primitive?
-(reacl/defclass ^:private while-mounted+ this [raw-element mount unmount!]
+(reacl/defclass ^:private while-mounted this state [e mount unmount!]
   validate (do (assert (ifn? mount))
                (assert (ifn? unmount!)))
   local-state [mounted-state nil]
@@ -239,11 +254,7 @@
     (unmount! mounted-state) ;; TODO: really a side effect?
     (reacl/return :local-state nil))
 
-  render raw-element)
-
-(defn while-mounted [binding e mount unmount!]
-  ;; TODO: does it really have an advantage to instantate before? (might be not= more often?)
-  (while-mounted+ (instantiate binding e) mount unmount!))
+  render (instantiate (reacl/bind this) e))
 
 (extend-type base/WhileMounted
   IReacl
