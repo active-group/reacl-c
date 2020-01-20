@@ -7,7 +7,8 @@
 (defrecord HandleAction [e f args] E)
 (defrecord MapAction [e f args] E)
 (defrecord LocalState [e initial] E)
-(defrecord WhenMounted [e mount unmount] E)
+(defrecord WhenMounted [e f args] E)
+(defrecord WhenUnmounting [e f args] E)
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
 

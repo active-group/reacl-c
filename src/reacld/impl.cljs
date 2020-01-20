@@ -248,23 +248,37 @@
   (-instantiate-reacl [{f :f args :args} binding]
     (apply with-async-action binding f args)))
 
-(reacl/defclass ^:private when-mounted this state [e mount unmount]
-  local-state [mounted-state nil]
-
+(reacl/defclass ^:private when-mounted this state [e f & args]
+  refs [elem]
+  
   component-did-mount
   (fn []
-    (reacl/return :action mount))
+    ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
+    (reacl/return :action (apply f (reacl/get-dom elem) args)))
 
-  component-will-unmount
-  (fn []
-    (reacl/return :action unmount))
-
-  render (instantiate (reacl/bind this) e))
+  render (-> (instantiate (reacl/bind this) e)
+             (reacl/refer elem)))
 
 (extend-type base/WhenMounted
   IReacl
-  (-instantiate-reacl [{e :e mount :mount unmount :unmount} binding]
-    (when-mounted binding e mount unmount)))
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply when-mounted binding e f args)))
+
+(reacl/defclass ^:private when-unmounting this state [e f & args]
+  refs [elem]
+
+  component-will-unmount
+  (fn []
+    ;; FIXME: see mount.
+    (reacl/return :action (apply f (reacl/get-dom elem) args)))
+
+  render (-> (instantiate (reacl/bind this) e)
+             (reacl/refer elem)))
+
+(extend-type base/WhenUnmounting
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply when-unmounting binding e f args)))
 
 (defrecord ^:private MonitorMessage [new-state])
 

@@ -135,8 +135,11 @@
   ;; FIXME: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
   (base/Keyed. e key))
 
-(defn when-mounted [e mount unmount]
-  (base/WhenMounted. e mount unmount))
+(defn when-mounted [e f & args]
+  (base/WhenMounted. e f args))
+
+(defn when-unmounting [e f & args]
+  (base/WhenUnmounting. e f args))
 
 (defrecord ^:private EffectAction [f args]
   base/Effect
@@ -148,33 +151,39 @@
 (defn monitor-state [e f & args]
   (base/MonitorState. e f args))
 
-(defrecord ^:private Mount [f])
-(defrecord ^:private Unmount [f])
+(defrecord ^:private Mount [node f args])
+(defrecord ^:private Unmount [node f args])
 
 (let [on-mount (fn [[state mstate] a]
                  (if (instance? Mount a)
-                   [state ((:f a))]
+                   [state (apply (:f a) (:node a) (:args a))]
                    pass-action))
       on-unmount (fn [[_ mstate] a]
                    (if (instance? Unmount a)
-                     (effect-action (:f a) mstate) ;; TODO: overkill to use effect? (mount! can and usually will have a side effect too - add effects with immediate results?)
+                     (do (apply (:f a) (:node a) mstate (:args a))
+                         no-action)
                      a))]
-  (defn while-mounted [e mount! unmount!]
-    (-> (when-mounted e (Mount. mount!) (Unmount. unmount!))
+  (defn while-mounted [e mount! unmount! & args]
+    (-> e
+        (when-mounted ->Mount mount! args)
+        (when-unmounting ->Unmount unmount! args)
         (handle-actions on-mount)
         (map-dynamic-actions on-unmount)
         (hide-state nil id-lens))))
 
-(letfn [(stu [deliver! f args]
+(letfn [(mount [_ deliver! f args]
+          (apply f deliver! args))
+        (unmount [_ stop! deliver! f args]
+          (stop!))
+        (stu [deliver! f args]
           (while-mounted (fragment) ;; TODO: fragment, or wrap an existing element?
-                         (fn [] ;; FIXME: static fns.
-                           (apply f deliver! args))
-                         (fn [stop!]
-                           (stop!))))]
+                         mount
+                         unmount
+                         deliver! f args))]
   (defn subscribe [f & args]
     (with-async-actions stu f args)))
 
 
-;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe)
+;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe), and focus
 ;; TODO: error boundary.
 
