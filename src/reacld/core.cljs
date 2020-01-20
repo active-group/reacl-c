@@ -1,57 +1,42 @@
 (ns reacld.core
   (:require [reacld.impl :as impl]
             [reacld.base :as base]
-            [reacl2.core :as reacl]
             [reacl2.dom :as rdom]))
 
-(defn- instantiate-child
-  "Instantiates e, returning a value suitable as a child of a Reacl dom element."
-  [binding e]
-  (cond
-    (satisfies? base/E e) (base/-instantiate e binding)
+(defn run [dom e initial-state] ;; TODO: move to reacl/react namespace?
+  (impl/run dom e initial-state))
 
-    ;; any other arg as is (esp. strings, maybe components and other dom elements)
-    :else e))
+(defn dom-attributes? [v]
+  (and (map? v)
+       (not (satisfies? base/E v))))
 
-(defn- instantiate 
-  "Instantiates e, returning a value suitable as the value of a Reacl render clause."
-  [binding e]
-  ;; TODO: e=nil an empty fragment?
-  (cond
-    (satisfies? base/E e) (base/-instantiate e binding)
-    
-    :else (rdom/fragment e)))
+(defn- analyze-dom-args [args]
+  (if (empty? args)
+    [{} args]
+    (let [x (first args)]
+      (if (dom-attributes? x)
+        [x (rest args)]
+        [{} args]))))
 
-(defn run [dom e initial-state]
-  (impl/run dom instantiate e initial-state))
+(defn- event? [k]
+  (.startsWith (name k) "on"))
 
-(defrecord Element [f args]
-  base/E
-  (-instantiate [this binding]
-    ;; must return a Reacl component or dom element.
-    (apply f binding args)))
+(defn- split-events [attrs]
+  ;; OPT
+  [(into {} (remove #(event? (first %)) attrs))
+   (into {} (filter #(event? (first %)) attrs))])
 
-(defn- ignore-binding [binding class & args]
-  (apply class args))
-
-(defn- elem [class-or-function & args]
-  (if (and (reacl/reacl-class? class-or-function) (not (reacl/has-app-state? class-or-function)))
-    (Element. ignore-binding (cons class-or-function args))
-    (Element. class-or-function args)))
-
-(defn- wrapper-elem [wrapper e & args]
-  ;; wrapper must take an instantiate fn as first arg, then e, then args.
-  (apply elem wrapper instantiate e args))
-
-(defn- lift [class-or-function & fixed-args]
-  (fn [& args]
-    ;; TODO: checking arity at least would be nice
-    (apply elem class-or-function (concat fixed-args args))))
+(defn with-async-actions [f & args]
+  (base/WithAsyncActions. f args))
 
 (defn- dom [f]
-  ;; TODO: use raw dom element if no Element children and no events (and maybe split the two things)
-  (lift impl/dom instantiate-child f))
+  ;; TODO: use (with-async-actions (fn [deliver! ])) ?
+  (fn [& args]
+    (let [[attrs_ children] (analyze-dom-args args)
+          [attrs events] (split-events attrs_)]
+      (base/Dom. f attrs events children))))
 
+;; TODO: move refs to rdom to impl...?
 (def div (dom rdom/div))
 (def input (dom rdom/input))
 (def form (dom rdom/form))
@@ -61,21 +46,23 @@
 ;; TODO: rest of dom; other namespace?
 
 (defn dynamic [f & args]
-  ;; FIXME: we can't copy/change the key at runtime (can we?) so always give this a fixed but random key? or add dynamic-keyed? or leave it up to the user to use 'keyed' at the right places.
-  (apply elem impl/with-state instantiate f args))
+  (base/WithState. f args))
 
 (defn focus [e lens]
-  (wrapper-elem impl/focus e lens))
+  (base/Focus. e lens))
 
-(def pass-action impl/pass-action)
+(def pass-action (base/PassAction.))
 
 (defn multi-action [& actions]
-  (apply impl/multi-action actions))
+  (base/MultiAction. actions))
 
 (def no-action (multi-action))
 
-(defn handle-actions [e f & args]
-  (apply wrapper-elem impl/handle-action e f args))
+(defn handle-actions
+  "Handle all action emitted by e into a new state which must be
+  returned by `(f action & args)`."
+  [e f & args]
+  (base/HandleAction. e f args))
 
 (let [h (fn [app-state action pred f args]
           (if (pred action)
@@ -85,7 +72,7 @@
     (handle-actions e h pred f args)))
 
 (defn map-actions [e f & args]
-  (apply wrapper-elem impl/map-action e f args))
+  (base/MapAction. e f args))
 
 (defrecord ^:private SetStateAction [new-state])
 
@@ -102,16 +89,6 @@
           (apply dynamic f set-state args))]
   (defn interactive [f & args]
     (with-state-setter h f args)))
-
-;; EXAMPLE:
-#_(defn input-text [& [attrs]]
-  ;; TODO: statify
-  (dynamic-dom (fn [state set-state]
-                 (input (merge {:type "text"}
-                               attrs
-                               {:value state
-                                :onchange (fn [ev]
-                                            (set-state (.-value (.-target ev))))})))))
 
 (defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
@@ -134,7 +111,7 @@
   ([_ v] v))
 
 (defn add-state [initial lens e] ;; aka extend-state?
-  (wrapper-elem impl/local-state (focus e lens) initial))
+  (base/LocalState. (focus e lens) initial))
 
 (defn hide-state [e initial lens]
   (add-state initial lens e))
@@ -151,10 +128,10 @@
 
 (defn keyed [e key]
   ;; FIXME: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
-  (wrapper-elem impl/keyed e key))
+  (base/Keyed. e key))
 
 (defn while-mounted [e mount unmount]
-  (wrapper-elem impl/while-mounted e mount unmount))
+  (base/WhileMounted. e mount unmount))
 
 (defrecord ^:private EffectAction [f args]
   base/Effect
@@ -163,10 +140,6 @@
 (defn effect-action [f & args]
   (EffectAction. f args))
 
-(defn with-async-actions [f & args]
-  (apply elem impl/with-async-action instantiate f args))
-
-;; Note: subscriptions are already a high level feature to 'deliver async actions while mounted'.
 (letfn [(stu [deliver! f args]
           (while-mounted (fragment) ;; TODO: fragment, or wrap an existing element?
                          (fn []
@@ -177,6 +150,6 @@
     (with-async-actions stu f args)))
 
 (defn monitor-state [e f & args]
-  (apply wrapper-elem impl/monitor-state e f args))
+  (base/MonitorState. e f args))
 
 ;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe)

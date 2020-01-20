@@ -3,16 +3,41 @@
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]))
 
-(defn render [binding class & args]
+#_(defn render [binding class & args]
   (if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
     (apply class binding args)
     (apply class args)))
+
+;; TODO: offer lifting existing Reacl classes as leaf elements.
+#_(defn- ignore-binding [binding class & args]
+  (apply class args))
+
+#_(defn- lift [class-or-function & fixed-args]
+  (fn [& args]
+    ;; TODO: checking arity at least would be nice
+    (apply elem class-or-function (concat fixed-args args))))
+
+(defprotocol IReacl
+  (-instantiate-reacl [this binding]))
+
+(defn- instantiate [binding e]
+  (cond
+    (satisfies? IReacl e) (-instantiate-reacl e binding)
+    (string? e) (rdom/fragment e)
+    :else
+    (assert false e) #_(rdom/fragment e)))
+
+(defn- instantiate-child [binding e]
+  (cond
+    (satisfies? IReacl e) (-instantiate-reacl e binding)
+    (string? e) e
+    :else (assert false e)))
 
 (defrecord ^:private ActionMessage [action])
 
 ;; TODO: send-message from outside to application and/or components?
 
-(reacl/defclass ^:private toplevel this state [instantiate e]
+(reacl/defclass ^:private toplevel this state [e]
   render
   (-> (instantiate (reacl/bind this) e)
       (reacl/action-to-message this ->ActionMessage))
@@ -30,33 +55,13 @@
 
       :else (throw (ex-info "Unhandled toplevel message" {:value msg})))))
 
-(defn run [dom instantiate e initial-state]
+(defn run [dom e initial-state]
   (reacl/render-component dom
                           toplevel
                           initial-state
-                          instantiate e))
+                          e))
 
 (defrecord ^:private Event [f ev])
-
-(defn event? [k]
-  (.startsWith (name k) "on"))
-
-(defn dom-attributes? [v]
-  (and (rdom/attributes? v)
-       (not (satisfies? base/E v))))
-
-(defn- analyze-dom-args [args]
-  (if (empty? args)
-    [{} args]
-    (let [x (first args)]
-      (if (dom-attributes? x)
-        [x (rest args)]
-        [{} args]))))
-
-(defn- split-events [attrs]
-  ;; OPT
-  [(into {} (remove #(event? (first %)) attrs))
-   (into {} (filter #(event? (first %)) attrs))])
 
 (reacl/defclass dom+ this [dom-f attrs events children]
   handle-message
@@ -80,36 +85,46 @@
         r-attrs (merge attrs r-events)]
     (apply dom-f r-attrs children)))
 
-(defn dom [binding instantiate dom-f & args]
+(defn dom [binding dom-f attrs events children]
   ;; optimize for dom element without event handlers:
-  (let [[attrs_ children] (analyze-dom-args args)
-        [attrs events] (split-events attrs_)
-        r-children (map (partial instantiate binding) children)]
+  (let [r-children (map (partial instantiate-child binding) children)]
     (if (not-empty events)
       (dom+ dom-f attrs events r-children)
       (apply dom-f attrs r-children))))
 
-(defn keyed [binding instantiate e key]
+(extend-type base/Dom
+  IReacl
+  (-instantiate-reacl [{f :f attrs :attrs events :events children :children} binding]
+    (apply dom binding f attrs events children)))
+
+(defn keyed [binding e key]
   (-> (instantiate binding e)
       (reacl/keyed key)))
 
-(reacl/defclass with-state this state [instantiate f & args]
+(extend-type base/Keyed
+  IReacl
+  (-instantiate-reacl [{e :e key :key} binding]
+    (keyed binding e key)))
+
+(reacl/defclass with-state this state [f & args]
   ;; TODO messages?
   render
   (instantiate (reacl/bind this) (apply f state args)))
 
-(defn focus [binding instantiate e lens]
+(extend-type base/WithState
+  IReacl
+  (-instantiate-reacl [{f :f args :args} binding]
+    (apply with-state binding f args)))
+
+(defn focus [binding e lens]
   (instantiate (reacl/focus binding lens) e))
 
-(defrecord ^:private Pass [])
-(def pass-action (Pass.))
+(extend-type base/Focus
+  IReacl
+  (-instantiate-reacl [{e :e lens :lens} binding]
+    (focus binding e lens)))
 
-(defrecord ^:private MultiAction [actions])
-
-(defn multi-action [& actions]
-  (MultiAction. actions))
-
-(reacl/defclass ^:private handle-action+ this state [instantiate e f & args]
+(reacl/defclass ^:private handle-action+ this state [e f & args]
   local-state [action-to-message
                (fn [_ action]
                  (reacl/return :message [this (ActionMessage. action)]))]
@@ -128,17 +143,22 @@
 
 (defn- action-handler [app-state action f args]
   (let [r (apply f app-state action args)]
-    (if (= r pass-action)
+    (if (instance? base/PassAction r)
       (reacl/return :action action)
       (reacl/return :app-state r))))
 
-(defn handle-action [binding instantiate e f & args]
-  (handle-action+ binding instantiate e action-handler f args))
+(defn handle-action [binding e f & args]
+  (handle-action+ binding e action-handler f args))
+
+(extend-type base/HandleAction
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply handle-action binding e f args)))
 
 (defn- action->return [a]
   (reduce reacl/merge-returned
           (map #(reacl/return :action %)
-               (if (instance? MultiAction a)
+               (if (instance? base/MultiAction a)
                  (:actions a)
                  [a]))))
 
@@ -146,9 +166,14 @@
   (let [r (apply f action args)]
     (action->return r)))
 
-(defn map-action [binding instantiate e f & args]
+(defn map-action [binding e f & args]
   (-> (instantiate binding e)
       (reacl/reduce-action action-mapper f args)))
+
+(extend-type base/MapAction
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply map-action binding e f args)))
 
 (defrecord ^:private NewIsoState [state])
 
@@ -158,7 +183,7 @@
     reacl/keep-state
     st2))
 
-(reacl/defclass local-state this astate [instantiate e initial]
+(reacl/defclass local-state this astate [e initial]
   local-state [lstate initial]
   
   render
@@ -174,10 +199,15 @@
         (reacl/return :app-state (id-state astate new-app-state)
                       :local-state (id-state lstate new-local-state))))))
 
+(extend-type base/LocalState
+  IReacl
+  (-instantiate-reacl [{e :e initial :initial} binding]
+    (local-state binding e initial)))
+
 (defrecord ^:private AsyncAction [v])
 
 ;; TODO: can't we make the element returned by f fixed?
-(reacl/defclass with-async-action this state [instantiate f & args]
+(reacl/defclass with-async-action this state [f & args]
   local-state [deliver! (fn [action]
                           (reacl/send-message! this (AsyncAction. action)))]
   render
@@ -188,6 +218,11 @@
     (cond
       (instance? AsyncAction msg)
       (reacl/return :action (:v msg)))))
+
+(extend-type base/WithAsyncActions
+  IReacl
+  (-instantiate-reacl [{f :f args :args} binding]
+    (apply with-async-action f args)))
 
 ;; TODO: add component that emits action on-mount and on-unmount? or state? Would that be more primitive?
 (reacl/defclass ^:private while-mounted+ this [raw-element mount unmount!]
@@ -206,12 +241,18 @@
 
   render raw-element)
 
-(defn while-mounted [binding instantiate e mount unmount!]
+(defn while-mounted [binding e mount unmount!]
+  ;; TODO: does it really have an advantage to instantate before? (might be not= more often?)
   (while-mounted+ (instantiate binding e) mount unmount!))
+
+(extend-type base/WhileMounted
+  IReacl
+  (-instantiate-reacl [{e :e mount :mount unmount :unmount} binding]
+    (while-mounted binding e mount unmount)))
 
 (defrecord ^:private MonitorMessage [new-state])
 
-(reacl/defclass monitor-state this state [instantiate e f & args]
+(reacl/defclass monitor-state this state [e f & args]
   render
   (instantiate (reacl/use-reaction state (reacl/reaction this ->MonitorMessage)) e)
 
@@ -222,3 +263,8 @@
       (let [new-state (:new-state msg)]
         (reacl/merge-returned (action->return (apply f state new-state args))
                               (reacl/return :app-state new-state))))))
+
+(extend-type base/MonitorState
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply monitor-state binding e f args)))

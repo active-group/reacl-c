@@ -1,7 +1,22 @@
 (ns reacld.base)
 
-(defprotocol E
-  (-instantiate [this binding])) ;; aka render?
+(defprotocol E)
+
+(defrecord WithState [f args] E)
+(defrecord Focus [e lens] E)
+(defrecord HandleAction [e f args] E)
+(defrecord MapAction [e f args] E)
+(defrecord LocalState [e initial] E)
+(defrecord WhileMounted [e mount unmount] E)
+(defrecord WithAsyncActions [f args] E)
+(defrecord MonitorState [e f args] E)
+
+;; TODO: make these Reacl specific?
+(defrecord Dom [f attrs events children] E)
+(defrecord Keyed [e key] E)
 
 (defprotocol Effect
   (-run-effect! [this]))
+
+(defrecord PassAction [])
+(defrecord MultiAction [actions])
