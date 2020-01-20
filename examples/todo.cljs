@@ -1,18 +1,19 @@
 (ns examples.todo
-  (:require [reacld.core :as r :include-macros true]))
+  (:require [reacld.core :as r :include-macros true]
+            [reacld.dom :as dom]))
 
 (r/def-interactive checkbox checked set-checked
   ;; TODO: make callback static (active.clojure.function?)
-  (r/input {:type "checkbox"
-            :value checked
-            :onchange (fn [e] (set-checked (.. e -target -checked)))}))
+  (dom/input {:type "checkbox"
+              :value checked
+              :onchange (fn [e] (set-checked (.. e -target -checked)))}))
 
 (r/def-interactive textbox value set-value
   ;; TODO: make callback static (active.clojure.function?)
-  (r/input {:type "text"
-            :value value
-            :onchange (fn [e]
-                        (set-value (.. e -target -value)))}))
+  (dom/input {:type "text"
+              :value value
+              :onchange (fn [e]
+                          (set-value (.. e -target -value)))}))
 
 (defrecord TodosApp [next-id todos])
 (defrecord Todo [id text done?])
@@ -22,11 +23,11 @@
 
 (r/defn-dynamic add-item-form state [add-item]
   ;; TODO: Make fns static
-  (-> (r/form {:onsubmit (fn [e]
-                           (.preventDefault e)
-                           (->Submit))}
-              (-> textbox (r/focus :new-text))
-              (r/button {:type "submit"} "Add"))
+  (-> (dom/form {:onsubmit (fn [e]
+                             (.preventDefault e)
+                             (->Submit))}
+                (-> textbox (r/focus :new-text))
+                (dom/button {:type "submit"} "Add"))
       (r/map-actions (fn [a]
                        (cond
                          (instance? Submit a)
@@ -47,17 +48,17 @@
 
 (defn button [label action]
   ;; TODO: make callback static (active.clojure.function?)
-  (r/button {:onclick (constantly action)}
-            label))
+  (dom/button {:onclick (constantly action)}
+              label))
 
 (r/defn-dynamic item todo [delete]
-  (r/div (-> checkbox
-             (r/focus :done?))
-         (button "Zap" delete)
-         " " (:text todo)))
+  (dom/div (-> checkbox
+               (r/focus :done?))
+           (button "Zap" delete)
+           " " (:text todo)))
 
 (r/defn-dynamic item-list todos [delete-item]
-  (apply r/div
+  (apply dom/div
          (map-indexed (fn [idx id]
                         (-> (item (delete-item id))
                             (r/focus idx)
@@ -68,11 +69,11 @@
 (defrecord AddItem [text])
 
 (def todo-app
-  (-> (r/div {}
-             (r/h3 "TODO")
-             (-> (item-list ->DeleteItem)
-                 (r/focus :todos))
-             (add-item ->AddItem))
+  (-> (dom/div {}
+               (dom/h3 "TODO")
+               (-> (item-list ->DeleteItem)
+                   (r/focus :todos))
+               (add-item ->AddItem))
       (r/handle-actions (fn [state action]
                           (condp instance? action
                             DeleteItem

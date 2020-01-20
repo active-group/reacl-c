@@ -1,5 +1,6 @@
 (ns reacld.impl
   (:require [reacld.base :as base]
+            [reacld.dom :as dom]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]))
 
@@ -105,7 +106,7 @@
       (dom++ binding type attrs events children))
     (dom- binding type attrs children)))
 
-(extend-type base/Dom
+(extend-type dom/Element
   IReacl
   (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
     (dom binding type attrs events children)))
@@ -114,7 +115,7 @@
   render (apply rdom/fragment (map (partial instantiate (reacl/bind this))
                                    children)))
 
-(extend-type base/DomFragment
+(extend-type base/Fragment
   IReacl
   (-instantiate-reacl [{children :children} binding]
     (fragment binding children)))

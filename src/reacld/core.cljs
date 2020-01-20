@@ -7,44 +7,11 @@
 
 ;; TODO: send-message from outside to application and/or components? (and a 'handle-message' element?)
 
-(defn dom-attributes? [v]
-  (and (map? v)
-       (not (satisfies? base/E v))))
-
-(defn- analyze-dom-args [args]
-  (if (empty? args)
-    [{} args]
-    (let [x (first args)]
-      (if (dom-attributes? x)
-        [x (rest args)]
-        [{} args]))))
-
-(defn- event? [k]
-  (.startsWith (name k) "on"))
-
-(defn- split-events [attrs]
-  ;; OPT
-  [(into {} (remove #(event? (first %)) attrs))
-   (into {} (filter #(event? (first %)) attrs))])
-
 (defn with-async-actions [f & args]
   (base/WithAsyncActions. f args))
 
-(defn- dom [f]
-  ;; Note: could also use (with-async-actions (fn [deliver! ])) and event handlers that call deliver! - but then they aren't pure anymore (at least after a translation)
-  (fn [& args]
-    (let [[attrs_ children] (analyze-dom-args args)
-          [attrs events] (split-events attrs_)]
-      (base/Dom. f attrs events children))))
-
-(def div (dom "div"))
-(def input (dom "input"))
-(def form (dom "form"))
-(def button (dom "button"))
-(def h3 (dom "h3"))
 (defn fragment [& children]
-  (base/DomFragment. children))
-;; TODO: rest of dom; other namespace?
+  (base/Fragment. children))
 
 (defn dynamic [f & args]
   (base/WithState. f args))
