@@ -141,6 +141,9 @@
 (defn when-unmounting [e f & args]
   (base/WhenUnmounting. e f args))
 
+(defn after-update [e f & args]
+  (base/AfterUpdate. e f args))
+
 (defrecord ^:private EffectAction [f args]
   base/Effect
   (-run-effect! [this] (apply f args)))
@@ -183,7 +186,7 @@
   (defn subscribe [f & args]
     (with-async-actions stu f args)))
 
-
-;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe), and focus
-;; TODO: error boundary.
+;; TODO add a named class for make better use of reacl and react utils?
+;; TODO: error boundary, getDerivedStateFromError now?.
+;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
 

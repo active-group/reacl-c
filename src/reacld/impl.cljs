@@ -280,8 +280,26 @@
   (-instantiate-reacl [{e :e f :f args :args} binding]
     (apply when-unmounting binding e f args)))
 
+(reacl/defclass ^:private after-update this state [e f & args]
+  refs [elem]
+  
+  component-did-update
+  (fn [prev-app-state prev-local-state prev-e prev-f & prev-args]
+    ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
+    ;; TODO: pass old/new state to f?
+    (reacl/return :action (apply f (reacl/get-dom elem) args)))
+
+  render (-> (instantiate (reacl/bind this) e)
+             (reacl/refer elem)))
+
+(extend-type base/AfterUpdate
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply after-update binding e f args)))
+
 (defrecord ^:private MonitorMessage [new-state])
 
+;; TODO: monitor that state change desire, or use 'after-update' for this?
 (reacl/defclass monitor-state this state [e f & args]
   render
   (instantiate (reacl/use-reaction state (reacl/reaction this ->MonitorMessage)) e)

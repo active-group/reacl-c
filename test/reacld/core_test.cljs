@@ -31,6 +31,8 @@
     (is (= (r/when-mounted (r/div) :a) (r/when-mounted (r/div) :a))))
   (testing "when-unmounting"
     (is (= (r/when-unmounting (r/div) :a :b) (r/when-unmounting (r/div) :a :b))))
+  (testing "after-update"
+    (is (= (r/after-update (r/div) :a :b) (r/after-update (r/div) :a :b))))
   (testing "while-mounted"
     (is (= (r/while-mounted (r/div) :a :b) (r/while-mounted (r/div) :a :b))))
   (testing "with-async-actions"
