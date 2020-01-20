@@ -7,12 +7,13 @@
 (defrecord HandleAction [e f args] E)
 (defrecord MapAction [e f args] E)
 (defrecord LocalState [e initial] E)
-(defrecord WhileMounted [e mount unmount] E)
+(defrecord WhenMounted [e mount unmount] E)
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
 
 (defrecord Dom [type attrs events children] E)
 (defrecord Keyed [e key] E)
+(defrecord DomFragment [children] E)
 
 (defprotocol Effect
   (-run-effect! [this]))

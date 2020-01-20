@@ -40,14 +40,21 @@
 (def form (dom "form"))
 (def button (dom "button"))
 (def h3 (dom "h3"))
-(def fragment (dom "fragment"))
+(defn fragment [& children]
+  (base/DomFragment. children))
 ;; TODO: rest of dom; other namespace?
 
 (defn dynamic [f & args]
   (base/WithState. f args))
 
+(defn id-lens
+  ([v] v)
+  ([_ v] v))
+
 (defn focus [e lens]
-  (base/Focus. e lens))
+  (if (= lens id-lens)
+    e
+    (base/Focus. e lens)))
 
 (def pass-action (base/PassAction.))
 
@@ -58,7 +65,7 @@
 
 (defn handle-actions
   "Handle all action emitted by e into a new state which must be
-  returned by `(f action & args)`."
+  returned by `(f state action & args)`."
   [e f & args]
   (base/HandleAction. e f args))
 
@@ -69,8 +76,12 @@
   (defn handle-action [e pred f & args]
     (handle-actions e h pred f args)))
 
-(defn map-actions [e f & args]
+(defn map-dynamic-actions [e f & args]
   (base/MapAction. e f args))
+
+(let [h (fn [_ a f args] (apply f a args))]
+  (defn map-actions [e f & args]
+    (map-dynamic-actions e h f args)))
 
 (defrecord ^:private SetStateAction [new-state])
 
@@ -104,10 +115,6 @@
    [(id-merge s1 (select-keys ns (keys s1)))
     (id-merge s2 (select-keys ns (keys s2)))]))
 
-(defn id-lens
-  ([v] v)
-  ([_ v] v))
-
 (defn add-state [initial lens e] ;; aka extend-state?
   (base/LocalState. (focus e lens) initial))
 
@@ -128,8 +135,8 @@
   ;; FIXME: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
   (base/Keyed. e key))
 
-(defn while-mounted [e mount unmount]
-  (base/WhileMounted. e mount unmount))
+(defn when-mounted [e mount unmount]
+  (base/WhenMounted. e mount unmount))
 
 (defrecord ^:private EffectAction [f args]
   base/Effect
@@ -138,16 +145,36 @@
 (defn effect-action [f & args]
   (EffectAction. f args))
 
+(defn monitor-state [e f & args]
+  (base/MonitorState. e f args))
+
+(defrecord ^:private Mount [f])
+(defrecord ^:private Unmount [f])
+
+(let [on-mount (fn [[state mstate] a]
+                 (if (instance? Mount a)
+                   [state ((:f a))]
+                   pass-action))
+      on-unmount (fn [[_ mstate] a]
+                   (if (instance? Unmount a)
+                     (effect-action (:f a) mstate) ;; TODO: overkill to use effect? (mount! can and usually will have a side effect too - add effects with immediate results?)
+                     a))]
+  (defn while-mounted [e mount! unmount!]
+    (-> (when-mounted e (Mount. mount!) (Unmount. unmount!))
+        (handle-actions on-mount)
+        (map-dynamic-actions on-unmount)
+        (hide-state nil id-lens))))
+
 (letfn [(stu [deliver! f args]
           (while-mounted (fragment) ;; TODO: fragment, or wrap an existing element?
-                         (fn []
+                         (fn [] ;; FIXME: static fns.
                            (apply f deliver! args))
                          (fn [stop!]
                            (stop!))))]
   (defn subscribe [f & args]
     (with-async-actions stu f args)))
 
-(defn monitor-state [e f & args]
-  (base/MonitorState. e f args))
 
 ;; TODO: allow access to side-effects of rendering, like .clientHeight of the dom (did-update + ref maybe)
+;; TODO: error boundary.
+

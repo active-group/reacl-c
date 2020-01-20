@@ -112,6 +112,15 @@
   (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
     (dom binding type attrs events children)))
 
+(reacl/defclass fragment this state [children]
+  render (apply rdom/fragment (map (partial instantiate (reacl/bind this))
+                                   children)))
+
+(extend-type base/DomFragment
+  IReacl
+  (-instantiate-reacl [{children :children} binding]
+    (fragment binding children)))
+
 (defn keyed [binding e key]
   (-> (instantiate binding e)
       (reacl/keyed key)))
@@ -178,7 +187,7 @@
                  [a]))))
 
 (defn- action-mapper [app-state action f args]
-  (let [r (apply f action args)]
+  (let [r (apply f app-state action args)]
     (action->return r)))
 
 (defn map-action [binding e f & args]
@@ -237,29 +246,25 @@
 (extend-type base/WithAsyncActions
   IReacl
   (-instantiate-reacl [{f :f args :args} binding]
-    (apply with-async-action f args)))
+    (apply with-async-action binding f args)))
 
-;; TODO: add component that emits action on-mount and on-unmount? or state? Would that be more primitive?
-(reacl/defclass ^:private while-mounted this state [e mount unmount!]
-  validate (do (assert (ifn? mount))
-               (assert (ifn? unmount!)))
+(reacl/defclass ^:private when-mounted this state [e mount unmount]
   local-state [mounted-state nil]
 
   component-did-mount
   (fn []
-    (reacl/return :local-state (mount)))
+    (reacl/return :action mount))
 
   component-will-unmount
   (fn []
-    (unmount! mounted-state) ;; TODO: really a side effect?
-    (reacl/return :local-state nil))
+    (reacl/return :action unmount))
 
   render (instantiate (reacl/bind this) e))
 
-(extend-type base/WhileMounted
+(extend-type base/WhenMounted
   IReacl
   (-instantiate-reacl [{e :e mount :mount unmount :unmount} binding]
-    (while-mounted binding e mount unmount)))
+    (when-mounted binding e mount unmount)))
 
 (defrecord ^:private MonitorMessage [new-state])
 
