@@ -1,5 +1,6 @@
 (ns examples.world
   (:require [reacld.core :as r :include-macros true]
+            [reacld.browser :as browser]
             [reacld.dom :as dom]))
 
 (r/defn-subscription interval-timer deliver! [ms]
@@ -38,6 +39,6 @@
         (dom/button {:onclick ->Show} "Show"))
       (r/handle-actions show-hide)))
 
-(r/run (.getElementById js/document "app-world")
+(browser/run (.getElementById js/document "app-world")
   world-app
   true)

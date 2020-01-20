@@ -1,4 +1,4 @@
-(ns reacld.impl
+(ns reacld.impl.reacl
   (:require [reacld.base :as base]
             [reacld.dom :as dom]
             [reacl2.core :as reacl :include-macros true]

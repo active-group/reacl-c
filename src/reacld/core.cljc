@@ -1,20 +1,16 @@
 (ns reacld.core
-  (:require [reacld.impl :as impl]
-            [reacld.base :as base]))
-
-(defn run [dom e initial-state] ;; TODO: move to reacl/react namespace?
-  (impl/run dom e initial-state))
+  (:require [reacld.base :as base]))
 
 ;; TODO: send-message from outside to application and/or components? (and a 'handle-message' element?)
 
 (defn with-async-actions [f & args]
-  (base/WithAsyncActions. f args))
+  (base/->WithAsyncActions f args))
 
 (defn fragment [& children]
-  (base/Fragment. children))
+  (base/->Fragment children))
 
 (defn dynamic [f & args]
-  (base/WithState. f args))
+  (base/->WithState f args))
 
 (defn id-lens
   ([v] v)
@@ -23,12 +19,12 @@
 (defn focus [e lens]
   (if (= lens id-lens)
     e
-    (base/Focus. e lens)))
+    (base/->Focus e lens)))
 
-(def pass-action (base/PassAction.))
+(def pass-action (base/->PassAction))
 
 (defn multi-action [& actions]
-  (base/MultiAction. actions))
+  (base/->MultiAction actions))
 
 (def no-action (multi-action))
 
@@ -36,7 +32,7 @@
   "Handle all action emitted by e into a new state which must be
   returned by `(f state action & args)`."
   [e f & args]
-  (base/HandleAction. e f args))
+  (base/->HandleAction e f args))
 
 (let [h (fn [app-state action pred f args]
           (if (pred action)
@@ -46,7 +42,7 @@
     (handle-actions e h pred f args)))
 
 (defn map-dynamic-actions [e f & args]
-  (base/MapAction. e f args))
+  (base/->MapAction e f args))
 
 (let [h (fn [_ a f args] (apply f a args))]
   (defn map-actions [e f & args]
@@ -85,7 +81,7 @@
     (id-merge s2 (select-keys ns (keys s2)))]))
 
 (defn add-state [initial lens e] ;; aka extend-state?
-  (base/LocalState. (focus e lens) initial))
+  (base/->LocalState (focus e lens) initial))
 
 (defn hide-state [e initial lens]
   (add-state initial lens e))
@@ -101,17 +97,16 @@
   (add-state initial-state isolate-lens e))
 
 (defn keyed [e key]
-  ;; FIXME: because we wrap classes so much, keys can easily not be where they 'should' be - maybe copy the keys when wrapping?
-  (base/Keyed. e key))
+  (base/->Keyed e key))
 
 (defn when-mounted [e f & args]
-  (base/WhenMounted. e f args))
+  (base/->WhenMounted e f args))
 
 (defn when-unmounting [e f & args]
-  (base/WhenUnmounting. e f args))
+  (base/->WhenUnmounting e f args))
 
 (defn after-update [e f & args]
-  (base/AfterUpdate. e f args))
+  (base/->AfterUpdate e f args))
 
 (defrecord ^:private EffectAction [f args]
   base/Effect
@@ -121,7 +116,7 @@
   (EffectAction. f args))
 
 (defn monitor-state [e f & args]
-  (base/MonitorState. e f args))
+  (base/->MonitorState e f args))
 
 (defrecord ^:private Mount [node f args])
 (defrecord ^:private Unmount [node f args])
@@ -158,4 +153,40 @@
 ;; TODO add a named class for make better use of reacl and react utils?
 ;; TODO: error boundary, getDerivedStateFromError now?.
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
+
+(defmacro defn-dynamic [name state args & body]
+  `(let [f# (fn [~state ~@args]
+              ~@body)]
+     (defn ~name [& args#]
+       (apply reacld.core/dynamic f# args#))))
+
+
+(defmacro def-dynamic [name state & body]
+  `(let [f# (fn [~state]
+              ~@body)]
+     (def ~name
+       (reacld.core/dynamic f#))))
+
+(defmacro defn-interactive [name state set-state args & body]
+  `(let [f# (fn [~state ~set-state ~@args]
+              ~@body)]
+     (defn ~name [& args#]
+       (apply reacld.core/interactive f# args#))))
+
+(defmacro def-interactive [name state set-state & body]
+  `(let [f# (fn [~state ~set-state]
+              ~@body)]
+     (def ~name
+       (reacld.core/interactive f#))))
+
+(defmacro defn-effect [name args & body]
+  `(let [eff# (fn ~args ~@body)]
+     (defn ~name [& args#]
+       (apply reacld.core/effect-action eff# args#))))
+
+(defmacro defn-subscription [name deliver! args & body]
+  ;; TODO: rename; 'external-source'? 'primitive'?
+  `(let [f# (fn [~deliver! ~@args] ~@body)]
+     (defn ~name [& args#]
+       (apply reacld.core/subscribe f# args#))))
 

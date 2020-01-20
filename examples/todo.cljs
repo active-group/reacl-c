@@ -1,5 +1,6 @@
 (ns examples.todo
   (:require [reacld.core :as r :include-macros true]
+            [reacld.browser :as browser]
             [reacld.dom :as dom]))
 
 (r/def-interactive checkbox checked set-checked
@@ -90,6 +91,6 @@
                          (js/console.log old "=>" new)
                          r/no-action))))
 
-(r/run (.getElementById js/document "app-todo")
+(browser/run (.getElementById js/document "app-todo")
   todo-app
   (TodosApp. 0 [(Todo. -1 "test" false)]))
