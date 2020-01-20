@@ -22,30 +22,29 @@
 (defrecord Submit [])
 (defrecord Reset [])
 
-(r/defn-dynamic add-item-form state [add-item]
-  ;; TODO: Make fns static
-  (-> (dom/form {:onsubmit (fn [e]
-                             (.preventDefault e)
-                             (->Submit))}
-                (-> textbox (r/focus :new-text))
-                (dom/button {:type "submit"} "Add"))
-      (r/map-actions (fn [a]
-                       (cond
-                         (instance? Submit a)
-                         (r/multi-action (add-item (:new-text state))
-                                         (->Reset))
+(let [mapper (fn [state a add-item]
+               (cond
+                 (instance? Submit a)
+                 (r/multi-action (add-item state)
+                                 (->Reset))
                         
-                         :else a)))
-      (r/handle-actions (fn [state a]
-                          (cond
-                            (instance? Reset a)
-                            (assoc state :new-text "")
+                 :else a))
+      handler (fn [state a]
+                (cond
+                  (instance? Reset a)
+                  ""
 
-                            :else r/pass-action)))))
-
-(defn add-item [add-item]
-  (-> (add-item-form add-item)
-      (r/hide-merged-state {:new-text ""})))
+                  :else r/pass-action))
+      submit (fn [e]
+               (.preventDefault e)
+               (->Submit))]
+  (defn add-item-form [add-item]
+    (r/isolate-state ""
+                     (-> (dom/form {:onsubmit submit}
+                                   textbox
+                                   (dom/button {:type "submit"} "Add"))
+                         (r/map-dynamic-actions mapper add-item)
+                         (r/handle-actions handler)))))
 
 (defn button [label action]
   ;; TODO: make callback static (active.clojure.function?)
@@ -70,11 +69,10 @@
 (defrecord AddItem [text])
 
 (def todo-app
-  (-> (dom/div {}
-               (dom/h3 "TODO")
-               (-> (item-list ->DeleteItem)
-                   (r/focus :todos))
-               (add-item ->AddItem))
+  (-> (r/fragment (dom/h3 "TODO")
+                  (-> (item-list ->DeleteItem)
+                      (r/focus :todos))
+                  (add-item-form ->AddItem))
       (r/handle-actions (fn [state action]
                           (condp instance? action
                             DeleteItem
