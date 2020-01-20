@@ -1,7 +1,6 @@
 (ns reacld.core
   (:require [reacld.impl :as impl]
-            [reacld.base :as base]
-            [reacl2.dom :as rdom]))
+            [reacld.base :as base]))
 
 (defn run [dom e initial-state] ;; TODO: move to reacl/react namespace?
   (impl/run dom e initial-state))
@@ -36,13 +35,12 @@
           [attrs events] (split-events attrs_)]
       (base/Dom. f attrs events children))))
 
-;; TODO: move refs to rdom to impl...?
-(def div (dom rdom/div))
-(def input (dom rdom/input))
-(def form (dom rdom/form))
-(def button (dom rdom/button))
-(def h3 (dom rdom/h3))
-(def fragment (dom rdom/fragment))
+(def div (dom "div"))
+(def input (dom "input"))
+(def form (dom "form"))
+(def button (dom "button"))
+(def h3 (dom "h3"))
+(def fragment (dom "fragment"))
 ;; TODO: rest of dom; other namespace?
 
 (defn dynamic [f & args]

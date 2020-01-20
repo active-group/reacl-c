@@ -11,8 +11,7 @@
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
 
-;; TODO: make these Reacl specific?
-(defrecord Dom [f attrs events children] E)
+(defrecord Dom [type attrs events children] E)
 (defrecord Keyed [e key] E)
 
 (defprotocol Effect

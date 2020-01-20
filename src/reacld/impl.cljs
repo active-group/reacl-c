@@ -63,7 +63,7 @@
 
 (defrecord ^:private Event [f ev])
 
-(reacl/defclass dom+ this [dom-f attrs events children]
+(reacl/defclass dom+ this [type attrs events children]
   handle-message
   (fn [msg]
     (cond
@@ -83,19 +83,19 @@
                                       (reacl/send-message! this (Event. v ev)))])
                                events))
         r-attrs (merge attrs r-events)]
-    (apply dom-f r-attrs children)))
+    (apply rdom/element type r-attrs children)))
 
-(defn dom [binding dom-f attrs events children]
+(defn dom [binding type attrs events children]
   ;; optimize for dom element without event handlers:
   (let [r-children (map (partial instantiate-child binding) children)]
     (if (not-empty events)
-      (dom+ dom-f attrs events r-children)
-      (apply dom-f attrs r-children))))
+      (dom+ type attrs events r-children)
+      (apply rdom/element type attrs r-children))))
 
 (extend-type base/Dom
   IReacl
-  (-instantiate-reacl [{f :f attrs :attrs events :events children :children} binding]
-    (apply dom binding f attrs events children)))
+  (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
+    (dom binding type attrs events children)))
 
 (defn keyed [binding e key]
   (-> (instantiate binding e)
