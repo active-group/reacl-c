@@ -153,13 +153,16 @@
 ;; TODO add a named class for make better use of reacl and react utils?
 ;; TODO: error boundary, getDerivedStateFromError now?.
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
+;; TODO: global events, like body onload?
+
+;; TODO: validate-state
 
 (defmacro defn-dynamic [name state args & body]
   `(let [f# (fn [~state ~@args]
               ~@body)]
+     ;; TODO: create fn with the correct arity.
      (defn ~name [& args#]
        (apply reacld.core/dynamic f# args#))))
-
 
 (defmacro def-dynamic [name state & body]
   `(let [f# (fn [~state]
@@ -170,6 +173,7 @@
 (defmacro defn-interactive [name state set-state args & body]
   `(let [f# (fn [~state ~set-state ~@args]
               ~@body)]
+     ;; TODO: create fn with the correct arity.
      (defn ~name [& args#]
        (apply reacld.core/interactive f# args#))))
 
@@ -181,12 +185,14 @@
 
 (defmacro defn-effect [name args & body]
   `(let [eff# (fn ~args ~@body)]
+     ;; TODO: create fn with the correct arity.
      (defn ~name [& args#]
        (apply reacld.core/effect-action eff# args#))))
 
 (defmacro defn-subscription [name deliver! args & body]
   ;; TODO: rename; 'external-source'? 'primitive'?
   `(let [f# (fn [~deliver! ~@args] ~@body)]
+     ;; TODO: create fn with the correct arity.
      (defn ~name [& args#]
        (apply reacld.core/subscribe f# args#))))
 
