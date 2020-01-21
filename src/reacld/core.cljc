@@ -146,7 +146,7 @@ a change."}  merge-lens
      [(id-merge s1 (select-keys ns (set/difference k1 k2)))
       (id-merge s2 (select-keys ns k2))]))))
 
-(defn- local-state [e lens initial]
+(defn- local-state [e initial]
   (base/->LocalState e initial))
 
 (defn add-state
