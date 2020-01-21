@@ -62,6 +62,13 @@
                           initial-state
                           e))
 
+(defn run-embedded
+  "Return a Reacl component for the given element and state binding,
+  to use it in another Reacl application."
+  [binding e]
+  ;; TODO: really include toplevel effects?? would make this equivalent to instantiate.
+  (instantiate binding (lift toplevel e)))
+
 (defrecord ^:private EventMessage [ev])
 
 (defn- find-event-handler [ev events]
