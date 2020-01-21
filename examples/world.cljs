@@ -31,7 +31,7 @@
     (instance? Hide a) false
     :else a))
 
-(r/def-dynamic world-app show? []
+(r/def-dynamic world-app show?
   (-> (if show?
         (dom/div (dom/button {:onclick ->Hide} "Hide")
                  clock
