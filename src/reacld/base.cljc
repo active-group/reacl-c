@@ -1,4 +1,4 @@
-(ns reacld.base)
+(ns ^:no-doc reacld.base)
 
 (defprotocol E)
 

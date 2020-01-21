@@ -1,4 +1,4 @@
-(ns examples.todo
+(ns ^:no-doc examples.todo
   (:require [reacld.core :as r :include-macros true]
             [reacld.browser :as browser]
             [reacld.dom :as dom]))
