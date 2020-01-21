@@ -6,7 +6,7 @@
 
 (defrecord ^:no-doc Element [type attrs events children] base/E)
 
-(defn dom-attributes? [v]
+(defn ^:no-doc dom-attributes? [v]
   (and (map? v)
        (not (satisfies? base/E v))))
 

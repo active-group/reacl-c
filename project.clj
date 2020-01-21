@@ -11,7 +11,7 @@
                  ;;[cljsjs/react-dom "16.4.1-0" :exclusions [cljsjs/react]]
                  ]
 
-  :plugins [[lein-codox "0.10.5"]
+  :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
 
   :profiles {:dev {:dependencies [[codox-theme-rdash "0.1.2"]
@@ -26,7 +26,7 @@
   ;; open http://localhost:9500/figwheel-extra-main/todo and others for the examples
   :aliases {"fig" ["trampoline" "with-profile" "+dev,+test" "run" "-m" "figwheel.main" "-b" "dev" "-r"]}
 
-  :codox {:language :clojurescript
+  :codox {:language :clojure ;; :clojurescript
           :metadata {:doc/format :markdown}
           :themes [:rdash]
           :src-dir-uri "http://github.com/active-group/reacld/blob/master/"
