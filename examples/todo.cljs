@@ -76,10 +76,15 @@
                                                                       %)))))
                             
                            (r/return :action action))))
+      #_(r/handle-message (fn [state msg]
+                          (println "Hallo" msg "!")
+                          (r/return)))
       #_(r/monitor-state (fn [old new]
                            (js/console.log old "=>" new)
                            nil))))
 
-(browser/run (.getElementById js/document "app-todo")
-  todo-app
-  (TodosApp. 0 [(Todo. -1 "test" false)]))
+(let [app (browser/run (.getElementById js/document "app-todo")
+            todo-app
+            (TodosApp. 0 [(Todo. -1 "test" false)]))]
+  #_(r/send-message! app "Welt"))
+

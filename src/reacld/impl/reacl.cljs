@@ -35,9 +35,15 @@
 
 (defrecord ^:private ActionMessage [action])
 
+(defn- pass-message [child msg]
+  (reacl/return :message [(reacl/get-dom child) msg]))
+
 (reacl/defclass ^:private toplevel this state [e]
+  refs [child]
+  
   render
   (-> (instantiate (reacl/bind this) e)
+      (reacl/refer child)
       (reacl/action-to-message this ->ActionMessage))
 
   handle-message
@@ -51,16 +57,21 @@
 
           :else (throw (ex-info "Unhandled toplevel action" {:value action})))) 
 
-      :else (throw (ex-info "Unhandled toplevel message" {:value msg})))))
+      :else (pass-message child msg))))
+
+(defrecord ^:private ReaclApplication [comp]
+  base/Application  
+  (-send-message! [this msg]
+    (reacl/send-message! comp msg)))
 
 (defn run
   "Run and mount the given element `e` in the native dom element
   `dom`, with the given initial state."
   [dom e initial-state]
-  (reacl/render-component dom
-                          toplevel
-                          initial-state
-                          e))
+  (ReaclApplication. (reacl/render-component dom
+                                             toplevel
+                                             initial-state
+                                             e)))
 
 (defn run-embedded
   "Return a Reacl component for the given element and state binding,
@@ -68,6 +79,36 @@
   [binding e]
   ;; TODO: really include toplevel effects?? would make this equivalent to instantiate.
   (instantiate binding (lift toplevel e)))
+
+(defn- transform-return [r child]
+  ;; a base/Returned value to a reacl/return value.
+  (assert (instance? base/Returned r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
+  (apply reacl/merge-returned
+         (if-let [st (:opt-state r)]
+           (reacl/return :app-state (first st))
+           (reacl/return))
+         (concat (map (fn [a] (reacl/return :action a))
+                      (:actions r))
+                 (map (fn [a] (reacl/return :message [child a]))
+                      (:messages r)))))
+
+
+(reacl/defclass ^:private handle-message this state [e f & args]
+  refs [child]
+
+  handle-message
+  (fn [msg]
+    (transform-return (apply f state msg args)
+                      (reacl/get-dom child)))
+
+  render
+  (-> (instantiate (reacl/bind this) e)
+      (reacl/refer child)))
+
+(extend-type base/HandleMessage
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply handle-message binding e f args)))
 
 (defrecord ^:private EventMessage [ev])
 
@@ -90,9 +131,10 @@
         (if-let [a (f ev)]
           (reacl/return :action a)
           (reacl/return)))
-      
-      ;; TODO else messages to children?
-      )))
+
+      :else
+      ;; TODO else messages to (only named/refered?) children?
+      (throw (ex-info "Sending messages to a dom element not implemented yet." {:value msg})))))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -136,7 +178,11 @@
   (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
     (dom binding type attrs events children)))
 
-(reacl/defclass ^:private fragment this state [children]
+(reacl/defclass ^:private fragment this state [children] ;; TODO: remove these from runtime (resolve earlier?)
+  handle-message
+  (fn [msg]
+    (throw (ex-info "Sending messages to a fragmentelement not implemented yet." {:value msg})))
+  
   render (apply rdom/fragment (map (partial instantiate (reacl/bind this))
                                    children)))
 
@@ -155,9 +201,15 @@
     (keyed binding e key)))
 
 (reacl/defclass ^:private with-state this state [f & args]
-  ;; TODO messages?
+  refs [child]
+  
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
+  
   render
-  (instantiate (reacl/bind this) (apply f state args)))
+  (-> (instantiate (reacl/bind this) (apply f state args))
+      (reacl/refer child)))
 
 (extend-type base/WithState
   IReacl
@@ -172,56 +224,33 @@
   (-instantiate-reacl [{e :e lens :lens} binding]
     (focus binding e lens)))
 
-(reacl/defclass ^:private handle-action+ this state [e f & args]
+(reacl/defclass ^:private handle-action this state [e f & args]
   local-state [action-to-message
                (fn [_ action]
                  (reacl/return :message [this (ActionMessage. action)]))]
 
+  refs [child]
+  
   handle-message
   (fn [msg]
     (cond
       (instance? ActionMessage msg)
       (do
         ;; makes up a nice trace: (println "AM:" (:action msg) "=>" (apply f state (:action msg) args))
-        (apply f state (:action msg) args))))
+        (transform-return (apply f state (:action msg) args)
+                          (reacl/get-dom child)))
+      :else
+      (pass-message child msg)))
   
   render
   (-> (instantiate (reacl/bind this) e)
+      (reacl/refer child)
       (reacl/reduce-action action-to-message)))
-
-(defn- action-handler [app-state action f args]
-  (let [r (apply f app-state action args)]
-    (if (instance? base/PassAction r)
-      (reacl/return :action action)
-      (reacl/return :app-state r))))
-
-(defn- handle-action [binding e f & args]
-  (handle-action+ binding e action-handler f args))
 
 (extend-type base/HandleAction
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
     (apply handle-action binding e f args)))
-
-(defn- action->return [a]
-  (reduce reacl/merge-returned
-          (map #(reacl/return :action %)
-               (if (instance? base/MultiAction a)
-                 (:actions a)
-                 [a]))))
-
-(defn- action-mapper [app-state action f args]
-  (let [r (apply f app-state action args)]
-    (action->return r)))
-
-(defn- map-action [binding e f & args]
-  (-> (instantiate binding e)
-      (reacl/reduce-action action-mapper f args)))
-
-(extend-type base/MapAction
-  IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply map-action binding e f args)))
 
 (defrecord ^:private NewIsoState [state])
 
@@ -233,11 +262,14 @@
 
 (reacl/defclass ^:private local-state this astate [e initial]
   local-state [lstate initial]
+
+  refs [child]
   
   render
-  (instantiate (reacl/use-reaction [astate lstate]
-                                   (reacl/reaction this ->NewIsoState))
-               e)
+  (-> (instantiate (reacl/use-reaction [astate lstate]
+                                       (reacl/reaction this ->NewIsoState))
+                   e)
+      (reacl/refer child))
   
   handle-message
   (fn [msg]
@@ -245,7 +277,9 @@
       (instance? NewIsoState msg)
       (let [{[new-app-state new-local-state] :state} msg]
         (reacl/return :app-state (id-state astate new-app-state)
-                      :local-state (id-state lstate new-local-state))))))
+                      :local-state (id-state lstate new-local-state)))
+      :else
+      (pass-message child msg))))
 
 (extend-type base/LocalState
   IReacl
@@ -258,14 +292,21 @@
 (reacl/defclass ^:private with-async-action this state [f & args]
   local-state [deliver! (fn [action]
                           (reacl/send-message! this (AsyncAction. action)))]
+
+  refs [child]
+  
   render
-  (instantiate (reacl/bind this) (apply f deliver! args))
+  (-> (instantiate (reacl/bind this) (apply f deliver! args))
+      (reacl/refer child))
 
   handle-message
   (fn [msg]
     (cond
       (instance? AsyncAction msg)
-      (reacl/return :action (:v msg)))))
+      (reacl/return :action (:v msg))
+      
+      :else
+      (pass-message child msg))))
 
 (extend-type base/WithAsyncActions
   IReacl
@@ -273,15 +314,19 @@
     (apply with-async-action binding f args)))
 
 (reacl/defclass ^:private when-mounted this state [e f & args]
-  refs [elem]
+  refs [child]
+
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
   
   component-did-mount
   (fn []
     ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
-    (reacl/return :action (apply f (reacl/get-dom elem) args)))
+    (reacl/return :action (apply f (reacl/get-dom child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
-             (reacl/refer elem)))
+             (reacl/refer child)))
 
 (extend-type base/WhenMounted
   IReacl
@@ -289,15 +334,19 @@
     (apply when-mounted binding e f args)))
 
 (reacl/defclass ^:private when-unmounting this state [e f & args]
-  refs [elem]
+  refs [child]
+
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
 
   component-will-unmount
   (fn []
     ;; FIXME: see mount.
-    (reacl/return :action (apply f (reacl/get-dom elem) args)))
+    (reacl/return :action (apply f (reacl/get-dom child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
-             (reacl/refer elem)))
+             (reacl/refer child)))
 
 (extend-type base/WhenUnmounting
   IReacl
@@ -305,16 +354,20 @@
     (apply when-unmounting binding e f args)))
 
 (reacl/defclass ^:private after-update this state [e f & args]
-  refs [elem]
+  refs [child]
+
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
   
   component-did-update
   (fn [prev-app-state prev-local-state prev-e prev-f & prev-args]
     ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
     ;; TODO: pass old/new state to f?
-    (reacl/return :action (apply f (reacl/get-dom elem) args)))
+    (reacl/return :action (apply f (reacl/get-dom child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
-             (reacl/refer elem)))
+             (reacl/refer child)))
 
 (extend-type base/AfterUpdate
   IReacl
@@ -325,16 +378,23 @@
 
 ;; TODO: monitor that state change desire, or use 'after-update' for this?
 (reacl/defclass ^:private monitor-state this state [e f & args]
+  refs [child]
+  
   render
-  (instantiate (reacl/use-reaction state (reacl/reaction this ->MonitorMessage)) e)
+  (-> (instantiate (reacl/use-reaction state (reacl/reaction this ->MonitorMessage)) e)
+      (reacl/refer child))
 
   handle-message
   (fn [msg]
     (cond
       (instance? MonitorMessage msg)
       (let [new-state (:new-state msg)]
-        (reacl/merge-returned (action->return (apply f state new-state args))
-                              (reacl/return :app-state new-state))))))
+        (reacl/merge-returned (if-let [a (apply f state new-state args)]
+                                (reacl/return :action a)
+                                (reacl/return))
+                              (reacl/return :app-state new-state)))
+      :else
+      (pass-message child msg))))
 
 (extend-type base/MonitorState
   IReacl

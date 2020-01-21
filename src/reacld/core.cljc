@@ -25,18 +25,26 @@
   (assert (even? (count args)) "Expected an even number of arguments.")
   (loop [args (seq args)
          state nil
-         actions (transient [])]
+         actions (transient [])
+         messages (transient [])]
     (if (empty? args)
-      (base/->Returned state (persistent! actions))
+      (base/->Returned state (persistent! actions) (persistent! messages))
       (let [arg (second args)
             nxt (nnext args)]
         (case (first args)
           (:state) (do (when-not (nil? state)
                          (assert false (str "A :state argument to return must be specified only once.")))
-                       (recur nxt [arg] actions))
-          (:action) (recur nxt state (conj! actions arg))
-          (do (assert (contains? #{:state :action} (first args)) (str "Invalid argument " (first args) " to return."))
-              (recur nxt state actions)))))))
+                       (recur nxt [arg] actions messages))
+          (:action) (recur nxt state (conj! actions arg) messages)
+          (:message) (recur nxt state actions (conj! messages arg))
+          (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
+              (recur nxt state actions messages)))))))
+
+(defn send-message! [app msg]
+  (base/-send-message! app msg))
+
+(defn handle-message [e f & args]
+  (base/->HandleMessage e f args))
 
 (defn handle-action
   "Handles actions emitted by e, by evaluating `(f state action &

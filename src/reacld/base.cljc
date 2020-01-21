@@ -12,6 +12,7 @@
 (defrecord AfterUpdate [e f args] E)
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
+(defrecord HandleMessage [e f args] E)
 
 (defrecord Keyed [e key] E)
 (defrecord Fragment [children] E)
@@ -19,4 +20,7 @@
 (defprotocol Effect
   (-run-effect! [this]))
 
-(defrecord Returned [opt-state actions])
+(defrecord Returned [opt-state actions messages])
+
+(defprotocol Application
+  (-send-message! [this msg]))
