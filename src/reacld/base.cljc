@@ -17,9 +17,6 @@
 (defrecord Keyed [e key] E)
 (defrecord Fragment [children] E)
 
-(defprotocol Effect
-  (-run-effect! [this]))
-
 (defrecord Returned [opt-state actions messages])
 
 (defprotocol Application

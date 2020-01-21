@@ -51,11 +51,7 @@
     (cond
       (instance? ActionMessage msg)
       (let [action (:action msg)]
-        (cond
-          (satisfies? base/Effect action) (do (base/-run-effect! action)
-                                              (reacl/return))
-
-          :else (throw (ex-info "Unhandled toplevel action" {:value action})))) 
+        (throw (ex-info "Unhandled toplevel action." {:value action}))) 
 
       :else (pass-message child msg))))
 
@@ -72,13 +68,6 @@
                                              toplevel
                                              initial-state
                                              e)))
-
-(defn run-embedded
-  "Return a Reacl component for the given element and state binding,
-  to use it in another Reacl application."
-  [binding e]
-  ;; TODO: really include toplevel effects?? would make this equivalent to instantiate.
-  (instantiate binding (lift toplevel e)))
 
 (defn- transform-return [r child]
   ;; a base/Returned value to a reacl/return value.

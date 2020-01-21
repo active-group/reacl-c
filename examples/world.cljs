@@ -19,8 +19,14 @@
                                 (r/handle-action (fn [state date] (r/return :state date))))
                             show-date)))
 
-(r/defn-effect reload [force?]
-  (.reload (.-location js/window) force?))
+(defrecord Effect [f args])
+
+(defn reload [force?]
+  (r/return :action (Effect. #(.reload (.-location js/window) force?) nil)))
+
+(defn effects [_ {f :f args :args}]
+  (apply f args)
+  (r/return))
 
 (defrecord Show [_])
 (defrecord Hide [_])
@@ -37,7 +43,8 @@
                  clock
                  (dom/button {:onclick (constantly (reload true))} "Reload"))
         (dom/button {:onclick ->Show} "Show"))
-      (r/handle-action show-hide)))
+      (r/handle-action show-hide)
+      (r/handle-action effects)))
 
 (browser/run (.getElementById js/document "app-world")
   world-app

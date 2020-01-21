@@ -124,13 +124,6 @@
 (defn after-update [e f & args]
   (base/->AfterUpdate e f args))
 
-(defrecord ^:private EffectAction [f args]
-  base/Effect
-  (-run-effect! [this] (apply f args)))
-
-(defn effect-action [f & args]
-  (EffectAction. f args))
-
 (defn monitor-state [e f & args]
   (base/->MonitorState e f args))
 
@@ -206,12 +199,6 @@
               ~@body)]
      (def ~name
        (reacld.core/interactive f#))))
-
-(defmacro defn-effect [name args & body]
-  `(let [eff# (fn ~args ~@body)]
-     ;; TODO: create fn with the correct arity.
-     (defn ~name [& args#]
-       (apply reacld.core/effect-action eff# args#))))
 
 (defmacro defn-subscription [name deliver! args & body]
   ;; TODO: rename; 'external-source'? 'primitive'?
