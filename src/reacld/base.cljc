@@ -5,7 +5,6 @@
 (defrecord WithState [f args] E)
 (defrecord Focus [e lens] E)
 (defrecord HandleAction [e f args] E)
-(defrecord MapAction [e f args] E)
 (defrecord LocalState [e initial] E)
 ;; TODO: rename did-mount, will-unmount and did-update ?
 (defrecord WhenMounted [e f args] E)
@@ -20,5 +19,4 @@
 (defprotocol Effect
   (-run-effect! [this]))
 
-(defrecord PassAction [])
-(defrecord MultiAction [actions])
+(defrecord Returned [opt-state actions])

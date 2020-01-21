@@ -21,28 +21,35 @@
     e
     (base/->Focus e lens)))
 
-(def pass-action (base/->PassAction))
+(defn return [& args]
+  (assert (even? (count args)) "Expected an even number of arguments.")
+  (loop [args (seq args)
+         state nil
+         actions (transient [])]
+    (if (empty? args)
+      (base/->Returned state (persistent! actions))
+      (let [arg (second args)
+            nxt (nnext args)]
+        (case (first args)
+          (:state) (do (when-not (nil? state)
+                         (assert false (str "A :state argument to return must be specified only once.")))
+                       (recur nxt [arg] actions))
+          (:action) (recur nxt state (conj! actions arg))
+          (do (assert (contains? #{:state :action} (first args)) (str "Invalid argument " (first args) " to return."))
+              (recur nxt state actions)))))))
 
-(defn multi-action [& actions]
-  (base/->MultiAction actions))
-
-(def no-action (multi-action))
-
-(defn handle-actions
-  "Handle all action emitted by e into a new state which must be
-  returned by `(f state action & args)`."
+(defn handle-action
+  "Handles actions emitted by e, by evaluating `(f state action &
+  args)` for each of them. That must return the result of
+  calling [[return]] with either a new state, and maybe one or more
+  other actions (or the given action unchanged). "
   [e f & args]
   (base/->HandleAction e f args))
 
-(let [h (fn [app-state action pred f args]
-          (if (pred action)
-            (apply f app-state action args)
-            pass-action))]
-  (defn handle-action [e pred f & args]
-    (handle-actions e h pred f args)))
-
-(defn map-dynamic-actions [e f & args]
-  (base/->MapAction e f args))
+(let [h (fn [st a f args]
+          (return :action (apply f st a args)))]
+  (defn map-dynamic-actions [e f & args]
+    (handle-action h e f args)))
 
 (let [h (fn [_ a f args] (apply f a args))]
   (defn map-actions [e f & args]
@@ -50,14 +57,15 @@
 
 (defrecord ^:private SetStateAction [new-state])
 
-(let [set (fn [state {new-state :new-state}]
-            new-state)
-      set? #(and (instance? SetStateAction %) %)]
+(let [set (fn [state a]
+            (if (instance? SetStateAction a)
+              (return :state (:new-state a))
+              (return :action a)))]
   (defn with-state-setter [f & args]
     ;; TODO 'args' not really neeeded, if f is called immediately.
     ;; TODO: must that action be unique to 'this state'? Could it interfere with others? or use a message then?
     (-> (apply f ->SetStateAction args)
-        (handle-action set? set))))
+        (handle-action set))))
 
 (let [h (fn [set-state f args]
           (apply dynamic f set-state args))]
@@ -121,21 +129,21 @@
 (defrecord ^:private Mount [node f args])
 (defrecord ^:private Unmount [node f args])
 
-(let [on-mount (fn [[state mstate] a]
-                 (if (instance? Mount a)
-                   [state (apply (:f a) (:node a) (:args a))]
-                   pass-action))
-      on-unmount (fn [[_ mstate] a]
-                   (if (instance? Unmount a)
-                     (do (apply (:f a) (:node a) mstate (:args a))
-                         no-action)
-                     a))]
+(let [handle (fn [[state mstate] a]
+               (condp instance? a
+                 Mount
+                 (return :state [state (apply (:f a) (:node a) (:args a))])
+                 
+                 Unmount
+                 (do (apply (:f a) (:node a) mstate (:args a))
+                     (return))
+
+                 :else (return :action a)))]
   (defn while-mounted [e mount! unmount! & args]
     (-> e
         (when-mounted ->Mount mount! args)
         (when-unmounting ->Unmount unmount! args)
-        (handle-actions on-mount)
-        (map-dynamic-actions on-unmount)
+        (handle-action handle)
         (hide-state nil id-lens))))
 
 (letfn [(mount [_ deliver! f args]
@@ -155,7 +163,15 @@
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
 ;; TODO: global events, like body onload?
 
-;; TODO: validate-state
+;; TODO
+#_(defn validate-state [e validator!]
+  (-> (dynamic (fn [state]
+                 (validator! state) ;; wrong state passed down!
+                 e))
+      (monitor-state (fn [old new]
+                       ;; wrong state passed up!
+                       (validator! new)
+                       nil))))
 
 (defmacro defn-dynamic [name state args & body]
   `(let [f# (fn [~state ~@args]

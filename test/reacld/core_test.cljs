@@ -15,12 +15,9 @@
       (is (= (r/dynamic f) (r/dynamic f)))))
   (testing "focus"
     (is (= (r/focus (dom/div) :a) (r/focus (dom/div) :a))))
-  (testing "handle-actions"
-    (let [f (fn [a])]
-      (is (= (r/handle-actions (dom/div) f) (r/handle-actions (dom/div) f)))))
-  (testing "map-actions"
-    (let [f (fn [a] a)]
-      (is (= (r/map-actions (dom/div) f) (r/map-actions (dom/div) f)))))
+  (testing "handle-action"
+    (let [f (fn [st a])]
+      (is (= (r/handle-action (dom/div) f) (r/handle-action (dom/div) f)))))
   (testing "interactive"
     (let [f (fn [a b _] (dom/div a b))]
       (is (= (r/interactive f :a) (r/interactive f :a)))))

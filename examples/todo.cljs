@@ -21,30 +21,18 @@
 
 (defrecord Submit [])
 (defrecord Reset [])
-
-(let [mapper (fn [state a add-item]
-               (cond
-                 (instance? Submit a)
-                 (r/multi-action (add-item state)
-                                 (->Reset))
-                        
-                 :else a))
-      handler (fn [state a]
-                (cond
-                  (instance? Reset a)
-                  ""
-
-                  :else r/pass-action))
-      submit (fn [e]
-               (.preventDefault e)
-               (->Submit))]
-  (defn add-item-form [add-item]
-    (r/isolate-state ""
-                     (-> (dom/form {:onsubmit submit}
-                                   textbox
-                                   (dom/button {:type "submit"} "Add"))
-                         (r/map-dynamic-actions mapper add-item)
-                         (r/handle-actions handler)))))
+(defn add-item-form [add-item]
+  (r/isolate-state ""
+                   (-> (dom/form {:onsubmit (fn [e]
+                                              (.preventDefault e)
+                                              (->Submit))}
+                                 textbox
+                                 (dom/button {:type "submit"} "Add"))
+                       (r/handle-action (fn [state a]
+                                          (condp instance? a
+                                            Submit (r/return :state ""
+                                                             :action (add-item state))
+                                            (r/return :action a)))))))
 
 (defn button [label action]
   ;; TODO: make callback static (active.clojure.function?)
@@ -73,21 +61,24 @@
                   (-> (item-list ->DeleteItem)
                       (r/focus :todos))
                   (add-item-form ->AddItem))
-      (r/handle-actions (fn [state action]
-                          (condp instance? action
-                            DeleteItem
-                            (-> state
-                                (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
-                                                             %))))
-                            AddItem
-                            (-> state
-                                (update :todos conj (->Todo (:next-id state) (:text action) false))
-                                (update :next-id inc))
+      (r/handle-action (fn [state action]
+                         (condp instance? action
+                           AddItem
+                           (r/return :state
+                                     (-> state
+                                         (update :todos conj (->Todo (:next-id state) (:text action) false))
+                                         (update :next-id inc)))
                             
-                            r/pass-action)))
-      (r/monitor-state (fn [old new]
-                         (js/console.log old "=>" new)
-                         r/no-action))))
+                           DeleteItem
+                           (r/return :state
+                                     (-> state
+                                         (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
+                                                                      %)))))
+                            
+                           (r/return :action action))))
+      #_(r/monitor-state (fn [old new]
+                           (js/console.log old "=>" new)
+                           nil))))
 
 (browser/run (.getElementById js/document "app-todo")
   todo-app

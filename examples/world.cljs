@@ -16,7 +16,7 @@
 (def clock
   (r/isolate-state (js/Date.)
                    (dom/div (-> (interval-timer 1000)
-                                (r/handle-actions (fn [state date] date)))
+                                (r/handle-action (fn [state date] (r/return :state date))))
                             show-date)))
 
 (r/defn-effect reload [force?]
@@ -27,8 +27,8 @@
 
 (defn show-hide [_ a]
   (cond
-    (instance? Show a) true
-    (instance? Hide a) false
+    (instance? Show a) (r/return :state true)
+    (instance? Hide a) (r/return :state false)
     :else a))
 
 (r/def-dynamic world-app show?
@@ -37,7 +37,7 @@
                  clock
                  (dom/button {:onclick (constantly (reload true))} "Reload"))
         (dom/button {:onclick ->Show} "Show"))
-      (r/handle-actions show-hide)))
+      (r/handle-action show-hide)))
 
 (browser/run (.getElementById js/document "app-world")
   world-app
