@@ -2,7 +2,8 @@
   (:require [reacld.base :as base]
             [reacld.dom :as dom]
             [reacl2.core :as reacl :include-macros true]
-            [reacl2.dom :as rdom]))
+            [reacl2.dom :as rdom]
+            [clojure.string :as str]))
 
 #_(defn render [binding class & args]
   (if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
@@ -60,39 +61,55 @@
                           initial-state
                           e))
 
-(defrecord ^:private Event [f ev])
+(defrecord ^:private EventMessage [ev])
 
-(defn- dom-message-to-action [msg]
+(defn- find-event-handler [ev events]
+  (let [en (str/lower-case (.-type ev))]
+    ;; OPT: could be done a little faster - try a lookup, or prepare a different map. But it can be 'onchange' and 'onChange'.
+    (some (fn [[n f]]
+            ;; "change" = :onChange ?
+            ;; FIXME: are things like onChangeCapture possible? how to handle them?
+            (and (= en (str/lower-case (subs (name n) 2)))
+                 f))
+          events)))
+
+(defn- dom-message-to-action [events]
+  (fn [msg]
     (cond
-      (instance? Event msg)
-      (let [{f :f ev :ev} msg]
+      (instance? EventMessage msg)
+      (let [{ev :ev} msg
+            f (find-event-handler ev events)]
         (if-let [a (f ev)]
           (reacl/return :action a)
           (reacl/return)))
       
       ;; TODO else messages to children?
-      ))
+      )))
 
-(defn- merge-dom-attrs [target attrs events]
+(defn- dom-event-handler [target]
+  (fn [ev]
+    (reacl/send-message! target (EventMessage. ev))))
+
+(defn- merge-dom-attrs [target attrs events handler]
   (let [r-events (into {} (map (fn [[k v]]
-                                 [k (fn [ev]
-                                      ;; TODO: make fixed via cache (or local state)
-                                      (reacl/send-message! target (Event. v ev)))])
+                                 [k handler])
                                events))]
     (merge attrs r-events)))
 
 (reacl/defclass dom++ this state [type attrs events children]
-  handle-message dom-message-to-action
+  local-state [handler (dom-event-handler this)]
+  handle-message (dom-message-to-action events)
   
   render
-  (apply rdom/element type (merge-dom-attrs this attrs events)
+  (apply rdom/element type (merge-dom-attrs this attrs events handler)
          (map (partial instantiate (reacl/bind this)) children)))
 
 (reacl/defclass dom+ this [type attrs events]
-  handle-message dom-message-to-action
+  local-state [handler (dom-event-handler this)]
+  handle-message (dom-message-to-action events)
   
   render
-  (rdom/element type (merge-dom-attrs this attrs events)))
+  (rdom/element type (merge-dom-attrs this attrs events handler)))
 
 (defn dom- [binding type attrs children]
   (apply rdom/element type attrs (map (partial instantiate-child binding) children)))
