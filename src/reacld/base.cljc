@@ -14,6 +14,7 @@
 (defrecord MonitorState [e f args] E)
 (defrecord HandleMessage [e f args] E)
 (defrecord Named [e name] E)
+(defrecord ErrorBoundary [e f args] E)
 
 (defrecord Keyed [e key] E)
 (defrecord Fragment [children] E)

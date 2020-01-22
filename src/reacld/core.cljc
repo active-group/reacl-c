@@ -31,6 +31,16 @@ shoved values."} id-lens
   (fn ([v] v)
     ([_ v] v)))
 
+(def ^{:doc "A lens over the first element of a vector."} first-lens
+  (fn
+    ([[a _]] a)
+    ([[_ b] a] [a b])))
+
+(def ^{:doc "A lens over the second element of a vector."} second-lens
+  (fn
+    ([[_ b]] b)
+    ([[a _] b] [a b])))
+
 (defn focus
   "Restricts the state of `e` to a part of the state of the resulting
   element, or translates it into a different form, via the given
@@ -273,11 +283,43 @@ a change."}  merge-lens
     [f & args]
     (with-async-actions stu f args)))
 
-;; TODO: error boundary, getDerivedStateFromError now?.
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
+;; TODO: an 'effect queue' utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handle its result)
 
-;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)
+(defn error-boundary
+  "Creates an error boundary around the element `e`. When the
+  rendering of `e` throws an exception, then `(f error & args)` is
+  evaluated, and must result in an action which is then emitted from
+  the resulting element. Note that exceptions in functions
+  like [[handle-action]], are not catched by this. See [[try-catch]]
+  for a higher level construct to handle errors."
+  [e f & args]
+  (base/->ErrorBoundary e f args))
 
+(defrecord ^:private ErrorAction [error])
+
+(let [set-error (fn [[state _] act]
+                  (condp instance? act
+                    ErrorAction (return :state [state (:error act)])
+                    (return :action act)))
+      dyn (fn [[state error] try-e catch-e]
+            (if (some? error)
+              catch-e
+              (-> (focus try-e first-lens)
+                  (error-boundary ->ErrorAction)
+                  (handle-action set-error))))]
+  (defn try-catch
+    "Returns an element that looks an works the same as the element
+  `try-e`, until an error is thrown during its rendering. After that
+  `catch-e` is rendered instead, with a state of the combined outer
+  state and the error - `[state-of-e error]`. The element `catch-e`
+  will usually be interactive, for example, displaying the error (and
+  the relevant part of the state) to the user, and offer a button to reset the
+  error to `nil` and maybe fix the state, after which `try-e` is showed
+  again."
+    [try-e catch-e]
+    (-> (dynamic dyn try-e catch-e)
+        (hide-state nil id-lens))))
 
 (let [df (fn [state e validate!]
            ;; state passed down!

@@ -14,11 +14,19 @@
 (r/def-dynamic show-date date
   (.toLocaleTimeString date))
 
+(r/defn-interactive show-error state set-state [reset-value]
+  ;; change to (deliver! nil) to see try-catch in action.
+  (dom/div "An error occurred: " (pr-str (second state))
+           "with the state being: " (pr-str (first state))
+           " "
+           (dom/button {:onclick (constantly (set-state [reset-value nil]))} "Reset")))
+
 (def clock
   (r/isolate-state (js/Date.)
-                   (dom/div (-> (interval-timer 1000)
-                                (r/handle-action (fn [state date] (r/return :state date))))
-                            show-date)))
+                   (r/try-catch (dom/div (-> (interval-timer 1000)
+                                             (r/handle-action (fn [state date] (r/return :state date))))
+                                         show-date)
+                                (show-error (js/Date.)))))
 
 (defrecord Effect [f args])
 

@@ -404,3 +404,30 @@
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
     (apply monitor-state binding e f args)))
+
+(defn- fst-lens
+  ([[a _]] a)
+  ([[_ b] a] [a b]))
+
+(reacl/defclass ^:private error-boundary this state [e f & args]
+  
+  refs [child]
+  
+  handle-message (fn [msg] (pass-message child msg))
+  
+  render
+  (-> (instantiate (reacl/bind this) e)
+      (reacl/refer child))
+
+  component-did-catch
+  (fn [error info]
+    ;; Note: info is already deprecated in React, in the sense that
+    ;; 'getDerivedStateFromError' does not have it. It's also very
+    ;; implementation dependant, and less informative in our setup.
+    ;; Leave that our for now.
+    (reacl/return :action (apply f error args))))
+
+(extend-type base/ErrorBoundary
+  IReacl
+  (-instantiate-reacl [{e :e f :f args :args} binding]
+    (apply error-boundary binding e f args)))
