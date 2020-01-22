@@ -52,6 +52,7 @@
     (cond
       (instance? ActionMessage msg)
       (let [action (:action msg)]
+        ;; TODO: throw or warn only?
         (throw (ex-info "Unhandled toplevel action." {:value action}))) 
 
       :else (pass-message child msg))))
@@ -185,7 +186,7 @@
 (reacl/defclass ^:private fragment this state [children] ;; TODO: remove these from runtime (resolve earlier?)
   handle-message
   (fn [msg]
-    (throw (ex-info "Sending messages to a fragmentelement not implemented yet." {:value msg})))
+    (throw (ex-info "Sending messages to a fragment element not implemented yet." {:value msg})))
   
   render (apply rdom/fragment (map (partial instantiate (reacl/bind this))
                                    children)))

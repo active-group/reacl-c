@@ -126,22 +126,36 @@ If not `:state` option is used, the state of the element will not change.
     [e f & args]
     (map-dynamic-actions e h f args)))
 
-(defrecord ^:private SetStateAction [new-state])
+(defrecord ^:private SetStateAction [id new-state])
 
-(let [set (fn [state a]
-            (if (instance? SetStateAction a)
+(defrecord ^:private Partial1 [f args]
+  #?(:cljs IFn)
+  #?(:cljs (-invoke [this a1]
+                    (apply f (concat args (list a1)))))
+  #?(:clj clojure.lang.IFn)
+  #?(:clj (invoke [this a1]
+                  (apply f (concat args (list a1))))))
+
+(let [set (fn [state a id]
+            (if (and (instance? SetStateAction a)
+                     (= id (:id a)))
               (return :state (:new-state a))
               (return :action a)))]
-  (defn ^:no-doc with-state-setter [f & args]
-    ;; TODO 'args' not really neeeded, if f is called immediately.
-    ;; TODO: must that action be unique to 'this state'? Could it interfere with others? or use a message then?
-    (-> (apply f ->SetStateAction args)
-        (handle-action set))))
+  (defn ^:no-doc with-state-setter [id f & args]
+    ;; To prevent problems/enable nested interactive elements, in the sense that
+    ;; an inner element triggers an outer update, the action has to be
+    ;; to be unique to this. I don't find a general transparent
+    ;; solution, so we take an id as an argument to distinguish
+    ;; them. The interactive macros generate an id, which I think is
+    ;; save (you cannot nest 2 of the same interactive elements in the
+    ;; above mentioned way - or at least it is very difficult)
+    (-> (apply f (Partial1. ->SetStateAction [id]) args)
+        (handle-action set id))))
 
 (let [h (fn [set-state f args]
           (apply dynamic f set-state args))]
-  (defn interactive [f & args]
-    (with-state-setter h f args)))
+  (defn ^:no-doc interactive [id f & args]
+    (with-state-setter id h f args)))
 
 (defn named [e name]
   (base/->Named e name))
@@ -220,7 +234,6 @@ a change."}  merge-lens
   specific runtime representation of `e`, and which must return an
   action that is emitted by the resulting element."
   [e f & args]
-  ;; FIXME: allow all 'return's? add current state to the call to f?
   (base/->WhenMounted e f args))
 
 (defn when-unmounting
@@ -246,7 +259,7 @@ a change."}  merge-lens
   element. Note that this is only called when e changes its self 'by
   itself', not if the state was changes somewhere upwards in the
   element tree an is only passed down to the resulting element."
-  ;; TODO: all 'return'? document that only truthy values are emitted?
+  ;; TODO: document that only truthy values are emitted?
   [e f & args]
   (base/->MonitorState e f args))
 
@@ -423,15 +436,20 @@ a change."}  merge-lens
               :value value
               :onchange (fn [ev] (set-value (.. ev -target -value))}))
 ```
+
+  Note that the `set-value` action must only be emitted from *below*
+  the element. Passing it to somewhere else in the application will
+  not work.
 "
 
   [name state set-state args & body]
   (let [precond (maybe-get-precond body)]
     `(let [f# (fn [~state ~set-state ~@args]
-                ~@body)]
+                ~@body)
+           id# (gensym "id")]
        (defn+ ~name args# ~args
          ~@precond
-         (-> (apply reacld.core/interactive f# args#)
+         (-> (apply reacld.core/interactive id# f# args#)
              (named ~(str *ns* "/" name)))))))
 
 (defmacro def-interactive
@@ -446,9 +464,10 @@ a change."}  merge-lens
 "
   [name state set-state & body]
   `(let [f# (fn [~state ~set-state]
-              ~@body)]
+              ~@body)
+         id# (gensym "id")]
      (def ~name
-       (-> (reacld.core/interactive f#)
+       (-> (reacld.core/interactive id# f#)
            (named ~(str *ns* "/" name))))))
 
 (defmacro defn-subscription
