@@ -151,23 +151,33 @@
                                events))]
     (merge attrs r-events)))
 
+(defn- native-dom [binding type attrs & children]
+  (apply rdom/element type attrs
+         (map (partial instantiate-child binding) children)))
+
 (reacl/defclass ^:private dom++ this state [type attrs events children]
+  refs [native]
+  ;; dom with action events and children.
+
   local-state [handler (dom-event-handler this)]
   handle-message (dom-message-to-action events)
   
   render
-  (apply rdom/element type (merge-dom-attrs this attrs events handler)
-         (map (partial instantiate (reacl/bind this)) children)))
+  (-> (apply native-dom (reacl/bind this) type (merge-dom-attrs this attrs events handler)
+             children)
+      (reacl/refer native)))
 
 (reacl/defclass ^:private dom+ this [type attrs events]
+  ;; dom with action events, but without children (does not need state)
+  refs [native]
+  
   local-state [handler (dom-event-handler this)]
   handle-message (dom-message-to-action events)
   
   render
-  (rdom/element type (merge-dom-attrs this attrs events handler)))
-
-(defn dom- [binding type attrs children]
-  (apply rdom/element type attrs (map (partial instantiate-child binding) children)))
+  (-> (native-dom (reacl/use-app-state nil) type
+                  (merge-dom-attrs this attrs events handler))
+      (reacl/refer native)))
 
 (defn- dom [binding type attrs events children]
   ;; optimize for dom element without event handlers:
@@ -176,7 +186,7 @@
       (dom+ type attrs events)
       ;; OPT: if no child needs state, then we can use a non-stateful class here too
       (dom++ binding type attrs events children))
-    (dom- binding type attrs children)))
+    (apply native-dom binding type attrs children)))
 
 (extend-type dom/Element
   IReacl
@@ -318,6 +328,23 @@
   (-instantiate-reacl [{f :f args :args} binding]
     (apply with-async-action binding f args)))
 
+(defn- resolve-component [ref]
+  ;; when did-update and will-mount is attached to a (dom) element, then we want to pass the native dom element.
+  ;; but the wrapper classes (dom+ and dom++) are in between :-/
+
+  ;; TODO: this terrible hack comes as a remedy, but maybe we should 'push'
+  ;; the livecycle methods down to the dom classes, to get first hand
+  ;; access (btw, doing to would be good anyways; we could pass many things to just one dom class).
+  (let [c (reacl/get-dom ref)]
+    (if (and (reacl/component? c)
+             (#{dom+ dom++} (reacl/component-class c)))
+      ;; Note: dom+ and dom++ must have a 'native' ref to the actual raw dom element.
+      (let [native-ref (first (aget (.-props c) "reacl_refs"))]
+        (reacl/get-dom native-ref))
+
+      ;; everything else, has a dom node deeper down (resolve to that? remove fragments first)
+      c)))
+
 (reacl/defclass ^:private did-mount this state [e f & args]
   refs [child]
 
@@ -327,8 +354,7 @@
   
   component-did-mount
   (fn []
-    ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
-    (reacl/return :action (apply f (reacl/get-dom child) args)))
+    (reacl/return :action (apply f (resolve-component child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
@@ -347,8 +373,7 @@
 
   component-will-unmount
   (fn []
-    ;; FIXME: see mount.
-    (reacl/return :action (apply f (reacl/get-dom child) args)))
+    (reacl/return :action (apply f (resolve-component child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
@@ -367,9 +392,8 @@
   
   component-did-update
   (fn [prev-app-state prev-local-state prev-e prev-f & prev-args]
-    ;; FIXME: it's only a dom node, if e is dom element - can we change that? (esp. fragments are a problem then?)
-    ;; TODO: pass old/new state to f?
-    (reacl/return :action (apply f (reacl/get-dom child) args)))
+    ;; TODO: need to pass old/new state, old/new args to f to be really useful?
+    (reacl/return :action (apply f (resolve-component child) args)))
 
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
