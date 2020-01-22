@@ -318,7 +318,7 @@
   (-instantiate-reacl [{f :f args :args} binding]
     (apply with-async-action binding f args)))
 
-(reacl/defclass ^:private when-mounted this state [e f & args]
+(reacl/defclass ^:private did-mount this state [e f & args]
   refs [child]
 
   handle-message
@@ -333,12 +333,12 @@
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
 
-(extend-type base/WhenMounted
+(extend-type base/DidMount
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply when-mounted binding e f args)))
+    (apply did-mount binding e f args)))
 
-(reacl/defclass ^:private when-unmounting this state [e f & args]
+(reacl/defclass ^:private will-unmount this state [e f & args]
   refs [child]
 
   handle-message
@@ -353,12 +353,12 @@
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
 
-(extend-type base/WhenUnmounting
+(extend-type base/WillUnmount
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply when-unmounting binding e f args)))
+    (apply will-unmount binding e f args)))
 
-(reacl/defclass ^:private after-update this state [e f & args]
+(reacl/defclass ^:private did-update this state [e f & args]
   refs [child]
 
   handle-message
@@ -374,10 +374,10 @@
   render (-> (instantiate (reacl/bind this) e)
              (reacl/refer child)))
 
-(extend-type base/AfterUpdate
+(extend-type base/DidUpdate
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply after-update binding e f args)))
+    (apply did-update binding e f args)))
 
 (defrecord ^:private MonitorMessage [new-state])
 

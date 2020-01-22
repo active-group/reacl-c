@@ -7,9 +7,9 @@
 (defrecord HandleAction [e f args] E)
 (defrecord LocalState [e initial] E)
 ;; TODO: rename did-mount, will-unmount and did-update ?
-(defrecord WhenMounted [e f args] E)
-(defrecord WhenUnmounting [e f args] E)
-(defrecord AfterUpdate [e f args] E)
+(defrecord DidMount [e f args] E)
+(defrecord WillUnmount [e f args] E)
+(defrecord DidUpdate [e f args] E)
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
 (defrecord HandleMessage [e f args] E)

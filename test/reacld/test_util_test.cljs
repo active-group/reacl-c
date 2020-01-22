@@ -13,7 +13,7 @@
          (-> (tu/env (core/dynamic
                       (fn [state]
                         (-> (dom/div)
-                            (core/when-mounted (constantly [::act state]))))))
+                            (core/did-mount (constantly [::act state]))))))
              (tu/mount! :state)))))
 
 (deftest update-test
@@ -21,7 +21,7 @@
          (let [e (tu/env (core/dynamic
                           (fn [state]
                             (-> (dom/div)
-                                (core/after-update (constantly [::act state]))))))]
+                                (core/did-update (constantly [::act state]))))))]
            (tu/mount! e :state1)
            (tu/update! e :state2)))))
 
@@ -30,7 +30,7 @@
          (let [e (tu/env (core/dynamic
                           (fn [state]
                             (-> (dom/div)
-                                (core/when-unmounting (constantly [::act state]))))))]
+                                (core/will-unmount (constantly [::act state]))))))]
            (tu/mount! e :state)
            (tu/unmount! e)))))
 

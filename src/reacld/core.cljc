@@ -157,7 +157,11 @@ If not `:state` option is used, the state of the element will not change.
   (defn ^:no-doc interactive [id f & args]
     (with-state-setter id h f args)))
 
-(defn named [e name]
+(defn named
+  "Returns an element that looks and workd exactly like the element
+  `e`, but with has the given name, that appears and can be used in
+  various testing and debugging utilities."
+  [e name]
   (base/->Named e name))
 
 (defn- id-merge [m1 m2]
@@ -228,30 +232,29 @@ a change."}  merge-lens
   [e key]
   (base/->Keyed e key))
 
-(defn when-mounted
-  "After the element `e` is mounted into the application, `(f
+(defn did-mount
+  "After the element `e` was mounted into the application, `(f
   component & args)` is called, where `component` is an implementation
   specific runtime representation of `e`, and which must return an
   action that is emitted by the resulting element."
   [e f & args]
-  (base/->WhenMounted e f args))
+  (base/->DidMount e f args))
 
-(defn when-unmounting
-  "After the element `e` is unmounted from the application, `(f
+(defn will-unmount
+  "When the element `e` is about to be unmounted from the
+  application, `(f component & args)` is called, where `component` is
+  an implementation specific runtime representation of `e`, and which
+  must return an action that is emitted by the resulting element."
+  [e f & args]
+  (base/->WillUnmount e f args))
+
+(defn did-update
+  "After the mounted element `e` was updated to a new state, `(f
   component & args)` is called, where `component` is an implementation
   specific runtime representation of `e`, and which must return an
   action that is emitted by the resulting element."
   [e f & args]
-  (base/->WhenUnmounting e f args))
-
-(defn after-update
-  "After the element `e` is updated after it is mounted into the
-  application, e.g. with a new state, `(f component & args)` is
-  called, where `component` is an implementation specific runtime
-  representation of `e`, and which must return an action that is
-  emitted by the resulting element."
-  [e f & args]
-  (base/->AfterUpdate e f args))
+  (base/->DidUpdate e f args))
 
 (defn monitor-state
   "When e changes its state, `(f old-state new-state & args)` is
@@ -278,8 +281,8 @@ a change."}  merge-lens
                  :else (return :action a)))]
   (defn ^:no-doc while-mounted [e mount! unmount! & args]
     (-> e
-        (when-mounted ->Mount mount! args)
-        (when-unmounting ->Unmount unmount! args)
+        (did-mount ->Mount mount! args)
+        (will-unmount ->Unmount unmount! args)
         (handle-action handle)
         (hide-state nil id-lens))))
 

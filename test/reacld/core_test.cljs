@@ -20,17 +20,17 @@
       (is (= (r/handle-action (dom/div) f) (r/handle-action (dom/div) f)))))
   (testing "interactive"
     (let [f (fn [a b _] (dom/div a b))]
-      (is (= (r/interactive f :a) (r/interactive f :a)))))
+      (is (= (r/interactive :id f :a) (r/interactive :id f :a)))))
   (testing "add-state"
     (is (= (r/add-state :a :b (dom/div)) (r/add-state :a :b (dom/div)))))
   (testing "keyed"
     (is (= (r/keyed (dom/div) :a) (r/keyed (dom/div) :a))))
-  (testing "when-mounted"
-    (is (= (r/when-mounted (dom/div) :a) (r/when-mounted (dom/div) :a))))
-  (testing "when-unmounting"
-    (is (= (r/when-unmounting (dom/div) :a :b) (r/when-unmounting (dom/div) :a :b))))
-  (testing "after-update"
-    (is (= (r/after-update (dom/div) :a :b) (r/after-update (dom/div) :a :b))))
+  (testing "did-mount"
+    (is (= (r/did-mount (dom/div) :a) (r/did-mount (dom/div) :a))))
+  (testing "will-unmount"
+    (is (= (r/will-unmount (dom/div) :a :b) (r/will-unmount (dom/div) :a :b))))
+  (testing "did-update"
+    (is (= (r/did-update (dom/div) :a :b) (r/did-update (dom/div) :a :b))))
   (testing "while-mounted"
     (is (= (r/while-mounted (dom/div) :a :b) (r/while-mounted (dom/div) :a :b))))
   (testing "with-async-actions"
