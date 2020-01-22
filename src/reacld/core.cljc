@@ -269,6 +269,9 @@ a change."}  merge-lens
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
 ;; TODO: global events, like body onload?
 
+;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)
+
+
 ;; TODO
 #_(defn validate-state [e validator!]
   (-> (dynamic (fn [state]
@@ -278,6 +281,26 @@ a change."}  merge-lens
                        ;; wrong state passed up!
                        (validator! new)
                        (return)))))
+
+(defmacro ^:no-doc fn+ [all-args args & body]
+  ;; generates a simplified param vector, in order to bind all args also to
+  ;; 'all-args', regardless of destructuring.
+  (let [[fargs vargs] (partition-by #(= '& %) args)
+        fparams (map (fn [_] (gensym "a")) fargs)
+        vparam (when (not-empty vargs) (gensym "a"))
+        params (vec (concat fparams (when vparam ['& vparam])))
+        all (if vparam `(concat ~(vec fparams) ~vparam) (vec fparams))]
+    `(fn ~params
+       (let [~all-args ~all
+             ~args ~all-args]
+         ~@body))))
+
+(defmacro ^:no-doc defn+ [name all-args args & body]
+  ;; generates a simplified param vector, in order to bind all args also to
+  ;; 'all-args', regardless of destructuring.
+  `(def ~(vary-meta name assoc
+                    :arglists `'(~args))
+     (fn+ ~all-args ~args ~@body)))
 
 (defmacro defn-dynamic
   "A macro to define a new abstract dynamic element. For example, given
@@ -297,8 +320,8 @@ a change."}  merge-lens
   [name state args & body]
   `(let [f# (fn [~state ~@args]
               ~@body)]
-     ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
-     (defn ~name [& args#]
+     ;; TODO: Maybe 'move' {:pre ...} map from body to here?
+     (defn+ ~name args# ~args
        (-> (apply reacld.core/dynamic f# args#)
            (named ~(str *ns* "/" name))))))
 
@@ -337,8 +360,8 @@ a change."}  merge-lens
   [name state set-state args & body]
   `(let [f# (fn [~state ~set-state ~@args]
               ~@body)]
-     ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
-     (defn ~name [& args#]
+     ;; TODO: Maybe 'move' {:pre ...} map from body to here?
+     (defn+ ~name args# ~args
        (-> (apply reacld.core/interactive f# args#)
            (named ~(str *ns* "/" name))))))
 
@@ -384,10 +407,10 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   ;; TODO: rename; 'external'? 'primitive'?
-  `(let [f# (fn [~deliver! ~@args] ~@body)]
-     ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
-     (defn ~name [& args#]
+  ;; TODO: Maybe 'move' {:pre ...} map from body to here?
+  `(let [f# (fn [~deliver! ~@args]
+              ~@body)]
+     (defn+ ~name args# ~args
        (-> (apply reacld.core/subscribe f# args#)
            (named ~(str *ns* "/" name))))))
 
-;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)
