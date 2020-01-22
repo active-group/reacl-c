@@ -124,6 +124,9 @@ If not `:state` option is used, the state of the element will not change.
   (defn interactive [f & args]
     (with-state-setter h f args)))
 
+(defn named [e name]
+  (base/->Named e name))
+
 (defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
                (if (identical? (get r k) v)
@@ -296,8 +299,8 @@ a change."}  merge-lens
               ~@body)]
      ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
      (defn ~name [& args#]
-       ;; TODO: set classname to 'name' to ease debugging?
-       (apply reacld.core/dynamic f# args#))))
+       (-> (apply reacld.core/dynamic f# args#)
+           (named ~(str *ns* "/" name))))))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic element. For example, given
@@ -314,8 +317,8 @@ a change."}  merge-lens
   `(let [f# (fn [~state]
               ~@body)]
      (def ~name
-       ;; TODO: set classname to 'name' to ease debugging?
-       (reacld.core/dynamic f#))))
+       (-> (reacld.core/dynamic f#)
+           (named ~(str *ns* "/" name))))))
 
 (defmacro defn-interactive
   "A macro to simplify using plain dom elements as interactive
@@ -336,7 +339,8 @@ a change."}  merge-lens
               ~@body)]
      ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
      (defn ~name [& args#]
-       (apply reacld.core/interactive f# args#))))
+       (-> (apply reacld.core/interactive f# args#)
+           (named ~(str *ns* "/" name))))))
 
 (defmacro def-interactive
   "A macro similar to [[defn-interactive]], for concrete elements without arguments. For example:
@@ -352,7 +356,8 @@ a change."}  merge-lens
   `(let [f# (fn [~state ~set-state]
               ~@body)]
      (def ~name
-       (reacld.core/interactive f#))))
+       (-> (reacld.core/interactive f#)
+           (named ~(str *ns* "/" name))))))
 
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
@@ -382,6 +387,7 @@ Note that `deliver!` must never be called directly in the body of
   `(let [f# (fn [~deliver! ~@args] ~@body)]
      ;; TODO: create fn with the correct arity. Maybe 'move' {:pre ...} map from body to here?
      (defn ~name [& args#]
-       (apply reacld.core/subscribe f# args#))))
+       (-> (apply reacld.core/subscribe f# args#)
+           (named ~(str *ns* "/" name))))))
 
 ;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)

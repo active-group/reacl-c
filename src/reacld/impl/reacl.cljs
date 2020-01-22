@@ -28,6 +28,7 @@
     :else (rdom/fragment e)))
 
 (defn- instantiate-child [binding e]
+  ;; TODO: return multiple elements, removing fragments?
   (cond
     (satisfies? IReacl e) (-instantiate-reacl e binding)
     ;; or strings, usually
@@ -98,6 +99,20 @@
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
     (apply handle-message binding e f args)))
+
+(defn- gen-named [s]
+  (reacl/class s this state [e]
+               refs [child]
+               handle-message (fn [msg] (pass-message child msg))
+               render (-> (instantiate (reacl/bind this) e)
+                          (reacl/refer child))))
+
+(def ^:private named (memoize gen-named))
+
+(extend-type base/Named
+  IReacl
+  (-instantiate-reacl [{e :e name :name} binding]
+    ((named name) binding e)))
 
 (defrecord ^:private EventMessage [ev])
 
