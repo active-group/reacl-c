@@ -293,7 +293,8 @@ a change."}  merge-lens
     `(fn ~params
        (let [~all-args ~all
              ~args ~all-args]
-         ~@body))))
+         ;; Note: this looks unneccessary, but enables the use of {:pre ...}, which must be the first expr in a fn.
+         ((fn [] ~@body))))))
 
 (defmacro ^:no-doc defn+ [name all-args args & body]
   ;; generates a simplified param vector, in order to bind all args also to
@@ -301,6 +302,12 @@ a change."}  merge-lens
   `(def ~(vary-meta name assoc
                     :arglists `'(~args))
      (fn+ ~all-args ~args ~@body)))
+
+(defn- maybe-get-precond [body]
+  (if-let [expr (-> (not-empty body)
+                      (first)
+                      (get :pre))]
+    [{:pre expr}]))
 
 (defmacro defn-dynamic
   "A macro to define a new abstract dynamic element. For example, given
@@ -318,12 +325,13 @@ a change."}  merge-lens
 
   when the current state of the element is `state`, and changes whenever the state changes."
   [name state args & body]
-  `(let [f# (fn [~state ~@args]
-              ~@body)]
-     ;; TODO: Maybe 'move' {:pre ...} map from body to here?
-     (defn+ ~name args# ~args
-       (-> (apply reacld.core/dynamic f# args#)
-           (named ~(str *ns* "/" name))))))
+  (let [precond (maybe-get-precond body)]
+    `(let [f# (fn [~state ~@args]
+                ~@body)]
+       (defn+ ~name args# ~args
+         ~@precond
+         (-> (apply reacld.core/dynamic f# args#)
+             (named ~(str *ns* "/" name)))))))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic element. For example, given
@@ -358,12 +366,13 @@ a change."}  merge-lens
 "
 
   [name state set-state args & body]
-  `(let [f# (fn [~state ~set-state ~@args]
-              ~@body)]
-     ;; TODO: Maybe 'move' {:pre ...} map from body to here?
-     (defn+ ~name args# ~args
-       (-> (apply reacld.core/interactive f# args#)
-           (named ~(str *ns* "/" name))))))
+  (let [precond (maybe-get-precond body)]
+    `(let [f# (fn [~state ~set-state ~@args]
+                ~@body)]
+       (defn+ ~name args# ~args
+         ~@precond
+         (-> (apply reacld.core/interactive f# args#)
+             (named ~(str *ns* "/" name)))))))
 
 (defmacro def-interactive
   "A macro similar to [[defn-interactive]], for concrete elements without arguments. For example:
@@ -407,10 +416,11 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   ;; TODO: rename; 'external'? 'primitive'?
-  ;; TODO: Maybe 'move' {:pre ...} map from body to here?
-  `(let [f# (fn [~deliver! ~@args]
-              ~@body)]
-     (defn+ ~name args# ~args
-       (-> (apply reacld.core/subscribe f# args#)
-           (named ~(str *ns* "/" name))))))
+  (let [precond (maybe-get-precond body)]
+    `(let [f# (fn [~deliver! ~@args]
+                ~@body)]
+       (defn+ ~name args# ~args
+         ~@precond
+         (-> (apply reacld.core/subscribe f# args#)
+             (named ~(str *ns* "/" name)))))))
 

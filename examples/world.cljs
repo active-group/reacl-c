@@ -4,6 +4,7 @@
             [reacld.dom :as dom]))
 
 (r/defn-subscription interval-timer deliver! [ms]
+  {:pre [(integer? ms)]}
   (println "starting timer!")
   (let [id (.setInterval js/window (fn [] (deliver! (js/Date.))) ms)]
     (fn stop []
