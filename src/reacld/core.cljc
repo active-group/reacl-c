@@ -272,15 +272,26 @@ a change."}  merge-lens
 ;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)
 
 
-;; TODO
-#_(defn validate-state [e validator!]
-  (-> (dynamic (fn [state]
-                 (validator! state) ;; wrong state passed down!
-                 e))
-      (monitor-state (fn [old new]
-                       ;; wrong state passed up!
-                       (validator! new)
-                       (return)))))
+(let [df (fn [state e validate!]
+           ;; state passed down!
+           (validate! state :down)
+           e)
+      mf (fn [old new validate!]
+           ;; state passed up!
+           (validate! new :up)
+           (return))]
+  (defn validation-boundary
+    "Creates a state validation boundary around the element `e`,
+  where `(validate! state :up)` is evaluated for side effects when a
+  state change is flowing out of `e` upwards, and `(validate!
+  state :down)` is evaluated for side effects when a new state is
+  being pushed down to `e`."
+    [e validate!]
+     ;; Note: dynamic adds it to render; could make a little earlied
+     ;; via 'validate clause'; but probably not worth here (as
+     ;; instantiation is delayed anyway)
+    (-> (dynamic df e validate!)
+        (monitor-state mf validate!))))
 
 (defmacro ^:no-doc fn+ [all-args args & body]
   ;; generates a simplified param vector, in order to bind all args also to
