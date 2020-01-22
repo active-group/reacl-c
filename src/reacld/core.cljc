@@ -2,7 +2,16 @@
   (:require [reacld.base :as base]
             [clojure.set :as set]))
 
-;; TODO: send-message from outside to application and/or components? (and a 'handle-message' element?)
+;; Rationale:
+;; The basic building block is en Element (base/E), which is merely
+;; equivalent to a Reacl class with app-state but without any
+;; arguments (which makes composition a lot easier). But because every
+;; element is highly 'customized' by user arguments, it would be hard
+;; to retain any of the rerendering optimizations by Reacl/React (and
+;; any local-state). Second, elements could be represented as a [class
+;; args] tuple; but to detach the definition from the implementation,
+;; they are instead represented as [type args], and the implementing
+;; Reacl class is added via extend-type in 'impl/reacl'.
 
 (defn ^:no-doc with-async-actions [f & args]
   (base/->WithAsyncActions f args))
@@ -264,10 +273,8 @@ a change."}  merge-lens
     [f & args]
     (with-async-actions stu f args)))
 
-;; TODO add a named class for make better use of reacl and react utils?
 ;; TODO: error boundary, getDerivedStateFromError now?.
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
-;; TODO: global events, like body onload?
 
 ;; TODO: utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handl its result)
 
