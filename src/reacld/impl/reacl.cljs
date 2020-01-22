@@ -6,15 +6,15 @@
             [clojure.string :as str]))
 
 (defprotocol ^:private IReacl
-  (-instantiate-reacl [this binding]))
+  (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements."))
 
 (defrecord ^:private LiftedClass [class args]
   base/E
   IReacl
   (-instantiate-reacl [this binding]
-    (if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
-      (apply class binding args)
-      (apply class args))))
+    [(if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
+       (apply class binding args)
+       (apply class args))]))
 
 (defn lift [class & args]
   (apply LiftedClass. class args))
@@ -23,16 +23,19 @@
   "Returns a Reacl component/element for the given element and state binding."
   [binding e]
   (cond
-    (satisfies? IReacl e) (-instantiate-reacl e binding)
+    (satisfies? IReacl e) (let [cs (-instantiate-reacl e binding)]
+                            (if (= 1 (count cs))
+                              (first cs)
+                              (apply rdom/fragment cs)))
     ;; or strings, usually
     :else (rdom/fragment e)))
 
 (defn- instantiate-child [binding e]
-  ;; TODO: return multiple elements, removing fragments?
+  ;; returns multiple elements or strings
   (cond
     (satisfies? IReacl e) (-instantiate-reacl e binding)
     ;; or strings, usually
-    :else e))
+    :else [e]))
 
 (defrecord ^:private ActionMessage [action])
 
@@ -99,7 +102,7 @@
 (extend-type base/HandleMessage
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply handle-message binding e f args)))
+    [(apply handle-message binding e f args)]))
 
 (defn- gen-named [s]
   (reacl/class s this state [e]
@@ -113,7 +116,7 @@
 (extend-type base/Named
   IReacl
   (-instantiate-reacl [{e :e name :name} binding]
-    ((named name) binding e)))
+    [((named name) binding e)]))
 
 (defrecord ^:private EventMessage [ev])
 
@@ -153,7 +156,7 @@
 
 (defn- native-dom [binding type attrs & children]
   (apply rdom/element type attrs
-         (map (partial instantiate-child binding) children)))
+         (mapcat (partial instantiate-child binding) children)))
 
 (reacl/defclass ^:private dom++ this state [type attrs events children]
   refs [native]
@@ -191,20 +194,13 @@
 (extend-type dom/Element
   IReacl
   (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
-    (dom binding type attrs events children)))
-
-(reacl/defclass ^:private fragment this state [children] ;; TODO: remove these from runtime (resolve earlier?)
-  handle-message
-  (fn [msg]
-    (throw (ex-info "Sending messages to a fragment element not implemented yet." {:value msg})))
-  
-  render (apply rdom/fragment (map (partial instantiate (reacl/bind this))
-                                   children)))
+    [(dom binding type attrs events children)]))
 
 (extend-type base/Fragment
   IReacl
   (-instantiate-reacl [{children :children} binding]
-    (fragment binding children)))
+    (mapv (partial instantiate binding)
+          children)))
 
 (defn- keyed [binding e key]
   (-> (instantiate binding e)
@@ -213,7 +209,7 @@
 (extend-type base/Keyed
   IReacl
   (-instantiate-reacl [{e :e key :key} binding]
-    (keyed binding e key)))
+    [(keyed binding e key)]))
 
 (reacl/defclass ^:private with-state this state [f & args]
   refs [child]
@@ -229,7 +225,7 @@
 (extend-type base/WithState
   IReacl
   (-instantiate-reacl [{f :f args :args} binding]
-    (apply with-state binding f args)))
+    [(apply with-state binding f args)]))
 
 (defn- focus [binding e lens]
   (instantiate (reacl/focus binding lens) e))
@@ -237,7 +233,7 @@
 (extend-type base/Focus
   IReacl
   (-instantiate-reacl [{e :e lens :lens} binding]
-    (focus binding e lens)))
+    [(focus binding e lens)]))
 
 (reacl/defclass ^:private handle-action this state [e f & args]
   local-state [action-to-message
@@ -265,7 +261,7 @@
 (extend-type base/HandleAction
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply handle-action binding e f args)))
+    [(apply handle-action binding e f args)]))
 
 (defrecord ^:private NewIsoState [state])
 
@@ -299,7 +295,7 @@
 (extend-type base/LocalState
   IReacl
   (-instantiate-reacl [{e :e initial :initial} binding]
-    (local-state binding e initial)))
+    [(local-state binding e initial)]))
 
 (defrecord ^:private AsyncAction [v])
 
@@ -326,7 +322,7 @@
 (extend-type base/WithAsyncActions
   IReacl
   (-instantiate-reacl [{f :f args :args} binding]
-    (apply with-async-action binding f args)))
+    [(apply with-async-action binding f args)]))
 
 (defn- resolve-component [ref]
   ;; when did-update and will-mount is attached to a (dom) element, then we want to pass the native dom element.
@@ -362,7 +358,7 @@
 (extend-type base/DidMount
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply did-mount binding e f args)))
+    [(apply did-mount binding e f args)]))
 
 (reacl/defclass ^:private will-unmount this state [e f & args]
   refs [child]
@@ -381,7 +377,7 @@
 (extend-type base/WillUnmount
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply will-unmount binding e f args)))
+    [(apply will-unmount binding e f args)]))
 
 (reacl/defclass ^:private did-update this state [e f & args]
   refs [child]
@@ -401,7 +397,7 @@
 (extend-type base/DidUpdate
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply did-update binding e f args)))
+    [(apply did-update binding e f args)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 
@@ -428,7 +424,7 @@
 (extend-type base/MonitorState
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply monitor-state binding e f args)))
+    [(apply monitor-state binding e f args)]))
 
 (defn- fst-lens
   ([[a _]] a)
@@ -455,4 +451,4 @@
 (extend-type base/ErrorBoundary
   IReacl
   (-instantiate-reacl [{e :e f :f args :args} binding]
-    (apply error-boundary binding e f args)))
+    [(apply error-boundary binding e f args)]))
