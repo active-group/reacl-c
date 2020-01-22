@@ -1,3 +1,4 @@
 *~
 /target
 .rebel_readline_history
+.lein-repl-history
