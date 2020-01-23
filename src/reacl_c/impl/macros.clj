@@ -1,4 +1,4 @@
-(ns ^:no-doc reacld.impl.macros)
+(ns ^:no-doc reacl-c.impl.macros)
 
 (defmacro defdom [tag]
   `(def ~(vary-meta tag assoc
@@ -11,4 +11,4 @@
                        must be other elements or strings.")
                     :arglists `'([attrs & children] [& children])
                     )
-     (reacld.dom/dom-function ~(name tag))))
+     (reacl-c.dom/dom-function ~(name tag))))

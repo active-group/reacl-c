@@ -1,14 +1,14 @@
 (ns ^:no-doc examples.todo
-  (:require [reacld.core :as r :include-macros true]
-            [reacld.browser :as browser]
-            [reacld.dom :as dom]))
+  (:require [reacl-c.core :as c :include-macros true]
+            [reacl-c.browser :as browser]
+            [reacl-c.dom :as dom]))
 
-(r/def-interactive checkbox checked set-checked
+(c/def-interactive checkbox checked set-checked
   (dom/input {:type "checkbox"
               :value checked
               :onchange (fn [e] (set-checked (.. e -target -checked)))}))
 
-(r/def-interactive textbox value set-value
+(c/def-interactive textbox value set-value
   (dom/input {:type "text"
               :value value
               :onchange (fn [e]
@@ -21,60 +21,60 @@
 (defrecord Reset [])
 
 (defn add-item-form [add-item]
-  (r/isolate-state ""
+  (c/isolate-state ""
                    (-> (dom/form {:onsubmit (fn [e]
                                               (.preventDefault e)
                                               (->Submit))}
                                  textbox
                                  (dom/button {:type "submit"} "Add"))
-                       (r/handle-action (fn [state a]
+                       (c/handle-action (fn [state a]
                                           (condp instance? a
-                                            Submit (r/return :state ""
+                                            Submit (c/return :state ""
                                                              :action (add-item state))
-                                            (r/return :action a)))))))
+                                            (c/return :action a)))))))
 
 (defn button [label action]
   (dom/button {:onclick (constantly action)}
               label))
 
-(r/defn-dynamic item todo [delete]
+(c/defn-dynamic item todo [delete]
   (dom/div (-> checkbox
-               (r/focus :done?))
+               (c/focus :done?))
            (button "Zap" delete)
            " " (:text todo)))
 
-(r/defn-dynamic item-list todos [delete-item]
+(c/defn-dynamic item-list todos [delete-item]
   (apply dom/div
          (map-indexed (fn [idx id]
                         (-> (item (delete-item id))
-                            (r/focus idx)
-                            (r/keyed id)))
+                            (c/focus idx)
+                            (c/keyed id)))
                       (map :id todos))))
 
 (defrecord DeleteItem [id])
 (defrecord AddItem [text])
 
 (def main
-  (-> (r/fragment (dom/h3 "TODO")
+  (-> (c/fragment (dom/h3 "TODO")
                   (-> (item-list ->DeleteItem)
-                      (r/focus :todos))
+                      (c/focus :todos))
                   (dom/br)
                   (add-item-form ->AddItem))
-      (r/handle-action (fn [state action]
+      (c/handle-action (fn [state action]
                          (condp instance? action
                            AddItem
-                           (r/return :state
+                           (c/return :state
                                      (-> state
                                          (update :todos conj (->Todo (:next-id state) (:text action) false))
                                          (update :next-id inc)))
                             
                            DeleteItem
-                           (r/return :state
+                           (c/return :state
                                      (-> state
                                          (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
                                                                       %)))))
                             
-                           (r/return :action action))))))
+                           (c/return :action action))))))
 
 (browser/run (.getElementById js/document "app-todo")
   main

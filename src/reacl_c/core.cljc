@@ -1,5 +1,5 @@
-(ns reacld.core
-  (:require [reacld.base :as base]
+(ns reacl-c.core
+  (:require [reacl-c.base :as base]
             [clojure.set :as set]))
 
 ;; Rationale:
@@ -85,7 +85,7 @@ If not `:state` option is used, the state of the element will not change.
 
 (defn send-message!
   "Sends a message to a running application, i.e. `app` must be the
-  value returned from [[reacld.browser/run]] for example. This can be
+  value returned from [[reacl-c.browser/run]] for example. This can be
   used together with [[handle-message]] in situations where the
   application is not running standalone, but integrated in a different
   framework."
@@ -407,7 +407,7 @@ a change."}  merge-lens
                 ~@body)]
        (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
-         (-> (apply reacld.core/dynamic f# args#)
+         (-> (apply reacl-c.core/dynamic f# args#)
              (named ~name_))))))
 
 (defmacro def-dynamic
@@ -426,7 +426,7 @@ a change."}  merge-lens
     `(let [f# (fn [~state]
                 ~@body)]
        (def ~(vary-meta name assoc ::name name_)
-         (-> (reacld.core/dynamic f#)
+         (-> (reacl-c.core/dynamic f#)
              (named ~name_))))))
 
 (defmacro defn-interactive
@@ -455,7 +455,7 @@ a change."}  merge-lens
            id# (gensym "id")]
        (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
-         (-> (apply reacld.core/interactive id# f# args#)
+         (-> (apply reacl-c.core/interactive id# f# args#)
              (named ~name_))))))
 
 (defmacro def-interactive
@@ -474,7 +474,7 @@ a change."}  merge-lens
                 ~@body)
            id# (gensym "id")]
        (def ~(vary-meta name assoc ::name name_)
-         (-> (reacld.core/interactive id# f#)
+         (-> (reacl-c.core/interactive id# f#)
              (named ~name_))))))
 
 (defmacro defn-subscription
@@ -508,6 +508,6 @@ Note that `deliver!` must never be called directly in the body of
                 ~@body)]
        (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
-         (-> (apply reacld.core/subscription f# args#)
+         (-> (apply reacl-c.core/subscription f# args#)
              (named ~name_))))))
 

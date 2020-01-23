@@ -1,15 +1,13 @@
-(defproject reacld "0.1.0-SNAPSHOT"
-  :url "http://github.com/active-group/reacld"
+(defproject de.active-group/reacl-c "0.1.0-SNAPSHOT"
+  :description "Compositional and declarative user interface library for Clojure and Clojurescript."
+  :url "http://github.com/active-group/reacl-c"
   
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[org.clojure/clojure "1.9.0" :scope "provided"]
                  [org.clojure/clojurescript "1.10.238" :scope "provided"]
-                 [reacl "2.2.0-SNAPSHOT"]
-                 ;;[cljsjs/react "16.4.1-0"]
-                 ;;[cljsjs/react-dom "16.4.1-0" :exclusions [cljsjs/react]]
-                 ]
+                 [reacl "2.2.0"]]
 
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
@@ -29,7 +27,7 @@
   :codox {:language :clojure ;; :clojurescript
           :metadata {:doc/format :markdown}
           :themes [:rdash]
-          :src-dir-uri "http://github.com/active-group/reacld/blob/master/"
+          :src-dir-uri "http://github.com/active-group/reacl-c/blob/master/"
           :src-linenum-anchor-prefix "L"}
 
   :auto {:default {:paths ["src" "test" "examples"]}}

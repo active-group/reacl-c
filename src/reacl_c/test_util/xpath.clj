@@ -1,6 +1,6 @@
-(ns reacld.test-util.xpath)
+(ns reacl-c.test-util.xpath)
 
-(alias 'xpath 'reacld.test-util.xpath)
+(alias 'xpath 'reacl-c.test-util.xpath)
 
 ;; convenience macro
 

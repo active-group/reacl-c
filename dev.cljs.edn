@@ -2,4 +2,4 @@
   :extra-main-files {:todo {:main examples.todo}
                      :world {:main examples.world}}
   :watch-dirs ["src" "test" "examples"]}
-{:main reacld.test.runner}
+{:main reacl-c.test.runner}

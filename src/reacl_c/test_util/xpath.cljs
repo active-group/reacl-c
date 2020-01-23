@@ -1,6 +1,6 @@
-(ns reacld.test-util.xpath
+(ns reacl-c.test-util.xpath
   (:require [reacl2.test-util.xpath :as rp]
-            [reacld.impl.reacl :as impl])
+            [reacl-c.impl.reacl :as impl])
   (:refer-clojure :exclude [and or contains? nth nth-last comp first last range]))
 
 (defn named [s]
@@ -8,7 +8,7 @@
          (rp/class (impl/named s))))
 
 (defn named-var [v]
-  (named (:reacld.core/name (meta v))))
+  (named (:reacl-c.core/name (meta v))))
 
 (def attr rp/attr)
 
@@ -46,7 +46,7 @@
   Valid selectors are all the primitives from this module,
   as well as:\n
 
-  - strings stand for a virtual dom node or elements named by [[reacld.core.name]] as with [[named]],
+  - strings stand for a virtual dom node or elements named by [[reacl-c.core.name]] as with [[named]],
   - vars generated from one of the 'def-' and 'defn-' macros stand for those nodes created by them, as with [[named-var]]. Note: use #'name to get the vars instead of the functions.
   - keywords stand for attribute names of dom nodes as with [[attr]]\n
 

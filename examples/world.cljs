@@ -1,9 +1,9 @@
 (ns ^:no-doc examples.world
-  (:require [reacld.core :as r :include-macros true]
-            [reacld.browser :as browser]
-            [reacld.dom :as dom]))
+  (:require [reacl-c.core :as c :include-macros true]
+            [reacl-c.browser :as browser]
+            [reacl-c.dom :as dom]))
 
-(r/defn-subscription interval-timer deliver! [ms]
+(c/defn-subscription interval-timer deliver! [ms]
   {:pre [(integer? ms)]}
   (println "starting timer!")
   (let [id (.setInterval js/window (fn [] (deliver! (js/Date.))) ms)]
@@ -11,10 +11,10 @@
       (println "stopping timer!")
       (.clearInterval js/window id))))
 
-(r/def-dynamic show-date date
+(c/def-dynamic show-date date
   (.toLocaleTimeString date))
 
-(r/defn-interactive show-error state set-state [reset-value]
+(c/defn-interactive show-error state set-state [reset-value]
   ;; change to (deliver! nil) to see try-catch in action.
   (dom/div "An error occurred: " (pr-str (second state))
            "with the state being: " (pr-str (first state))
@@ -22,38 +22,38 @@
            (dom/button {:onclick (constantly (set-state [reset-value nil]))} "Reset")))
 
 (def clock
-  (r/isolate-state (js/Date.)
-                   (r/try-catch (dom/div (-> (interval-timer 1000)
-                                             (r/handle-action (fn [state date] (r/return :state date))))
+  (c/isolate-state (js/Date.)
+                   (c/try-catch (dom/div (-> (interval-timer 1000)
+                                             (c/handle-action (fn [state date] (c/return :state date))))
                                          show-date)
                                 (show-error (js/Date.)))))
 
 (defrecord Effect [f args])
 
 (defn reload [force?]
-  (r/return :action (Effect. #(.reload (.-location js/window) force?) nil)))
+  (c/return :action (Effect. #(.reload (.-location js/window) force?) nil)))
 
 (defn effects [_ {f :f args :args}]
   (apply f args)
-  (r/return))
+  (c/return))
 
 (defrecord Show [_])
 (defrecord Hide [_])
 
 (defn show-hide [_ a]
   (cond
-    (instance? Show a) (r/return :state true)
-    (instance? Hide a) (r/return :state false)
+    (instance? Show a) (c/return :state true)
+    (instance? Hide a) (c/return :state false)
     :else a))
 
-(r/def-dynamic world-app show?
+(c/def-dynamic world-app show?
   (-> (if show?
         (dom/div (dom/button {:onclick ->Hide} "Hide")
                  clock
                  (dom/button {:onclick (constantly (reload true))} "Reload"))
         (dom/button {:onclick ->Show} "Show"))
-      (r/handle-action show-hide)
-      (r/handle-action effects)))
+      (c/handle-action show-hide)
+      (c/handle-action effects)))
 
 (browser/run (.getElementById js/document "app-world")
   world-app

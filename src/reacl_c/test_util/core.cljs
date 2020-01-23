@@ -1,8 +1,8 @@
-(ns reacld.test-util.core
-  (:require [reacld.core :as core]
-            [reacld.base :as base]
-            [reacld.dom :as dom]
-            [reacld.impl.reacl :as impl]
+(ns reacl-c.test-util.core
+  (:require [reacl-c.core :as core]
+            [reacl-c.base :as base]
+            [reacl-c.dom :as dom]
+            [reacl-c.impl.reacl :as impl]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.test-util.beta :as r-tu]
             [reacl2.test-util.xpath :as r-xpath]))
@@ -13,7 +13,7 @@
 ;; be replaced by our own simulator.
 
 (defn- ->ret [r]
-  ;; reacl return => reacld return
+  ;; reacl return => reacl-c return
   (apply core/return
          (apply concat
                 (let [s (reacl/returned-app-state r)]

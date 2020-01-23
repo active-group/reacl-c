@@ -1,8 +1,8 @@
-(ns reacld.dom
-  (:require [reacld.base :as base]
+(ns reacl-c.dom
+  (:require [reacl-c.base :as base]
             [clojure.string :as str]
-            #?(:clj [reacld.impl.macros :refer (defdom)]))
-  #?(:cljs (:require-macros [reacld.impl.macros :refer (defdom)]))
+            #?(:clj [reacl-c.impl.macros :refer (defdom)]))
+  #?(:cljs (:require-macros [reacl-c.impl.macros :refer (defdom)]))
   (:refer-clojure :exclude (meta map time use set symbol)))
 
 ;; TODO: some standard event handlers? constantly, value, checked.

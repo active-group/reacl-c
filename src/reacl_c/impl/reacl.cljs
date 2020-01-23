@@ -1,8 +1,8 @@
-(ns reacld.impl.reacl
-  (:require [reacld.base :as base]
-            [reacld.dom :as dom]
-            [reacl2.core :as reacl :include-macros true]
-            [reacl2.dom :as rdom]
+(ns reacl-c.impl.reacl
+  (:require [reacl-c.base :as base]
+            [reacl-c.dom :as dom]
+            [reacl-c.core :as reacl :include-macros true]
+            [reacl-c.dom :as rdom]
             [clojure.string :as str]))
 
 (defprotocol ^:private IReacl
