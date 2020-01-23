@@ -158,9 +158,9 @@ If not `:state` option is used, the state of the element will not change.
     (with-state-setter id h f args)))
 
 (defn named
-  "Returns an element that looks and workd exactly like the element
+  "Returns an element that looks and works exactly like the element
   `e`, but with has the given name, that appears and can be used in
-  various testing and debugging utilities."
+  testing and debugging utilities."
   [e name]
   (base/->Named e name))
 
@@ -385,6 +385,38 @@ a change."}  merge-lens
                       (get :pre))]
     [{:pre expr}]))
 
+(defmacro def-named
+  "A macro to define a named element. This is the same as Clojures
+  `def`, but in addition assigns a name to the element that can be
+  used in testing and debugging utilities."
+  [name element]
+  (let [name_ (str *ns* "/" name)]
+    `(def ~(vary-meta name assoc ::name name_)
+       (-> ~element
+           (named ~name_)))))
+
+(defmacro ^:no-doc defn-named+
+  [name all-args args & body]
+  (let [name_ (str *ns* "/" name)]
+    `(defn+ ~(vary-meta name assoc ::name name_) ~all-args ~args
+       (-> ((fn [] ~@body))
+           (named ~name_)))))
+
+(defmacro defn-named
+  "A macro to define an abstract named element. This is the same as Clojures
+  `defn`, but in addition assigns a name to the returned element that can be
+  used in testing and debugging utilities."
+  [name args & body]
+  `(defn-named+ ~name all# ~args ~@body))
+
+(defmacro ^:no-doc defn-named-delayed [name f delayed-args args & body]
+  (let [precond (maybe-get-precond body)]
+    `(let [f# (fn [~@delayed-args ~@args]
+                ~@body)]
+       (defn-named+ ~name all# ~args
+         ~@precond
+         (apply ~@f f# all#)))))
+
 (defmacro defn-dynamic
   "A macro to define a new abstract dynamic element. For example, given
 
@@ -401,14 +433,7 @@ a change."}  merge-lens
 
   when the current state of the element is `state`, and changes whenever the state changes."
   [name state args & body]
-  (let [precond (maybe-get-precond body)
-        name_ (str *ns* "/" name)]
-    `(let [f# (fn [~state ~@args]
-                ~@body)]
-       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
-         ~@precond
-         (-> (apply reacl-c.core/dynamic f# args#)
-             (named ~name_))))))
+  `(defn-named-delayed ~name [dynamic] [~state] ~args ~@body))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic element. For example, given
@@ -422,12 +447,7 @@ a change."}  merge-lens
   changes over time. This is similar to [[defn-dynamic]] but without the
   arguments."
   [name state & body]
-  (let [name_ (str *ns* "/" name)]
-    `(let [f# (fn [~state]
-                ~@body)]
-       (def ~(vary-meta name assoc ::name name_)
-         (-> (reacl-c.core/dynamic f#)
-             (named ~name_))))))
+  `(def-named ~name (dynamic (fn [~state] ~@body))))
 
 (defmacro defn-interactive
   "A macro to simplify using plain dom elements as interactive
@@ -446,17 +466,9 @@ a change."}  merge-lens
   the element. Passing it to somewhere else in the application will
   not work.
 "
-
   [name state set-state args & body]
-  (let [precond (maybe-get-precond body)
-        name_ (str *ns* "/" name)]
-    `(let [f# (fn [~state ~set-state ~@args]
-                ~@body)
-           id# (gensym "id")]
-       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
-         ~@precond
-         (-> (apply reacl-c.core/interactive id# f# args#)
-             (named ~name_))))))
+  `(let [id# (gensym "id")]
+     (defn-named-delayed ~name [interactive id#] [~state ~set-state] ~args ~@body)))
 
 (defmacro def-interactive
   "A macro similar to [[defn-interactive]], for concrete elements without arguments. For example:
@@ -469,13 +481,8 @@ a change."}  merge-lens
 ```
 "
   [name state set-state & body]
-  (let [name_ (str *ns* "/" name)]
-    `(let [f# (fn [~state ~set-state]
-                ~@body)
-           id# (gensym "id")]
-       (def ~(vary-meta name assoc ::name name_)
-         (-> (reacl-c.core/interactive id# f#)
-             (named ~name_))))))
+  `(let [id# (gensym "id")]
+     (def-named ~name (interactive id# (fn [~state ~set-state] ~@body)))))
 
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
@@ -502,12 +509,4 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   ;; TODO: rename; 'external'? 'primitive'?
-  (let [precond (maybe-get-precond body)
-        name_ (str *ns* "/" name)]
-    `(let [f# (fn [~deliver! ~@args]
-                ~@body)]
-       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
-         ~@precond
-         (-> (apply reacl-c.core/subscription f# args#)
-             (named ~name_))))))
-
+  `(defn-named-delayed ~name [subscription] [~deliver!] ~args ~@body))
