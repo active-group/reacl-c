@@ -385,20 +385,26 @@ a change."}  merge-lens
                       (get :pre))]
     [{:pre expr}]))
 
+(defn ^:no-doc named-name
+  "Return the (class) name, that def-named and defn-named uses, for the given 'named' variable."
+  [var]
+  (let [m (meta var)]
+    (str (:ns m) "/" (:name m))))
+
 (defmacro def-named
   "A macro to define a named element. This is the same as Clojures
   `def`, but in addition assigns a name to the element that can be
   used in testing and debugging utilities."
   [name element]
   (let [name_ (str *ns* "/" name)]
-    `(def ~(vary-meta name assoc ::name name_)
+    `(def ~name
        (-> ~element
            (named ~name_)))))
 
 (defmacro ^:no-doc defn-named+
   [name all-args args & body]
   (let [name_ (str *ns* "/" name)]
-    `(defn+ ~(vary-meta name assoc ::name name_) ~all-args ~args
+    `(defn+ ~name ~all-args ~args
        (-> ((fn [] ~@body))
            (named ~name_)))))
 

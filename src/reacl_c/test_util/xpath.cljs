@@ -1,5 +1,6 @@
 (ns reacl-c.test-util.xpath
   (:require [reacl2.test-util.xpath :as rp]
+            [reacl-c.core :as c]
             [reacl-c.impl.reacl :as impl])
   (:refer-clojure :exclude [and or contains? nth nth-last comp first last range]))
 
@@ -8,7 +9,7 @@
          (rp/class (impl/named s))))
 
 (defn named-var [v]
-  (named (:reacl-c.core/name (meta v))))
+  (rp/class (impl/named (c/named-name v))))
 
 (def attr rp/attr)
 
