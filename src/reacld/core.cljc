@@ -295,7 +295,7 @@ a change."}  merge-lens
                          mount
                          unmount
                          deliver! f args))]
-  (defn ^:no-doc subscribe
+  (defn ^:no-doc subscription
     [f & args]
     (with-async-actions stu f args)))
 
@@ -401,13 +401,14 @@ a change."}  merge-lens
 
   when the current state of the element is `state`, and changes whenever the state changes."
   [name state args & body]
-  (let [precond (maybe-get-precond body)]
+  (let [precond (maybe-get-precond body)
+        name_ (str *ns* "/" name)]
     `(let [f# (fn [~state ~@args]
                 ~@body)]
-       (defn+ ~name args# ~args
+       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
          (-> (apply reacld.core/dynamic f# args#)
-             (named ~(str *ns* "/" name)))))))
+             (named ~name_))))))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic element. For example, given
@@ -421,11 +422,12 @@ a change."}  merge-lens
   changes over time. This is similar to [[defn-dynamic]] but without the
   arguments."
   [name state & body]
-  `(let [f# (fn [~state]
-              ~@body)]
-     (def ~name
-       (-> (reacld.core/dynamic f#)
-           (named ~(str *ns* "/" name))))))
+  (let [name_ (str *ns* "/" name)]
+    `(let [f# (fn [~state]
+                ~@body)]
+       (def ~(vary-meta name assoc ::name name_)
+         (-> (reacld.core/dynamic f#)
+             (named ~name_))))))
 
 (defmacro defn-interactive
   "A macro to simplify using plain dom elements as interactive
@@ -446,14 +448,15 @@ a change."}  merge-lens
 "
 
   [name state set-state args & body]
-  (let [precond (maybe-get-precond body)]
+  (let [precond (maybe-get-precond body)
+        name_ (str *ns* "/" name)]
     `(let [f# (fn [~state ~set-state ~@args]
                 ~@body)
            id# (gensym "id")]
-       (defn+ ~name args# ~args
+       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
          (-> (apply reacld.core/interactive id# f# args#)
-             (named ~(str *ns* "/" name)))))))
+             (named ~name_))))))
 
 (defmacro def-interactive
   "A macro similar to [[defn-interactive]], for concrete elements without arguments. For example:
@@ -466,12 +469,13 @@ a change."}  merge-lens
 ```
 "
   [name state set-state & body]
-  `(let [f# (fn [~state ~set-state]
-              ~@body)
-         id# (gensym "id")]
-     (def ~name
-       (-> (reacld.core/interactive id# f#)
-           (named ~(str *ns* "/" name))))))
+  (let [name_ (str *ns* "/" name)]
+    `(let [f# (fn [~state ~set-state]
+                ~@body)
+           id# (gensym "id")]
+       (def ~(vary-meta name assoc ::name name_)
+         (-> (reacld.core/interactive id# f#)
+             (named ~name_))))))
 
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
@@ -498,11 +502,12 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   ;; TODO: rename; 'external'? 'primitive'?
-  (let [precond (maybe-get-precond body)]
+  (let [precond (maybe-get-precond body)
+        name_ (str *ns* "/" name)]
     `(let [f# (fn [~deliver! ~@args]
                 ~@body)]
-       (defn+ ~name args# ~args
+       (defn+ ~(vary-meta name assoc ::name name_) args# ~args
          ~@precond
-         (-> (apply reacld.core/subscribe f# args#)
-             (named ~(str *ns* "/" name)))))))
+         (-> (apply reacld.core/subscription f# args#)
+             (named ~name_))))))
 

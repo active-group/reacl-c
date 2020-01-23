@@ -1,4 +1,4 @@
-(ns reacld.test-util
+(ns reacld.test-util.core
   (:require [reacld.core :as core]
             [reacld.base :as base]
             [reacld.dom :as dom]
@@ -7,11 +7,10 @@
             [reacl2.test-util.beta :as r-tu]
             [reacl2.test-util.xpath :as r-xpath]))
 
-#_(defn resolve
-  "If element is dynamic, then returns what it would be like, under the given state."
-  [element state]
-  
-  )
+;; Note: just reusing reacl/test-util is not a good fit, esp. because
+;; when/if xpath reveals much of the internals (dom class wrapper,
+;; other classes that are an implementation detail). Maybe this should
+;; be replaced by our own simulator.
 
 (defn- ->ret [r]
   ;; reacl return => reacld return
@@ -37,6 +36,8 @@
                                       (reacl/refer child)))]
     (r-tu/env class options)))
 
+(def get-component r-tu/get-component)
+
 (defn mount!
   "Mount the element of the given test environment with the given
   state, and return actions and maybe a changed state."
@@ -61,16 +62,14 @@
   [env msg]
   (->ret (r-tu/send-message! env msg)))
 
-;; TODO: the following needs an xpath variant.
-
 (defn invoke-callback! [comp callback event]
   (->ret (r-tu/invoke-callback! comp callback event)))
 
 (defn inject-action! [comp action]
+  ;; Note: for dom tags in an xpath, the user will find the native element; so actions cannot be injected into them :-/
+  ;; Rule: dom element => invoke-callback; non-dom elements => inject-action + inject-state-change.
+  ;; TODO: document that, if it cannot be changed.
   (->ret (r-tu/inject-return! comp (reacl/return :action action))))
 
-(defn inject-change! [comp state]
+(defn inject-state-change! [comp state]
   (->ret (r-tu/inject-change! comp state)))
-
-;; TODO: inject-state! (which mutates local-state and returns app-state) ?
-

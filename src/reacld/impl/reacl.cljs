@@ -111,7 +111,7 @@
                render (-> (instantiate (reacl/bind this) e)
                           (reacl/refer child))))
 
-(def ^:private named (memoize gen-named))
+(def ^:no-doc named (memoize gen-named))
 
 (extend-type base/Named
   IReacl
@@ -121,6 +121,8 @@
 (defrecord ^:private EventMessage [ev])
 
 (defn- find-event-handler [ev events]
+  (when-not (.-type ev)
+    (throw (ex-info "Expected a JavaScript event object, with a property 'type'." {:value ev})))
   (let [en (str/lower-case (.-type ev))]
     ;; OPT: could be done a little faster - try a lookup, or prepare a different map. But it can be 'onchange' and 'onChange'.
     (some (fn [[n f]]
