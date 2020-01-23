@@ -4,13 +4,11 @@
             [reacld.dom :as dom]))
 
 (r/def-interactive checkbox checked set-checked
-  ;; TODO: make callback static (active.clojure.function?)
   (dom/input {:type "checkbox"
               :value checked
               :onchange (fn [e] (set-checked (.. e -target -checked)))}))
 
 (r/def-interactive textbox value set-value
-  ;; TODO: make callback static (active.clojure.function?)
   (dom/input {:type "text"
               :value value
               :onchange (fn [e]
@@ -21,6 +19,7 @@
 
 (defrecord Submit [])
 (defrecord Reset [])
+
 (defn add-item-form [add-item]
   (r/isolate-state ""
                    (-> (dom/form {:onsubmit (fn [e]
@@ -35,7 +34,6 @@
                                             (r/return :action a)))))))
 
 (defn button [label action]
-  ;; TODO: make callback static (active.clojure.function?)
   (dom/button {:onclick (constantly action)}
               label))
 
@@ -56,10 +54,11 @@
 (defrecord DeleteItem [id])
 (defrecord AddItem [text])
 
-(def todo-app
+(def main
   (-> (r/fragment (dom/h3 "TODO")
                   (-> (item-list ->DeleteItem)
                       (r/focus :todos))
+                  (dom/br)
                   (add-item-form ->AddItem))
       (r/handle-action (fn [state action]
                          (condp instance? action
@@ -75,16 +74,9 @@
                                          (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
                                                                       %)))))
                             
-                           (r/return :action action))))
-      #_(r/handle-message (fn [state msg]
-                          (println "Hallo" msg "!")
-                          (r/return)))
-      #_(r/monitor-state (fn [old new]
-                           (js/console.log old "=>" new)
-                           nil))))
+                           (r/return :action action))))))
 
-(let [app (browser/run (.getElementById js/document "app-todo")
-            todo-app
-            (TodosApp. 0 [(Todo. -1 "test" false)]))]
-  #_(r/send-message! app "Welt"))
+(browser/run (.getElementById js/document "app-todo")
+  main
+  (TodosApp. 0 [(Todo. -1 "Example" false)]))
 
