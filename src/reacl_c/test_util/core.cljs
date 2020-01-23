@@ -3,11 +3,11 @@
             [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.impl.reacl :as impl]
-            [reacl2.core :as reacl :include-macros true]
+            [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
             [reacl2.test-util.xpath :as r-xpath]))
 
-;; Note: just reusing reacl/test-util is not a good fit, esp. because
+;; Note: just reusing rcore/test-util is not a good fit, esp. because
 ;; when/if xpath reveals much of the internals (dom class wrapper,
 ;; other classes that are an implementation detail). Maybe this should
 ;; be replaced by our own simulator.
@@ -16,24 +16,24 @@
   ;; reacl return => reacl-c return
   (apply core/return
          (apply concat
-                (let [s (reacl/returned-app-state r)]
-                  (when-not (reacl/keep-state? s)
+                (let [s (rcore/returned-app-state r)]
+                  (when-not (rcore/keep-state? s)
                     [:state s]))
                 (map (fn [a]
                        [:action a])
-                     (reacl/returned-actions r)))))
+                     (rcore/returned-actions r)))))
 
 (defn env
   "Returns a new test environment to test the behavior of the given element."
   [element & [options]]
   ;; Note: this tests elements using their Reacl implementation, and
   ;; ultimately Reacts test-renderer.
-  (let [class (reacl/class "env" this state []
+  (let [class (rcore/class "env" this state []
                            refs [child]
                            handle-message (fn [msg]
-                                            (reacl/return :message [(reacl/get-dom child) msg]))
-                           render (-> (impl/instantiate (reacl/bind this) element)
-                                      (reacl/refer child)))]
+                                            (rcore/return :message [(rcore/get-dom child) msg]))
+                           render (-> (impl/instantiate (rcore/bind this) element)
+                                      (rcore/refer child)))]
     (r-tu/env class options)))
 
 (def get-component r-tu/get-component)
@@ -69,7 +69,7 @@
   ;; Note: for dom tags in an xpath, the user will find the native element; so actions cannot be injected into them :-/
   ;; Rule: dom element => invoke-callback; non-dom elements => inject-action + inject-state-change.
   ;; TODO: document that, if it cannot be changed.
-  (->ret (r-tu/inject-return! comp (reacl/return :action action))))
+  (->ret (r-tu/inject-return! comp (rcore/return :action action))))
 
 (defn inject-state-change! [comp state]
   (->ret (r-tu/inject-change! comp state)))
