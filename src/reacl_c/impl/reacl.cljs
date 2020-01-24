@@ -5,6 +5,11 @@
             [reacl2.dom :as rdom]
             [clojure.string :as str]))
 
+(defn- warn [& args]
+  (if (and js/console js/console.warn)
+    (apply js/console.warn args)
+    (apply println args)))
+
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements."))
 
@@ -56,8 +61,8 @@
     (cond
       (instance? ActionMessage msg)
       (let [action (:action msg)]
-        ;; TODO: throw or warn only?
-        (throw (ex-info "Unhandled toplevel action." {:value action}))) 
+        (warn "Unhandled action:" action)
+        (rcore/return)) 
 
       :else (pass-message child msg))))
 
