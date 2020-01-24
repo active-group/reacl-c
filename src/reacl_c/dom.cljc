@@ -29,12 +29,25 @@
   [(into {} (remove #(event? (first %)) attrs))
    (into {} (filter #(event? (first %)) attrs))])
 
+(defn- dom-element* [type attrs events & children]
+  {:pre [(string? type)
+         (map? attrs)
+         (map? events)
+         (every? ifn? (clojure.core/map second events))
+         (every? base/element? children)]}
+  (Element. type attrs events children))
+
+(defn ^:no-doc dom-element [type & args]
+  {:pre [(string? type)]}
+  (let [[attrs_ children] (analyze-dom-args args)
+        [attrs events] (split-events attrs_)]
+    (apply dom-element* type attrs events children)))
+
 (defn- dom-function [type]
+  {:pre [(string? type)]}
   ;; Note: could also use (with-async-actions (fn [deliver! ])) and event handlers that call deliver! - but then they aren't pure anymore (at least after a translation)
   (fn [& args]
-    (let [[attrs_ children] (analyze-dom-args args)
-          [attrs events] (split-events attrs_)]
-      (Element. type attrs events children))))
+    (apply dom-element type args)))
 
 ;; The following HTML elements are supported by react (http://facebook.github.io/react/docs/tags-and-attributes.html)
 (defdom a)

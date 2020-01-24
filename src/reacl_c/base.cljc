@@ -2,6 +2,12 @@
 
 (defprotocol E)
 
+(defn element? [v]
+  (or (string? v) (satisfies? E v)))
+
+(defn lens? [v]
+  (or (ifn? v) (keyword? v) (integer? v)))
+
 (defrecord WithState [f args] E)
 (defrecord Focus [e lens] E)
 (defrecord HandleAction [e f args] E)

@@ -13,7 +13,12 @@
 ;; they are instead represented as [type args], and the implementing
 ;; Reacl class is added via extend-type in 'impl/reacl'.
 
+;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
+;; TODO: an 'effect queue' utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handle its result)
+
+
 (defn ^:no-doc with-async-actions [f & args]
+  {:pre [(ifn? f)]}
   (base/->WithAsyncActions f args))
 
 (defn fragment
@@ -21,9 +26,11 @@
   otherwise invisible, i.e. the child elements are 'propagated' to the
   parent element."
   [& children]
+  {:pre [(every? base/element? children)]}
   (base/->Fragment children))
 
 (defn ^:no-doc dynamic [f & args]
+  {:pre [(ifn? f)]}
   (base/->WithState f args))
 
 (def ^{:doc "The *identity lens* that does not modify the yanked of
@@ -46,6 +53,8 @@ shoved values."} id-lens
   element, or translates it into a different form, via the given
   *lens*."
   [e lens]
+  {:pre [(base/element? e)
+         (base/lens? lens)]}
   (if (= lens id-lens)
     e
     (base/->Focus e lens)))
@@ -90,6 +99,7 @@ If not `:state` option is used, the state of the element will not change.
   application is not running standalone, but integrated in a different
   framework."
   [app msg]
+  {:pre [(satisfies? base/Application app)]}
   (base/-send-message! app msg))
 
 (defn handle-message
@@ -99,6 +109,8 @@ If not `:state` option is used, the state of the element will not change.
   msg)` is used, that message `msg` is sent downwards to `e`. The resulting
   element otherwise looks and behaves exactly like `e`."
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->HandleMessage e f args))
 
 (defn handle-action
@@ -107,6 +119,8 @@ If not `:state` option is used, the state of the element will not change.
   calling [[return]] with either a new state, and maybe one or more
   other actions (or the given action unchanged). "
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->HandleAction e f args))
 
 (let [h (fn [st a f args]
@@ -142,6 +156,7 @@ If not `:state` option is used, the state of the element will not change.
               (return :state (:new-state a))
               (return :action a)))]
   (defn ^:no-doc with-state-setter [id f & args]
+    {:pre [(ifn? f)]}
     ;; To prevent problems/enable nested interactive elements, in the sense that
     ;; an inner element triggers an outer update, the action has to be
     ;; to be unique to this. I don't find a general transparent
@@ -155,6 +170,7 @@ If not `:state` option is used, the state of the element will not change.
 (let [h (fn [set-state f args]
           (apply dynamic f set-state args))]
   (defn ^:no-doc interactive [id f & args]
+    {:pre [(ifn? f)]}
     (with-state-setter id h f args)))
 
 (defn named
@@ -162,6 +178,8 @@ If not `:state` option is used, the state of the element will not change.
   `e`, but with has the given name, that appears and can be used in
   testing and debugging utilities."
   [e name]
+  {:pre [(base/element? e)
+         (string? name)]}
   (base/->Named e name))
 
 (defn- id-merge [m1 m2]
@@ -187,6 +205,7 @@ a change."}  merge-lens
       (id-merge s2 (select-keys ns k2))]))))
 
 (defn- local-state [e initial]
+  {:pre [(base/element? e)]}
   (base/->LocalState e initial))
 
 (defn add-state
@@ -230,6 +249,7 @@ a change."}  merge-lens
   optimize rendering of it in a list of children of a container
   element."
   [e key]
+  {:pre [(base/element? e)]}
   (base/->Keyed e key))
 
 (defn did-mount
@@ -238,6 +258,8 @@ a change."}  merge-lens
   specific runtime representation of `e`, and which must return an
   action that is emitted by the resulting element."
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->DidMount e f args))
 
 (defn will-unmount
@@ -246,6 +268,8 @@ a change."}  merge-lens
   an implementation specific runtime representation of `e`, and which
   must return an action that is emitted by the resulting element."
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->WillUnmount e f args))
 
 (defn did-update
@@ -254,6 +278,8 @@ a change."}  merge-lens
   specific runtime representation of `e`, and which must return an
   action that is emitted by the resulting element."
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->DidUpdate e f args))
 
 (defn monitor-state
@@ -264,6 +290,8 @@ a change."}  merge-lens
   element tree an is only passed down to the resulting element."
   ;; TODO: document that only truthy values are emitted?
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->MonitorState e f args))
 
 (defrecord ^:private Mount [node f args])
@@ -280,6 +308,8 @@ a change."}  merge-lens
 
                  :else (return :action a)))]
   (defn ^:no-doc while-mounted [e mount! unmount! & args]
+    {:pre [(ifn? mount!)
+           (ifn? unmount!)]}
     (-> e
         (did-mount ->Mount mount! args)
         (will-unmount ->Unmount unmount! args)
@@ -297,10 +327,8 @@ a change."}  merge-lens
                          deliver! f args))]
   (defn ^:no-doc subscription
     [f & args]
+    {:pre [(ifn? f)]}
     (with-async-actions stu f args)))
-
-;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
-;; TODO: an 'effect queue' utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handle its result)
 
 (defn error-boundary
   "Creates an error boundary around the element `e`. When the
@@ -310,6 +338,8 @@ a change."}  merge-lens
   like [[handle-action]], are not catched by this. See [[try-catch]]
   for a higher level construct to handle errors."
   [e f & args]
+  {:pre [(base/element? e)
+         (ifn? f)]}
   (base/->ErrorBoundary e f args))
 
 (defrecord ^:private ErrorAction [error])
@@ -334,6 +364,8 @@ a change."}  merge-lens
   error to `nil` and maybe fix the state, after which `try-e` is showed
   again."
     [try-e catch-e]
+    {:pre [(base/element? try-e)
+           (base/element? catch-e)]}
     (-> (dynamic dyn try-e catch-e)
         (hide-state nil id-lens))))
 
@@ -352,6 +384,8 @@ a change."}  merge-lens
   state :down)` is evaluated for side effects when a new state is
   being pushed down to `e`."
     [e validate!]
+    {:pre [(base/element? e)
+           (ifn? validate!)]}
      ;; Note: dynamic adds it to render; could make a little earlied
      ;; via 'validate clause'; but probably not worth here (as
      ;; instantiation is delayed anyway)
