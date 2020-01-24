@@ -27,15 +27,16 @@
                             (if (= 1 (count cs))
                               (first cs)
                               (apply rdom/fragment cs)))
-    ;; or strings, usually
-    :else (rdom/fragment e)))
+    (string? e) (rdom/fragment e)
+    
+    :else (throw (ex-info "Expected an element or a string only." {:value e}))))
 
 (defn- instantiate-child [binding e]
   ;; returns multiple elements or strings
   (cond
     (satisfies? IReacl e) (-instantiate-reacl e binding)
-    ;; or strings, usually
-    :else [e]))
+    (string? e) [e]
+    :else (throw (ex-info "Expected an element or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])
 
