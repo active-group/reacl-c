@@ -12,7 +12,6 @@
 (defrecord Focus [e lens] E)
 (defrecord HandleAction [e f args] E)
 (defrecord LocalState [e initial] E)
-;; TODO: rename did-mount, will-unmount and did-update ?
 (defrecord DidMount [e f args] E)
 (defrecord WillUnmount [e f args] E)
 (defrecord DidUpdate [e f args] E)
