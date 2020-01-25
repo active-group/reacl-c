@@ -14,45 +14,38 @@
 (c/def-dynamic show-date date
   (.toLocaleTimeString date))
 
-(c/defn-interactive show-error state set-state [reset-value]
+(c/def-dynamic show-error state
   ;; change to (deliver! nil) to see try-catch in action.
   (dom/div "An error occurred: " (pr-str (second state))
            "with the state being: " (pr-str (first state))
            " "
-           (dom/button {:onclick (constantly (set-state [reset-value nil]))} "Reset")))
+           (dom/button {:onclick (fn [] (c/return :state [(js/Date.) nil]))} "Reset")))
 
 (def clock
   (c/isolate-state (js/Date.)
                    (c/try-catch (dom/div (-> (interval-timer 1000)
-                                             (c/handle-action (fn [state date] (c/return :state date))))
+                                             (c/handle-action (fn [date] (c/return :state date))))
                                          show-date)
-                                (show-error (js/Date.)))))
+                                show-error)))
 
 (defrecord Effect [f args])
 
-(defn reload [force?]
-  (c/return :action (Effect. #(.reload (.-location js/window) force?) nil)))
+(defn reload [_]
+  (c/return :action (Effect. #(.reload (.-location js/window) true) nil)))
 
-(defn effects [_ {f :f args :args}]
+(defn effects [{f :f args :args}]
   (apply f args)
   (c/return))
 
-(defrecord Show [_])
-(defrecord Hide [_])
-
-(defn show-hide [_ a]
-  (cond
-    (instance? Show a) (c/return :state true)
-    (instance? Hide a) (c/return :state false)
-    :else a))
+(defn hide [_] (c/return :state false))
+(defn show [_] (c/return :state true))
 
 (c/def-dynamic world-app show?
   (-> (if show?
-        (dom/div (dom/button {:onclick ->Hide} "Hide")
+        (dom/div (dom/button {:onclick hide} "Hide")
                  clock
-                 (dom/button {:onclick (constantly (reload true))} "Reload"))
-        (dom/button {:onclick ->Show} "Show"))
-      (c/handle-action show-hide)
+                 (dom/button {:onclick reload} "Reload"))
+        (dom/button {:onclick show} "Show"))
       (c/handle-action effects)))
 
 (browser/run (.getElementById js/document "app-world")

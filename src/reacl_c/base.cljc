@@ -8,12 +8,17 @@
 (defn lens? [v]
   (or (ifn? v) (keyword? v) (integer? v)))
 
-(defrecord WithState [f args] E)
+(defprotocol Ref
+  (-deref-ref [this]))
+
+(defrecord Dynamic [f args] E)
 (defrecord Focus [e lens] E)
 (defrecord HandleAction [e f args] E)
 (defrecord LocalState [e initial] E)
-(defrecord DidMount [e f args] E)
-(defrecord WillUnmount [e f args] E)
+(defrecord WithRef [f args] E)
+(defrecord SetRef [e ref] E)
+(defrecord DidMount [return] E)
+(defrecord WillUnmount [return] E)
 (defrecord DidUpdate [e f args] E)
 (defrecord WithAsyncActions [f args] E)
 (defrecord MonitorState [e f args] E)
@@ -25,6 +30,8 @@
 (defrecord Fragment [children] E)
 
 (defrecord Returned [opt-state actions messages])
+
+(defn return? [v] (instance? Returned v))
 
 (defprotocol Application
   (-send-message! [this msg]))

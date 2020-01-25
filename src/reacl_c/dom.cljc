@@ -7,7 +7,13 @@
 
 ;; TODO: some standard event handlers? constantly, value, checked.
 
-(defrecord ^:no-doc Element [type attrs events children] base/E)
+(defrecord ^:no-doc Element [type attrs events ref child] base/E)
+
+(defn ^:no-doc element? [e]
+  (instance? Element e))
+
+(defn ^:no-doc set-ref [e ref]
+  (assoc e :ref ref))
 
 (defn ^:no-doc dom-attributes? [v]
   (and (map? v)
@@ -35,7 +41,7 @@
          (map? events)
          (every? ifn? (clojure.core/map second events))
          (every? base/element? children)]}
-  (Element. type attrs events children))
+  (Element. type attrs events nil (base/->Fragment children)))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

@@ -9,50 +9,44 @@
   (is (= (c/return)
          (-> (tu/env (dom/div))
              (tu/mount! :state))))
-  (is (= (c/return :action [::act :state])
-         (-> (tu/env (c/dynamic
-                      (fn [state]
-                        (-> (dom/div)
-                            (c/did-mount (constantly [::act state]))))))
+  (is (= (c/return :action ::act)
+         (-> (tu/env (c/did-mount (c/return :action ::act)))
              (tu/mount! :state)))))
 
 (deftest update-test
   (is (= (c/return :action [::act :state2])
          (let [e (tu/env (c/dynamic
                           (fn [state]
-                            (-> (dom/div)
-                                (c/did-update (constantly [::act state]))))))]
+                            (c/did-update (dom/div #_(str state))
+                                          (constantly (c/return :action [::act state]))))))]
            (tu/mount! e :state1)
            (tu/update! e :state2)))))
 
 (deftest unmount-test
-  (is (= (c/return :action [::act :state])
-         (let [e (tu/env (c/dynamic
-                          (fn [state]
-                            (-> (dom/div)
-                                (c/will-unmount (constantly [::act state]))))))]
+  (is (= (c/return :action ::act)
+         (let [e (tu/env (c/will-unmount (c/return :action ::act)))]
            (tu/mount! e :state)
            (tu/unmount! e)))))
 
 (deftest send-message-test
-  (is (= (c/return :action [:msg :state])
+  (is (= (c/return :action :msg)
          (let [e (tu/env (-> (dom/div)
                              (c/handle-message
-                              (fn [state msg]
-                                (c/return :action [msg state])))))]
+                              (fn [msg]
+                                (c/return :action msg)))))]
            (tu/mount! e :state)
            (tu/send-message! e :msg))))
-  (is (= (c/return :state [:state1 :state2])
+  (is (= (c/return :state :state2)
          (let [e (tu/env (-> (dom/div)
                              (c/handle-message
-                              (fn [state msg]
-                                (c/return :state [state msg])))))]
+                              (fn [msg]
+                                (c/return :state msg)))))]
            (tu/mount! e :state1)
            (tu/send-message! e :state2)))))
 
 (deftest invoke-callback-test
   (is (= (c/return :action :act1)
-         (let [e (tu/env (dom/div {:onclick (constantly :act1)}))]
+         (let [e (tu/env (dom/div {:onclick (constantly (c/return :action :act1))}))]
            (tu/mount! e :state)
            (tu/invoke-callback! (xpath/select-one (tu/get-component e) (xpath/>> ** "div"))
                                 :onclick #js {:type "click"})))))

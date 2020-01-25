@@ -80,7 +80,7 @@
                                              initial-state
                                              e)))
 
-(defn- transform-return [r child]
+(defn- transform-return [r]
   ;; a base/Returned value to a rcore/return value.
   (assert (instance? base/Returned r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
   (apply rcore/merge-returned
@@ -89,21 +89,17 @@
            (rcore/return))
          (concat (map (fn [a] (rcore/return :action a))
                       (:actions r))
-                 (map (fn [a] (rcore/return :message [child a]))
+                 (map (fn [m] (rcore/return :message m))
                       (:messages r)))))
 
 
 (rcore/defclass ^:private handle-message this state [e f & args]
-  refs [child]
-
   handle-message
   (fn [msg]
-    (transform-return (apply f state msg args)
-                      (rcore/get-dom child)))
+    (transform-return (apply f msg args)))
 
   render
-  (-> (instantiate (rcore/bind this) e)
-      (rcore/refer child)))
+  (instantiate (rcore/bind this) e))
 
 (extend-type base/HandleMessage
   IReacl
@@ -144,13 +140,11 @@
       (instance? EventMessage msg)
       (let [{ev :ev} msg
             f (find-event-handler ev events)]
-        (if-let [a (f ev)]
-          (rcore/return :action a)
-          (rcore/return)))
+        (transform-return (f ev)))
 
       :else
-      ;; TODO else messages to (only named/refered?) children?
-      (throw (ex-info "Sending messages to a dom element not implemented yet." {:value msg})))))
+      ;; Note: for 'native-dom' the user will see a different error message though.
+      (throw (ex-info "Cannot send a message to dom elements. Use [[handle-message]] to add a handler or a [[ref]] to direct it to a child element." {:value msg})))))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -162,47 +156,45 @@
                                events))]
     (merge attrs r-events)))
 
-(defn- native-dom [binding type attrs & children]
-  (apply rdom/element type attrs
-         (mapcat (partial instantiate-child binding) children)))
+(defn- native-dom [binding type attrs ref & [child]]
+  (apply rdom/element type
+         (cond-> attrs
+           ref (assoc :ref (:reacl-ref ref)))
+         (when child (instantiate-child binding child))))
 
-(rcore/defclass ^:private dom++ this state [type attrs events children]
-  refs [native]
+(rcore/defclass ^:private dom++ this state [type attrs events ref child]
   ;; dom with action events and children.
 
   local-state [handler (dom-event-handler this)]
   handle-message (dom-message-to-action events)
   
   render
-  (-> (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler)
-             children)
-      (rcore/refer native)))
+  (native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref
+              child))
 
-(rcore/defclass ^:private dom+ this [type attrs events]
+(rcore/defclass ^:private dom+ this [type attrs events ref]
   ;; dom with action events, but without children (does not need state)
-  refs [native]
-  
   local-state [handler (dom-event-handler this)]
   handle-message (dom-message-to-action events)
   
   render
-  (-> (native-dom (rcore/use-app-state nil) type
-                  (merge-dom-attrs this attrs events handler))
-      (rcore/refer native)))
+  (native-dom (rcore/use-app-state nil) type
+              (merge-dom-attrs this attrs events handler)
+              ref))
 
-(defn- dom [binding type attrs events children]
+(defn- dom [binding type attrs events ref child]
   ;; optimize for dom element without event handlers:
   (if (not-empty events)
-    (if (empty? children)
-      (dom+ type attrs events)
+    (if (nil? child)
+      (dom+ type attrs ref events)
       ;; OPT: if no child needs state, then we can use a non-stateful class here too
-      (dom++ binding type attrs events children))
-    (apply native-dom binding type attrs children)))
+      (dom++ binding type attrs events ref child))
+    (native-dom binding type attrs ref child)))
 
 (extend-type dom/Element
   IReacl
-  (-instantiate-reacl [{type :type attrs :attrs events :events children :children} binding]
-    [(dom binding type attrs events children)]))
+  (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref child :child} binding]
+    [(dom binding type attrs events ref child)]))
 
 (extend-type base/Fragment
   IReacl
@@ -219,7 +211,33 @@
   (-instantiate-reacl [{e :e key :key} binding]
     [(keyed binding e key)]))
 
-(rcore/defclass ^:private with-state this state [f & args]
+(defrecord WrapRef [reacl-ref]
+  base/Ref
+  (-deref-ref [this] (rcore/get-dom reacl-ref)))
+
+(rcore/defclass ^:private with-ref this state [f & args]
+  refs [child r]
+
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
+
+  render
+  (-> (instantiate (rcore/bind this) (apply f (WrapRef. r) args))
+      (rcore/refer child)))
+
+(extend-type base/WithRef
+  IReacl
+  (-instantiate-reacl [{f :f args :args} binding]
+    [(apply with-ref binding f args)]))
+
+(extend-type base/SetRef
+  IReacl
+  (-instantiate-reacl [{e :e ref :ref} binding]
+    [(-> (instantiate binding e)
+         (rcore/refer (:reacl-ref ref)))]))
+
+(rcore/defclass ^:private dynamic this state [f & args]
   refs [child]
   
   handle-message
@@ -227,13 +245,19 @@
     (pass-message child msg))
   
   render
-  (-> (instantiate (rcore/bind this) (apply f state args))
-      (rcore/refer child)))
+  (do #_(when true ;; *debug-performance*
+            (let [e1 (apply f state args)
+                  e2 (apply f state args)]
+              (when-not (= e1 e2)
+                ;; TODO: can make a data-diff to better visualize the differences?
+                (throw (ex-info "Non-optimal: dynamic elements should return equal elements for equal state." {:element-1 e1 :element-2 e2})))))
+      (-> (instantiate (rcore/bind this) (apply f state args))
+          (rcore/refer child))))
 
-(extend-type base/WithState
+(extend-type base/Dynamic
   IReacl
   (-instantiate-reacl [{f :f args :args} binding]
-    [(apply with-state binding f args)]))
+    [(apply dynamic binding f args)]))
 
 (defn- focus [binding e lens]
   (instantiate (rcore/focus binding lens) e))
@@ -256,8 +280,7 @@
       (instance? ActionMessage msg)
       (do
         ;; makes up a nice trace: (println "AM:" (:action msg) "=>" (apply f state (:action msg) args))
-        (transform-return (apply f state (:action msg) args)
-                          (rcore/get-dom child)))
+        (transform-return (apply f (:action msg) args)))
       :else
       (pass-message child msg)))
   
@@ -332,60 +355,25 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-async-action binding f args)]))
 
-(defn- resolve-component [ref]
-  ;; when did-update and will-mount is attached to a (dom) element, then we want to pass the native dom element.
-  ;; but the wrapper classes (dom+ and dom++) are in between :-/
+(rcore/defclass ^:private did-mount this [return]
+  component-did-mount (fn [] return)
 
-  ;; TODO: this terrible hack comes as a remedy, but maybe we should 'push'
-  ;; the livecycle methods down to the dom classes, to get first hand
-  ;; access (btw, doing to would be good anyways; we could pass many things to just one dom class).
-  (let [c (rcore/get-dom ref)]
-    (if (and (rcore/component? c)
-             (#{dom+ dom++} (rcore/component-class c)))
-      ;; Note: dom+ and dom++ must have a 'native' ref to the actual raw dom element.
-      (let [native-ref (first (aget (.-props c) "reacl_refs"))]
-        (rcore/get-dom native-ref))
-
-      ;; everything else, has a dom node deeper down (resolve to that? remove fragments first)
-      c)))
-
-(rcore/defclass ^:private did-mount this state [e f & args]
-  refs [child]
-
-  handle-message
-  (fn [msg]
-    (pass-message child msg))
-  
-  component-did-mount
-  (fn []
-    (rcore/return :action (apply f (resolve-component child) args)))
-
-  render (-> (instantiate (rcore/bind this) e)
-             (rcore/refer child)))
+  render (rdom/fragment))
 
 (extend-type base/DidMount
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply did-mount binding e f args)]))
+  (-instantiate-reacl [{return :return} binding]
+    [(did-mount (transform-return return))]))
 
-(rcore/defclass ^:private will-unmount this state [e f & args]
-  refs [child]
+(rcore/defclass ^:private will-unmount this [return]
+  component-will-unmount (fn [] return)
 
-  handle-message
-  (fn [msg]
-    (pass-message child msg))
-
-  component-will-unmount
-  (fn []
-    (rcore/return :action (apply f (resolve-component child) args)))
-
-  render (-> (instantiate (rcore/bind this) e)
-             (rcore/refer child)))
+  render (rdom/fragment))
 
 (extend-type base/WillUnmount
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply will-unmount binding e f args)]))
+  (-instantiate-reacl [{return :return} binding]
+    [(will-unmount (transform-return return))]))
 
 (rcore/defclass ^:private did-update this state [e f & args]
   refs [child]
@@ -396,8 +384,7 @@
   
   component-did-update
   (fn [prev-app-state prev-local-state prev-e prev-f & prev-args]
-    ;; TODO: need to pass old/new state, old/new args to f to be really useful?
-    (rcore/return :action (apply f (resolve-component child) args)))
+    (transform-return (apply f prev-app-state state prev-e e args)))
 
   render (-> (instantiate (rcore/bind this) e)
              (rcore/refer child)))
@@ -409,7 +396,6 @@
 
 (defrecord ^:private MonitorMessage [new-state])
 
-;; TODO: monitor that state change desire, or use 'after-update' for this?
 (rcore/defclass ^:private monitor-state this state [e f & args]
   refs [child]
   

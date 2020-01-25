@@ -1,6 +1,8 @@
 (ns reacl-c.core
   (:require [reacl-c.base :as base]
-            [clojure.set :as set]))
+            [reacl-c.dom :as dom]
+            [clojure.set :as set])
+  (:refer-clojure :exclude [deref]))
 
 ;; Rationale:
 ;; The basic building block is en Element (base/E), which is merely
@@ -29,9 +31,39 @@
   {:pre [(every? base/element? children)]}
   (base/->Fragment children))
 
+(defn with-ref
+  "Creates an element for which `(f ref & args)` is called when it is
+  renderd, which should return an element, and where `ref` is a fresh
+  *reference*. A reference should be assigned to one of the elements
+  below via [[set-ref]]. You can then [[deref]] a refernce, and use it
+  as the target of a `(return :message [target msg])` for example. If
+  the returned element is a dom element, then [[deref]] will return
+  the native dom node."
+  [f & args]
+  (base/->WithRef f args))
+
+(defn set-ref
+  "Returns an element identical to `e`, but with the given reference
+  assigned. Replaces the reference previously assigned to
+  it. See [[with-ref]] for a description of references."
+  [e ref]
+  ;; Note: when setting a ref on a dom element, we don't want the
+  ;; class/component, but the 'raw' dom element. Pass the ref down to
+  ;; get that.
+  (if (dom/element? e)
+    (dom/set-ref e ref)
+    (base/Ref e ref)))
+
+(defn deref
+  "Returns an implementation specific value, usable as a target in
+  messages sending or to access the native dom
+  elements. See [[with-ref]] for a description of references."
+  [ref]
+  (base/-deref-ref ref))
+
 (defn ^:no-doc dynamic [f & args]
   {:pre [(ifn? f)]}
-  (base/->WithState f args))
+  (base/->Dynamic f args))
 
 (def ^{:doc "The *identity lens* that does not modify the yanked of
 shoved values."} id-lens
@@ -59,7 +91,7 @@ shoved values."} id-lens
     e
     (base/->Focus e lens)))
 
-(def ^{:arglists '([:state state :action action :message message])
+(def ^{:arglists '([:state state :action action :message [target message]])
        :doc "Creates a value to be used for example in the function
        passed to [[handle-action]]. All arguments are optional, and
        `:action` and `:message` may be specified more than one, but
@@ -104,7 +136,7 @@ If not `:state` option is used, the state of the element will not change.
 
 (defn handle-message
   "Handles the messages sent to the the resulting element (either
-  via [[send-message!]] or [[return]]), by calling `(f state message &
+  via [[send-message!]] or [[return]]), by calling `(f message &
   args)`, which must return a [[return]] value. If `(return :message
   msg)` is used, that message `msg` is sent downwards to `e`. The resulting
   element otherwise looks and behaves exactly like `e`."
@@ -114,7 +146,7 @@ If not `:state` option is used, the state of the element will not change.
   (base/->HandleMessage e f args))
 
 (defn handle-action
-  "Handles actions emitted by e, by evaluating `(f state action &
+  "Handles actions emitted by e, by evaluating `(f action &
   args)` for each of them. That must return the result of
   calling [[return]] with either a new state, and maybe one or more
   other actions (or the given action unchanged). "
@@ -123,26 +155,18 @@ If not `:state` option is used, the state of the element will not change.
          (ifn? f)]}
   (base/->HandleAction e f args))
 
-(let [h (fn [st a f args]
-          (return :action (apply f st a args)))]
-  (defn map-dynamic-actions
-    "Returns an element that emits actions `(f state action & args)`,
-  for each `action` emitted by `e` and the current state of the
-  element, and otherwise looks an behaves exacly like `e`."
-    [e f & args]
-    (handle-action h e f args)))
-
-(let [h (fn [_ a f args] (apply f a args))]
+(let [h (fn [a f args] (return :action (apply f a args)))]
   (defn map-actions
     "Returns an element that emits actions `(f action & args)`, for
   each `action` emitted by `e`, and otherwise looks an behaves exacly
   like `e`."
     [e f & args]
-    (map-dynamic-actions e h f args)))
+    (handle-action e h f args)))
 
-(defrecord ^:private SetStateAction [id new-state])
+;; TODO: map-messages ?
 
-(defrecord ^:private Partial1 [f args]
+;; TODO: offer that, for event handlers in particular.
+#_(defrecord ^:private Partial1 [f args]
   #?(:cljs IFn)
   #?(:cljs (-invoke [this a1]
                     (apply f (concat args (list a1)))))
@@ -150,28 +174,6 @@ If not `:state` option is used, the state of the element will not change.
   #?(:clj (invoke [this a1]
                   (apply f (concat args (list a1))))))
 
-(let [set (fn [state a id]
-            (if (and (instance? SetStateAction a)
-                     (= id (:id a)))
-              (return :state (:new-state a))
-              (return :action a)))]
-  (defn ^:no-doc with-state-setter [id f & args]
-    {:pre [(ifn? f)]}
-    ;; To prevent problems/enable nested interactive elements, in the sense that
-    ;; an inner element triggers an outer update, the action has to be
-    ;; to be unique to this. I don't find a general transparent
-    ;; solution, so we take an id as an argument to distinguish
-    ;; them. The interactive macros generate an id, which I think is
-    ;; save (you cannot nest 2 of the same interactive elements in the
-    ;; above mentioned way - or at least it is very difficult)
-    (-> (apply f (Partial1. ->SetStateAction [id]) args)
-        (handle-action set id))))
-
-(let [h (fn [set-state f args]
-          (apply dynamic f set-state args))]
-  (defn ^:no-doc interactive [id f & args]
-    {:pre [(ifn? f)]}
-    (with-state-setter id h f args)))
 
 (defn named
   "Returns an element that looks and works exactly like the element
@@ -253,30 +255,24 @@ a change."}  merge-lens
   (base/->Keyed e key))
 
 (defn did-mount
-  "After the element `e` was mounted into the application, `(f
-  component & args)` is called, where `component` is an implementation
-  specific runtime representation of `e`, and which must return an
-  action that is emitted by the resulting element."
-  [e f & args]
-  {:pre [(base/element? e)
-         (ifn? f)]}
-  (base/->DidMount e f args))
+  "An invisible element, which emits the state change or action as
+  specified by the given [[return]] value when mounted."
+  [return]
+  {:pre [(base/return? return)]}
+  (base/->DidMount return))
 
 (defn will-unmount
-  "When the element `e` is about to be unmounted from the
-  application, `(f component & args)` is called, where `component` is
-  an implementation specific runtime representation of `e`, and which
-  must return an action that is emitted by the resulting element."
-  [e f & args]
-  {:pre [(base/element? e)
-         (ifn? f)]}
-  (base/->WillUnmount e f args))
+  "An invisible element, which emits the state change or action as
+  specified by the given [[return]] value."
+  [return]
+  {:pre [(base/return? return)]}
+  (base/->WillUnmount return))
 
 (defn did-update
-  "After the mounted element `e` was updated to a new state, `(f
-  component & args)` is called, where `component` is an implementation
-  specific runtime representation of `e`, and which must return an
-  action that is emitted by the resulting element."
+  "When the mounted element `e` changes between the [[did-mount]]
+  and [[will-unmount]] points in the livecycle, `(f prev-state
+  new-state prev-e new-e)` is called, which must return a [[return]]
+  value."
   [e f & args]
   {:pre [(base/element? e)
          (ifn? f)]}
@@ -294,10 +290,10 @@ a change."}  merge-lens
          (ifn? f)]}
   (base/->MonitorState e f args))
 
-(defrecord ^:private Mount [node f args])
-(defrecord ^:private Unmount [node f args])
+(defrecord ^:private Mount [f args])
+(defrecord ^:private Unmount [f args])
 
-(let [handle (fn [[state mstate] a]
+(let [handle (fn [a [state mstate]]
                (condp instance? a
                  Mount
                  (return :state [state (apply (:f a) (:node a) (:args a))])
@@ -306,14 +302,15 @@ a change."}  merge-lens
                  (do (apply (:f a) (:node a) mstate (:args a))
                      (return))
 
-                 :else (return :action a)))]
-  (defn ^:no-doc while-mounted [e mount! unmount! & args]
+                 :else (return :action a)))
+      dh (fn [st mount! unmount! args]
+           (-> (fragment (did-mount (return :action (->Mount mount! args)))
+                         (will-unmount (return :action (->Unmount unmount! args))))
+               (handle-action handle st)))]
+  (defn ^:no-doc while-mounted [mount! unmount! & args]
     {:pre [(ifn? mount!)
            (ifn? unmount!)]}
-    (-> e
-        (did-mount ->Mount mount! args)
-        (will-unmount ->Unmount unmount! args)
-        (handle-action handle)
+    (-> (dynamic dh mount! unmount! args)
         (hide-state nil id-lens))))
 
 (letfn [(mount [_ deliver! f args]
@@ -321,8 +318,7 @@ a change."}  merge-lens
         (unmount [_ stop! deliver! f args]
           (stop!))
         (stu [deliver! f args]
-          (while-mounted (fragment) ;; TODO: fragment, or wrap an existing element?
-                         mount
+          (while-mounted mount
                          unmount
                          deliver! f args))]
   (defn ^:no-doc subscription
@@ -344,7 +340,7 @@ a change."}  merge-lens
 
 (defrecord ^:private ErrorAction [error])
 
-(let [set-error (fn [[state _] act]
+(let [set-error (fn [act state]
                   (condp instance? act
                     ErrorAction (return :state [state (:error act)])
                     (return :action act)))
@@ -353,7 +349,7 @@ a change."}  merge-lens
               catch-e
               (-> (focus try-e first-lens)
                   (error-boundary ->ErrorAction)
-                  (handle-action set-error))))]
+                  (handle-action set-error state))))]
   (defn try-catch
     "Returns an element that looks an works the same as the element
   `try-e`, until an error is thrown during its rendering. After that
@@ -427,8 +423,8 @@ a change."}  merge-lens
 
 (defmacro def-named
   "A macro to define a named element. This is the same as Clojures
-  `def`, but in addition assigns a name to the element that can be
-  used in testing and debugging utilities."
+  `def`, but in addition assigns its name to the element which can be
+  used by testing and debugging utilities."
   [name element]
   (let [name_ (str *ns* "/" name)]
     `(def ~name
@@ -443,9 +439,9 @@ a change."}  merge-lens
            (named ~name_)))))
 
 (defmacro defn-named
-  "A macro to define an abstract named element. This is the same as Clojures
-  `defn`, but in addition assigns a name to the returned element that can be
-  used in testing and debugging utilities."
+  "A macro to define an abstract element. This is the same as Clojures
+  `defn`, but in addition assigns its name to the returned element which can be
+  used by testing and debugging utilities."
   [name args & body]
   `(defn-named+ ~name all# ~args ~@body))
 
