@@ -27,11 +27,13 @@
   (testing "will-unmount"
     (is (= (c/will-unmount (c/return :action :a)) (c/will-unmount (c/return :action :a)))))
   (testing "did-update"
-    (is (= (c/did-update (dom/div) :a :b) (c/did-update (dom/div) :a :b))))
+    (is (= (c/did-update (dom/div) :a) (c/did-update (dom/div) :a))))
   (testing "while-mounted"
     (is (= (c/while-mounted :a :b) (c/while-mounted :a :b))))
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
-    (is (= (c/monitor-state (dom/div) :f :a) (c/monitor-state (dom/div) :f :a))))
+    (is (= (c/monitor-state (dom/div) :f) (c/monitor-state (dom/div) :f))))
   )
+
+;; TODO: test every higher level feature in core.

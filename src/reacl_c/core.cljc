@@ -1,8 +1,9 @@
 (ns reacl-c.core
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
-            [clojure.set :as set])
-  (:refer-clojure :exclude [deref]))
+            [clojure.set :as set]
+            [active.clojure.functions :as f])
+  (:refer-clojure :exclude [deref partial]))
 
 ;; Rationale:
 ;; The basic building block is en Element (base/E), which is merely
@@ -138,44 +139,35 @@ If not `:state` option is used, the state of the element will not change.
 
 (defn handle-message
   "Handles the messages sent to the the resulting element (either
-  via [[send-message!]] or [[return]]), by calling `(f message &
-  args)`, which must return a [[return]] value. If `(return :message
-  msg)` is used, that message `msg` is sent downwards to `e`. The resulting
-  element otherwise looks and behaves exactly like `e`."
-  [e f & args]
+  via [[send-message!]] or [[return]]), by calling `(f message)`,
+  which must return a [[return]] value. The resulting element
+  otherwise looks and behaves exactly like `e`."
+  [e f]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->HandleMessage e f args))
+  (base/->HandleMessage e f))
 
 (defn handle-action
-  "Handles actions emitted by e, by evaluating `(f action &
-  args)` for each of them. That must return the result of
-  calling [[return]] with either a new state, and maybe one or more
-  other actions (or the given action unchanged). "
-  [e f & args]
+  "Handles actions emitted by e, by evaluating `(f action)` for each
+  of them. That must return the result of calling [[return]] with
+  either a new state, and maybe one or more other actions (or the
+  given action unchanged). "
+  [e f]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->HandleAction e f args))
+  (base/->HandleAction e f))
 
-(let [h (fn [a f args] (return :action (apply f a args)))]
+(let [h (fn [f a] (return :action (f a)))]
   (defn map-actions
-    "Returns an element that emits actions `(f action & args)`, for
-  each `action` emitted by `e`, and otherwise looks an behaves exacly
-  like `e`."
-    [e f & args]
-    (handle-action e h f args)))
+    "Returns an element that emits actions `(f action)`, for each
+  `action` emitted by `e`, and otherwise looks an behaves exacly like
+  `e`."
+    [e f]
+    (handle-action e (f/partial h f))))
 
 ;; TODO: map-messages ?
 
-;; TODO: offer that, for event handlers in particular.
-#_(defrecord ^:private Partial1 [f args]
-  #?(:cljs IFn)
-  #?(:cljs (-invoke [this a1]
-                    (apply f (concat args (list a1)))))
-  #?(:clj clojure.lang.IFn)
-  #?(:clj (invoke [this a1]
-                  (apply f (concat args (list a1))))))
-
+(def partial f/partial)
 
 (defn named
   "Returns an element that looks and works exactly like the element
@@ -280,74 +272,78 @@ a change."}  merge-lens
   and [[will-unmount]] points in the livecycle, `(f prev-state
   new-state prev-e new-e)` is called, which must return a [[return]]
   value."
-  [e f & args]
+  [e f]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->DidUpdate e f args))
+  (base/->DidUpdate e f))
 
 (defn monitor-state
   "When e changes its state, `(f old-state new-state & args)` is
   evaluted, and must return an action that is emitted by the resulting
   element. Note that this is only called when e changes its self 'by
-  itself', not if the state was changes somewhere upwards in the
+  itself', not if the state was changed somewhere upwards in the
   element tree an is only passed down to the resulting element."
-  ;; TODO: document that only truthy values are emitted?
-  [e f & args]
+  ;; TODO: document that only truthy values are emitted? TODO: change to a general return? Name will-change-state?
+  [e f]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->MonitorState e f args))
+  (base/->MonitorState e f))
 
-(defrecord ^:private Mount [f args])
-(defrecord ^:private Unmount [f args])
+(defrecord ^:private Mount [f])
+(defrecord ^:private Unmount [f])
 
-(let [handle (fn [a [state mstate]]
+(let [handle (fn [[state mstate] a]
                (condp instance? a
                  Mount
-                 (return :state [state (apply (:f a) (:node a) (:args a))])
+                 (return :state [state ((:f a))])
                  
                  Unmount
-                 (do (apply (:f a) (:node a) mstate (:args a))
+                 (do ((:f a) mstate)
                      (return))
 
                  :else (return :action a)))
-      dh (fn [st mount! unmount! args]
-           (-> (fragment (did-mount (return :action (->Mount mount! args)))
-                         (will-unmount (return :action (->Unmount unmount! args))))
-               (handle-action handle st)))]
-  (defn ^:no-doc while-mounted [mount! unmount! & args]
+      dh (fn [st mount! unmount!]
+           ;; Note: must 'delay' the mount and unmount functions, because we allow side effects there.
+           ;; TODO: move that 'allowance' to subscription.
+           (-> (fragment (did-mount (return :action (->Mount mount!)))
+                         (will-unmount (return :action (->Unmount unmount!))))
+               (handle-action (f/partial handle st))))]
+  (defn ^:private while-mounted [mount! unmount!]
     {:pre [(ifn? mount!)
            (ifn? unmount!)]}
-    (-> (dynamic dh mount! unmount! args)
+    (-> (dynamic dh mount! unmount!)
         (hide-state nil id-lens))))
 
-(letfn [(mount [_ deliver! f args]
+(letfn [(mount [deliver! f args]
+          {:post [(ifn? %)]}
           (apply f deliver! args))
-        (unmount [_ stop! deliver! f args]
+        (unmount [stop!]
           (stop!))
         (stu [deliver! f args]
-          (while-mounted mount
-                         unmount
-                         deliver! f args))]
+          (while-mounted (f/partial mount deliver! f args)
+                         unmount))]
   (defn ^:no-doc subscription
     [f & args]
     {:pre [(ifn? f)]}
+    ;; FIXME: I think with different args, it won't be a new subscription - maybe it should?! (needs did-update)
     (with-async-actions stu f args)))
 
 (defn error-boundary
   "Creates an error boundary around the element `e`. When the
-  rendering of `e` throws an exception, then `(f error & args)` is
+  rendering of `e` throws an exception, then `(f error)` is
   evaluated, and must result in an action which is then emitted from
   the resulting element. Note that exceptions in functions
   like [[handle-action]], are not catched by this. See [[try-catch]]
   for a higher level construct to handle errors."
-  [e f & args]
+  [e f]
+  ;; TODO: change to return [[return]] values.
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->ErrorBoundary e f args))
+  (base/->ErrorBoundary e f))
 
 (defrecord ^:private ErrorAction [error])
 
-(let [set-error (fn [act state]
+(let [set-error (fn [state act]
                   (condp instance? act
                     ErrorAction (return :state [state (:error act)])
                     (return :action act)))
@@ -356,7 +352,7 @@ a change."}  merge-lens
               catch-e
               (-> (focus try-e first-lens)
                   (error-boundary ->ErrorAction)
-                  (handle-action set-error state))))]
+                  (handle-action (f/partial set-error state)))))]
   (defn try-catch
     "Returns an element that looks an works the same as the element
   `try-e`, until an error is thrown during its rendering. After that
@@ -372,11 +368,11 @@ a change."}  merge-lens
     (-> (dynamic dyn try-e catch-e)
         (hide-state nil id-lens))))
 
-(let [df (fn [state e validate!]
+(let [df (fn [e validate! state]
            ;; state passed down!
            (validate! state :down)
            e)
-      mf (fn [old new validate!]
+      mf (fn [validate! old new]
            ;; state passed up!
            (validate! new :up)
            (return))]
@@ -392,8 +388,8 @@ a change."}  merge-lens
      ;; Note: dynamic adds it to render; could make a little earlied
      ;; via 'validate clause'; but probably not worth here (as
      ;; instantiation is delayed anyway)
-    (-> (dynamic df e validate!)
-        (monitor-state mf validate!))))
+    (-> (dynamic (f/partial df e validate!))
+        (monitor-state (f/partial mf validate!)))))
 
 (defmacro ^:no-doc fn+ [all-args args & body]
   ;; generates a simplified param vector, in order to bind all args also to

@@ -11,20 +11,20 @@
 (defprotocol Ref
   (-deref-ref [this]))
 
-(defrecord Dynamic [f args] E)
+(defrecord Dynamic [f args] E) ;; aka WithState
 (defrecord Focus [e lens] E)
-(defrecord HandleAction [e f args] E)
+(defrecord HandleAction [e f] E)
 (defrecord LocalState [e initial] E)
 (defrecord WithRef [f args] E)
 (defrecord SetRef [e ref] E)
 (defrecord DidMount [return] E)
 (defrecord WillUnmount [return] E)
-(defrecord DidUpdate [e f args] E)
+(defrecord DidUpdate [e f] E)
 (defrecord WithAsyncActions [f args] E)
-(defrecord MonitorState [e f args] E)
-(defrecord HandleMessage [e f args] E)
+(defrecord MonitorState [e f] E)
+(defrecord HandleMessage [e f] E)
 (defrecord Named [e name] E)
-(defrecord ErrorBoundary [e f args] E)
+(defrecord ErrorBoundary [e f] E)
 
 (defrecord Keyed [e key] E)
 (defrecord Fragment [children] E)

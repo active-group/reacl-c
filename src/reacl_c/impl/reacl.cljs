@@ -98,18 +98,18 @@
                       (:messages r)))))
 
 
-(rcore/defclass ^:private handle-message this state [e f & args]
+(rcore/defclass ^:private handle-message this state [e f]
   handle-message
   (fn [msg]
-    (transform-return (apply f msg args)))
+    (transform-return (f msg)))
 
   render
   (instantiate (rcore/bind this) e))
 
 (extend-type base/HandleMessage
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply handle-message binding e f args)]))
+  (-instantiate-reacl [{e :e f :f} binding]
+    [(handle-message binding e f)]))
 
 (defn- gen-named [s]
   (rcore/class s this state [e]
@@ -272,7 +272,7 @@
   (-instantiate-reacl [{e :e lens :lens} binding]
     [(focus binding e lens)]))
 
-(rcore/defclass ^:private handle-action this state [e f & args]
+(rcore/defclass ^:private handle-action this state [e f]
   local-state [action-to-message
                (fn [_ action]
                  (rcore/return :message [this (ActionMessage. action)]))]
@@ -285,7 +285,7 @@
       (instance? ActionMessage msg)
       (do
         ;; makes up a nice trace: (println "AM:" (:action msg) "=>" (apply f state (:action msg) args))
-        (transform-return (apply f (:action msg) args)))
+        (transform-return (f (:action msg))))
       :else
       (pass-message child msg)))
   
@@ -296,8 +296,8 @@
 
 (extend-type base/HandleAction
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply handle-action binding e f args)]))
+  (-instantiate-reacl [{e :e f :f} binding]
+    [(handle-action binding e f)]))
 
 (defrecord ^:private NewIsoState [state])
 
@@ -335,7 +335,6 @@
 
 (defrecord ^:private AsyncAction [v])
 
-;; TODO: can't we make the element returned by f fixed? - like an 'inject actions?'
 (rcore/defclass ^:private with-async-action this state [f & args]
   local-state [deliver! (fn [action]
                           (rcore/send-message! this (AsyncAction. action)))]
@@ -380,7 +379,7 @@
   (-instantiate-reacl [{return :return} binding]
     [(will-unmount binding (transform-return return))]))
 
-(rcore/defclass ^:private did-update this state [e f & args]
+(rcore/defclass ^:private did-update this state [e f]
   refs [child]
 
   handle-message
@@ -388,20 +387,20 @@
     (pass-message child msg))
   
   component-did-update
-  (fn [prev-app-state prev-local-state prev-e prev-f & prev-args]
-    (transform-return (apply f prev-app-state state prev-e e args)))
+  (fn [prev-app-state prev-local-state prev-e prev-f]
+    (transform-return (f prev-app-state state prev-e e)))
 
   render (-> (instantiate (rcore/bind this) e)
              (rcore/refer child)))
 
 (extend-type base/DidUpdate
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply did-update binding e f args)]))
+  (-instantiate-reacl [{e :e f :f} binding]
+    [(did-update binding e f)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 
-(rcore/defclass ^:private monitor-state this state [e f & args]
+(rcore/defclass ^:private monitor-state this state [e f]
   refs [child]
   
   render
@@ -413,7 +412,7 @@
     (cond
       (instance? MonitorMessage msg)
       (let [new-state (:new-state msg)]
-        (rcore/merge-returned (if-let [a (apply f state new-state args)]
+        (rcore/merge-returned (if-let [a (f state new-state)]
                                 (rcore/return :action a)
                                 (rcore/return))
                               (rcore/return :app-state new-state)))
@@ -422,14 +421,14 @@
 
 (extend-type base/MonitorState
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply monitor-state binding e f args)]))
+  (-instantiate-reacl [{e :e f :f} binding]
+    [(monitor-state binding e f)]))
 
 (defn- fst-lens
   ([[a _]] a)
   ([[_ b] a] [a b]))
 
-(rcore/defclass ^:private error-boundary this state [e f & args]
+(rcore/defclass ^:private error-boundary this state [e f]
   
   refs [child]
   
@@ -445,9 +444,10 @@
     ;; 'getDerivedStateFromError' does not have it. It's also very
     ;; implementation dependant, and less informative in our setup.
     ;; Leave that our for now.
-    (rcore/return :action (apply f error args))))
+    ;; FIXME: change to a general return
+    (rcore/return :action (f error))))
 
 (extend-type base/ErrorBoundary
   IReacl
-  (-instantiate-reacl [{e :e f :f args :args} binding]
-    [(apply error-boundary binding e f args)]))
+  (-instantiate-reacl [{e :e f :f} binding]
+    [(error-boundary binding e f)]))

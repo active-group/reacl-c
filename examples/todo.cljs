@@ -56,7 +56,7 @@
 (defrecord DeleteItem [id])
 (defrecord AddItem [text])
 
-(defn list-actions [action state]
+(defn list-actions [state action]
   (condp instance? action
     AddItem
     (c/return :state
@@ -78,7 +78,7 @@
                       (c/focus :todos))
                   (dom/br)
                   (add-item-form ->AddItem))
-      (c/handle-action list-actions state)))
+      (c/handle-action (c/partial list-actions state))))
 
 (browser/run (.getElementById js/document "app-todo")
   main

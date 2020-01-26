@@ -7,6 +7,7 @@
 
   :dependencies [[org.clojure/clojure "1.9.0" :scope "provided"]
                  [org.clojure/clojurescript "1.10.238" :scope "provided"]
+                 [de.active-group/active-clojure "0.33.0"]
                  [reacl "2.2.0"]]
 
   :plugins [[lein-codox "0.10.7"]
