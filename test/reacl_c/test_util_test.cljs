@@ -42,7 +42,7 @@
                               (fn [msg]
                                 (c/return :state msg)))))]
            (tu/mount! e :state1)
-           (tu/send-message! e :state2)))))
+           (tu/send-message! (tu/get-component e) :state2)))))
 
 (deftest invoke-callback-test
   (is (= (c/return :action :act1)

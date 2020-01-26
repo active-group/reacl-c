@@ -39,28 +39,31 @@
 (def get-component r-tu/get-component)
 
 (defn mount!
-  "Mount the element of the given test environment with the given
-  state, and return actions and maybe a changed state."
+  "Mounts the element of the given test environment with the given
+  state, and returns actions and maybe a changed state."
   [env state]
   (->ret (r-tu/mount! env state)))
 
 (defn update!
-  "Update the state of the element of the given test environment, and
-  return actions and maybe a changed state."
+  "Updates the state of the element of the given test environment, and
+  returns actions and maybe a changed state."
   [env state]
   (->ret (r-tu/update! env state)))
 
 (defn unmount!
-  "Unmount the element of the given test environment, and return
+  "Unmounts the element of the given test environment, and return
   actions and maybe a changed state."
   [env]
   (->ret (r-tu/unmount! env)))
 
 (defn send-message!
-  "Send a message to the element of the given test environment, and
-  return actions and maybe a changed state."
-  [env msg]
-  (->ret (r-tu/send-message! env msg)))
+  "Sends a message to the given component or the toplevel component of
+  the given test environment, and returns actions and maybe a changed
+  state."
+  [comp msg]
+  {:per [(some? comp)]}
+  ;; TODO: better check the comp? sending a message to a fragment/dom/string element gives weirt reacl errors.
+  (->ret (r-tu/send-message! comp msg)))
 
 (defn invoke-callback! [comp callback event]
   (->ret (r-tu/invoke-callback! comp callback event)))
