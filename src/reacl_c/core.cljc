@@ -355,29 +355,23 @@ a change."}  merge-lens
 
 (defn error-boundary
   "Creates an error boundary around the element `e`. When the
-  rendering of `e` throws an exception, then `(f error)` is
-  evaluated, and must result in an action which is then emitted from
-  the resulting element. Note that exceptions in functions
-  like [[handle-action]], are not catched by this. See [[try-catch]]
-  for a higher level construct to handle errors."
+  rendering of `e` throws an exception, then `(f error)` is evaluated,
+  and must result in an [[return]] value. Note that exceptions in
+  functions like [[handle-action]], are not catched by
+  this. See [[try-catch]] for a higher level construct to handle
+  errors."
   [e f]
-  ;; TODO: change to return [[return]] values.
   {:pre [(base/element? e)
          (ifn? f)]}
   (base/->ErrorBoundary e f))
 
-(defrecord ^:private ErrorAction [error])
-
-(let [set-error (fn [state act]
-                  (condp instance? act
-                    ErrorAction (return :state [state (:error act)])
-                    (return :action act)))
+(let [set-error (fn [state error]
+                  (return :state [state error]))
       dyn (fn [[state error] try-e catch-e]
             (if (some? error)
               catch-e
               (-> (focus try-e first-lens)
-                  (error-boundary ->ErrorAction)
-                  (handle-action (f/partial set-error state)))))]
+                  (error-boundary (f/partial set-error state)))))]
   (defn try-catch
     "Returns an element that looks an works the same as the element
   `try-e`, until an error is thrown during its rendering. After that

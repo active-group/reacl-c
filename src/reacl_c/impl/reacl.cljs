@@ -441,8 +441,7 @@
     ;; 'getDerivedStateFromError' does not have it. It's also very
     ;; implementation dependant, and less informative in our setup.
     ;; Leave that our for now.
-    ;; FIXME: change to a general return
-    (rcore/return :action (f error))))
+    (transform-return (f error))))
 
 (extend-type base/ErrorBoundary
   IReacl
