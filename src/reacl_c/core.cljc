@@ -255,18 +255,23 @@ a change."}  merge-lens
   (base/->Keyed e key))
 
 (defn did-mount
-  "An invisible element, which emits the state change or action as
-  specified by the given [[return]] value when mounted."
-  [return]
-  {:pre [(base/return? return)]}
-  (base/->DidMount return))
+  "An element like `e`, or an invisible element, which emits the state
+  change or action as specified by the given [[return]] value when
+  mounted."
+  ([return]
+   {:pre [(base/return? return)]}
+   (base/->DidMount return))
+  ([e return]
+   (fragment e (did-mount return))))
 
 (defn will-unmount
-  "An invisible element, which emits the state change or action as
-  specified by the given [[return]] value."
-  [return]
-  {:pre [(base/return? return)]}
-  (base/->WillUnmount return))
+  "An element like `e`, or an invisible element, which emits the state
+  change or action as specified by the given [[return]] value."
+  ([return]
+   {:pre [(base/return? return)]}
+   (base/->WillUnmount return))
+  ([e return]
+   (fragment e (will-unmount return))))
 
 (defn did-update
   "When the mounted element `e` changes between the [[did-mount]]
