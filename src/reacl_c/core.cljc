@@ -492,41 +492,6 @@ a change."}  merge-lens
   [name state & body]
   `(def-named ~name (dynamic (fn [~state] ~@body))))
 
-(defmacro defn-interactive
-  "A macro to simplify using plain dom elements as interactive
-  elements that define how the user sees and can change the state. For
-  example, to use a `dom/input` to let the user edit a plain string
-  and a placeholder text, you can define
-
-```
-(defn-interactive textbox value set-value [placeholder]
-  (dom/input {:type \"text\" :placeholder placeholder
-              :value value
-              :onchange (fn [ev] (set-value (.. ev -target -value))}))
-```
-
-  Note that the `set-value` action must only be emitted from *below*
-  the element. Passing it to somewhere else in the application will
-  not work.
-"
-  [name state set-state args & body]
-  `(let [id# (gensym "id")]
-     (defn-named-delayed ~name [interactive id#] [~state ~set-state] ~args ~@body)))
-
-(defmacro def-interactive
-  "A macro similar to [[defn-interactive]], for concrete elements without arguments. For example:
-
-```
-(def-interactive textbox value set-value
-  (dom/input {:type \"text\"
-              :value value
-              :onchange (fn [ev] (set-value (.. ev -target -value))}))
-```
-"
-  [name state set-state & body]
-  `(let [id# (gensym "id")]
-     (def-named ~name (interactive id# (fn [~state ~set-state] ~@body)))))
-
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
   that needs an imperative way to 'inject' actions into an
