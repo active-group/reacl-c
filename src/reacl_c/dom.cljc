@@ -7,7 +7,7 @@
 
 ;; TODO: some standard event handlers? constantly, value, checked.
 
-(defrecord ^:no-doc Element [type attrs events ref child] base/E)
+(defrecord ^:no-doc Element [type attrs events ref children] base/E)
 
 (defn ^:no-doc element? [e]
   (instance? Element e))
@@ -35,13 +35,21 @@
   [(into {} (remove #(event? (first %)) attrs))
    (into {} (filter #(event? (first %)) attrs))])
 
+(defn- flatten-fragment [elem]
+  (if (base/fragment? elem)
+    (mapcat flatten-fragment (:children elem))
+    (list elem)))
+
+(defn- flatten-children [children]
+  (mapcat flatten-fragment children))
+
 (defn- dom-element* [type attrs events & children]
   {:pre [(string? type)
          (map? attrs)
          (map? events)
          (every? ifn? (clojure.core/map second events))
          (every? base/element? children)]}
-  (Element. type attrs events nil (base/->Fragment children)))
+  (Element. type attrs events nil (flatten-children children)))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

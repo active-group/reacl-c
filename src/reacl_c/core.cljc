@@ -120,7 +120,9 @@ If not `:state` option is used, the state of the element will not change.
                            (assert false (str "A :state argument to return must be specified only once.")))
                          (recur nxt [arg] actions messages))
             (:action) (recur nxt state (conj! actions arg) messages)
-            (:message) (recur nxt state actions (conj! messages arg))
+            (:message) (let [[target msg] arg]
+                         (assert (some? target) "Missing target for message.")
+                         (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
 

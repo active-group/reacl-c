@@ -29,6 +29,9 @@
 (defrecord Keyed [e key] E)
 (defrecord Fragment [children] E)
 
+(defn fragment? [v]
+  (instance? Fragment v))
+
 (defrecord Returned [opt-state actions messages])
 
 (defn return? [v] (instance? Returned v))

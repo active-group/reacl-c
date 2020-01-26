@@ -46,7 +46,9 @@
 (defrecord ^:private ActionMessage [action])
 
 (defn- pass-message [child msg]
-  (rcore/return :message [(rcore/get-dom child) msg]))
+  (let [comp (rcore/get-dom child)]
+    (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use set-ref?"))
+    (rcore/return :message [comp msg])))
 
 (rcore/defclass ^:private toplevel this state [e]
   refs [child]
@@ -89,7 +91,10 @@
            (rcore/return))
          (concat (map (fn [a] (rcore/return :action a))
                       (:actions r))
-                 (map (fn [m] (rcore/return :message m))
+                 (map (fn [[target msg]]
+                        (assert (some? target) "Missing target for message. Forgot to use set-ref?")
+                        (assert (rcore/component? target) "Target for a message must be a component. Forgot to use deref?")
+                        (rcore/return :message [target msg]))
                       (:messages r)))))
 
 
@@ -134,17 +139,18 @@
                  f))
           events)))
 
-(defn- dom-message-to-action [events]
-  (fn [msg]
-    (cond
-      (instance? EventMessage msg)
-      (let [{ev :ev} msg
-            f (find-event-handler ev events)]
-        (transform-return (f ev)))
+(defn- dom-message-to-action [msg events first-ref]
+  (cond
+    (instance? EventMessage msg)
+    (let [{ev :ev} msg
+          f (find-event-handler ev events)]
+      (transform-return (f ev)))
 
-      :else
-      ;; Note: for 'native-dom' the user will see a different error message though.
-      (throw (ex-info "Cannot send a message to dom elements. Use [[handle-message]] to add a handler or a [[ref]] to direct it to a child element." {:value msg})))))
+    :else
+    (if-let [c (let [c (rcore/get-dom first-ref)] (and c (rcore/component? c)))]
+      (rcore/return :message [c msg])
+      ;; TODO: or maybe 'the first child that can receive messages'? like (dom "ab" target "de")
+      (throw (ex-info "Cannot send a message to dom elements that have no other elements as children." {:value msg})))))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -156,45 +162,44 @@
                                events))]
     (merge attrs r-events)))
 
-(defn- native-dom [binding type attrs ref & [child]]
+(defn- native-dom [binding type attrs self-ref first-child-ref & children]
   (apply rdom/element type
          (cond-> attrs
-           ref (assoc :ref (:reacl-ref ref)))
-         (when child (instantiate-child binding child))))
+           self-ref (assoc :ref (:reacl-ref self-ref)))
+         (let [children (map (partial instantiate binding) children)]
+           (when (not-empty children)
+             (cons (-> (first children)
+                       (rcore/refer first-child-ref))
+                   (rest children))))))
 
-(rcore/defclass ^:private dom++ this state [type attrs events ref child]
-  ;; dom with action events and children.
+(def ^:private dom-class_
+  (memoize
+   (fn [type]
+     (rcore/class ^:private (str "reacl-c.dom/" type) this state [attrs events ref & children]
+                  ;; dom with action events and children.
+                  refs [first]
 
-  local-state [handler (dom-event-handler this)]
-  handle-message (dom-message-to-action events)
+                  local-state [handler (dom-event-handler this)]
   
-  render
-  (native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref
-              child))
-
-(rcore/defclass ^:private dom+ this [type attrs events ref]
-  ;; dom with action events, but without children (does not need state)
-  local-state [handler (dom-event-handler this)]
-  handle-message (dom-message-to-action events)
+                  handle-message (fn [msg] (dom-message-to-action msg events first))
   
-  render
-  (native-dom (rcore/use-app-state nil) type
-              (merge-dom-attrs this attrs events handler)
-              ref))
+                  render
+                  (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref first
+                         children)))))
 
-(defn- dom [binding type attrs events ref child]
-  ;; optimize for dom element without event handlers:
-  (if (not-empty events)
-    (if (nil? child)
-      (dom+ type attrs ref events)
-      ;; OPT: if no child needs state, then we can use a non-stateful class here too
-      (dom++ binding type attrs events ref child))
-    (native-dom binding type attrs ref child)))
+(defn- dom-class [binding type events ref & children]
+  (apply (dom-class_ type) binding events ref children))
+
+(defn- dom [binding type attrs events ref & children]
+  ;; TODO: is it even worth it to 'optimize' ?
+  (if (and (empty? events) (not (some base/element? children)))
+    (apply native-dom binding type attrs ref nil children)
+    (apply dom-class binding type attrs events ref children)))
 
 (extend-type dom/Element
   IReacl
-  (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref child :child} binding]
-    [(dom binding type attrs events ref child)]))
+  (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
+    [(apply dom binding type attrs events ref children)]))
 
 (extend-type base/Fragment
   IReacl
