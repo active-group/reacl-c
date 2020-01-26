@@ -165,9 +165,26 @@ If not `:state` option is used, the state of the element will not change.
     [e f]
     (handle-action e (f/partial h f))))
 
-;; TODO: map-messages ?
-
 (def partial f/partial)
+
+(let [h (fn [ref msg]
+          (return :message [(deref ref) msg]))]
+  (defn ^:no-doc redirect-messages [ref e]
+    {:pre [(satisfies? base/Ref ref)
+           (base/element? e)]}
+    (handle-message e (f/partial h ref))))
+
+(let [h (fn [f ref msg]
+          (return :message [(deref ref) (f msg)]))
+      wr (fn [f e ref]
+           (handle-message (set-ref e ref) (f/partial h f ref)))]
+  (defn ^:no-doc map-messages
+    "Returns an element like `e`, that transforms all messages sent to
+  it though `(f msg)`, before they are forwarded to `e`."
+    [f e]
+    {:pre [(ifn? f)
+           (base/element? e)]}
+    (with-ref (f/partial wr f e))))
 
 (defn named
   "Returns an element that looks and works exactly like the element
