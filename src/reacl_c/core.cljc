@@ -195,7 +195,7 @@ If not `:state` option is used, the state of the element will not change.
 
 (defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
-               (if (identical? (get r k) v)
+               (if (= (get r k) v)
                  r
                  (assoc r k v)))
              m1
@@ -209,7 +209,7 @@ a change."}  merge-lens
   ([[s1 s2]] (merge s1 s2))
   ([[s1 s2] ns]
    ;; Note: if s1/s2 are records, then this restores that:
-   ;; id-merge makes the result be identical? if all updated keys are identical?
+   ;; id-merge makes the result be identical? if all updated keys are =
    (let [k1 (set (keys s1))
          k2 (set (keys s2))]
      [(id-merge s1 (select-keys ns (set/difference k1 k2)))

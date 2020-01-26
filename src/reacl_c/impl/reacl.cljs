@@ -302,8 +302,7 @@
 (defrecord ^:private NewIsoState [state])
 
 (defn- id-state [st1 st2]
-  ;; TODO: use = instead? or allow the user to specify it?
-  (if (identical? st1 st2)
+  (if (= st1 st2)
     rcore/keep-state
     st2))
 
@@ -423,10 +422,6 @@
   IReacl
   (-instantiate-reacl [{e :e f :f} binding]
     [(capture-state-change binding e f)]))
-
-(defn- fst-lens
-  ([[a _]] a)
-  ([[_ b] a] [a b]))
 
 (rcore/defclass ^:private error-boundary this state [e f]
   
