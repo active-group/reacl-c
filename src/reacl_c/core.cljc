@@ -285,8 +285,7 @@ a change."}  merge-lens
 (defn did-update
   "When the mounted element `e` changes between the [[did-mount]]
   and [[will-unmount]] points in the livecycle, `(f prev-state
-  new-state prev-e new-e)` is called, which must return a [[return]]
-  value."
+  prev-e)` is called, which must return a [[return]] value."
   [e f]
   {:pre [(base/element? e)
          (ifn? f)]}

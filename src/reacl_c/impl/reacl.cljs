@@ -388,7 +388,10 @@
   
   component-did-update
   (fn [prev-app-state prev-local-state prev-e prev-f]
-    (transform-return (f prev-app-state state prev-e e)))
+    (if (or (not= prev-app-state state)
+            (not= prev-e e))
+      (transform-return (f prev-app-state prev-e))
+      (rcore/return)))
 
   render (-> (instantiate (rcore/bind this) e)
              (rcore/refer child)))
