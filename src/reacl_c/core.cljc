@@ -17,8 +17,6 @@
 ;; Reacl class is added via extend-type in 'impl/reacl'.
 
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
-;; TODO: an 'effect queue' utility for triggering something like 'ajax/post' (state that makes it 'pending' maybe, then a subscription to handle its result)
-
 
 (defn ^:no-doc with-async-actions [f & args]
   {:pre [(ifn? f)]}
@@ -345,12 +343,15 @@ a change."}  merge-lens
         (unmount [stop!]
           (stop!))
         (stu [deliver! f args]
-          (while-mounted (f/partial mount deliver! f args)
-                         unmount))]
+          (-> (while-mounted (f/partial mount deliver! f args)
+                             unmount)
+              ;; different f or args must result in a new
+              ;; 'mount'/'unmount' cycle. Could be done with
+              ;; did-update, but easiest to achieve with a key.
+              (keyed [f args])))]
   (defn ^:no-doc subscription
     [f & args]
     {:pre [(ifn? f)]}
-    ;; FIXME: I think with different args, it won't be a new subscription - maybe it should?! (needs did-update)
     (with-async-actions stu f args)))
 
 (defn error-boundary
