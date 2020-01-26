@@ -324,16 +324,17 @@ a change."}  merge-lens
                      (return))
 
                  :else (return :action a)))
-      dh (fn [st mount! unmount!]
+      dh (fn [st e mount! unmount!]
            ;; Note: must 'delay' the mount and unmount functions, because we allow side effects there.
-           ;; TODO: move that 'allowance' to subscription.
-           (-> (fragment (did-mount (return :action (->Mount mount!)))
-                         (will-unmount (return :action (->Unmount unmount!))))
+           (-> e
+               (did-mount (return :action (->Mount mount!)))
+               (will-unmount (return :action (->Unmount unmount!)))
                (handle-action (f/partial handle st))))]
-  (defn ^:private while-mounted [mount! unmount!]
+  (defn ^:private while-mounted [e mount! unmount!]
     {:pre [(ifn? mount!)
            (ifn? unmount!)]}
-    (-> (dynamic dh mount! unmount!)
+    ;; TODO: add a (update! st)=>st, run when e changes (or state?); but do unmount/mount when mount or unmount fns change.
+    (-> (dynamic dh e mount! unmount!)
         (hide-state nil id-lens))))
 
 (letfn [(mount [deliver! f args]
@@ -342,7 +343,8 @@ a change."}  merge-lens
         (unmount [stop!]
           (stop!))
         (stu [deliver! f args]
-          (-> (while-mounted (f/partial mount deliver! f args)
+          (-> (fragment)
+              (while-mounted (f/partial mount deliver! f args)
                              unmount)
               ;; different f or args must result in a new
               ;; 'mount'/'unmount' cycle. Could be done with

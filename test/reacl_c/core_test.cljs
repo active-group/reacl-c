@@ -28,8 +28,6 @@
     (is (= (c/will-unmount (c/return :action :a)) (c/will-unmount (c/return :action :a)))))
   (testing "did-update"
     (is (= (c/did-update (dom/div) :a) (c/did-update (dom/div) :a))))
-  (testing "while-mounted"
-    (is (= (c/while-mounted :a :b) (c/while-mounted :a :b))))
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
