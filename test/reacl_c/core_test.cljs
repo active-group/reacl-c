@@ -33,7 +33,7 @@
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
-    (is (= (c/monitor-state (dom/div) :f) (c/monitor-state (dom/div) :f))))
+    (is (= (c/capture-state-change (dom/div) :f) (c/capture-state-change (dom/div) :f))))
   )
 
 ;; TODO: test every higher level feature in core.

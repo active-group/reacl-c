@@ -400,7 +400,7 @@
 
 (defrecord ^:private MonitorMessage [new-state])
 
-(rcore/defclass ^:private monitor-state this state [e f]
+(rcore/defclass ^:private capture-state-change this state [e f]
   refs [child]
   
   render
@@ -412,17 +412,14 @@
     (cond
       (instance? MonitorMessage msg)
       (let [new-state (:new-state msg)]
-        (rcore/merge-returned (if-let [a (f state new-state)]
-                                (rcore/return :action a)
-                                (rcore/return))
-                              (rcore/return :app-state new-state)))
+        (f state new-state))
       :else
       (pass-message child msg))))
 
-(extend-type base/MonitorState
+(extend-type base/CaptureStateChange
   IReacl
   (-instantiate-reacl [{e :e f :f} binding]
-    [(monitor-state binding e f)]))
+    [(capture-state-change binding e f)]))
 
 (defn- fst-lens
   ([[a _]] a)

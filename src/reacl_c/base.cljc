@@ -21,7 +21,7 @@
 (defrecord WillUnmount [return] E)
 (defrecord DidUpdate [e f] E)
 (defrecord WithAsyncActions [f args] E)
-(defrecord MonitorState [e f] E)
+(defrecord CaptureStateChange [e f] E)
 (defrecord HandleMessage [e f] E)
 (defrecord Named [e name] E)
 (defrecord ErrorBoundary [e f] E)

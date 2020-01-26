@@ -294,17 +294,25 @@ a change."}  merge-lens
          (ifn? f)]}
   (base/->DidUpdate e f))
 
-(defn monitor-state
-  "When e changes its state, `(f old-state new-state & args)` is
-  evaluted, and must return an action that is emitted by the resulting
-  element. Note that this is only called when e changes its self 'by
-  itself', not if the state was changed somewhere upwards in the
-  element tree an is only passed down to the resulting element."
-  ;; TODO: document that only truthy values are emitted? TODO: change to a general return? Name will-change-state?
+(defn ^:no-doc capture-state-change
   [e f]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->MonitorState e f))
+  (base/->CaptureStateChange e f))
+
+(let [h (fn [f args old new]
+          (apply f old new args)
+          (return :state new))]
+  (defn monitor-state
+    "When e changes its state, `(f old-state new-state & args)` is
+  evaluted for side effects. Note that this is only called when e
+  changes its self 'by itself', not if the state was changed somewhere
+  upwards in the element tree an is only passed down to the resulting
+  element."
+    [e f & args]
+    {:pre [(base/element? e)
+           (ifn? f)]}
+    (capture-state-change e (f/partial h f args))))
 
 (defrecord ^:private Mount [f])
 (defrecord ^:private Unmount [f])
@@ -391,8 +399,7 @@ a change."}  merge-lens
            e)
       mf (fn [validate! old new]
            ;; state passed up!
-           (validate! new :up)
-           (return))]
+           (validate! new :up))]
   (defn validation-boundary
     "Creates a state validation boundary around the element `e`,
   where `(validate! state :up)` is evaluated for side effects when a
