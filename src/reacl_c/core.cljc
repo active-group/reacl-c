@@ -3,7 +3,7 @@
             [reacl-c.dom :as dom]
             [clojure.set :as set]
             [active.clojure.functions :as f])
-  (:refer-clojure :exclude [deref partial]))
+  (:refer-clojure :exclude [deref partial constantly]))
 
 ;; Rationale:
 ;; The basic building block is en Element (base/E), which is merely
@@ -164,6 +164,7 @@ If not `:state` option is used, the state of the element will not change.
     (handle-action e (f/partial h f))))
 
 (def partial f/partial)
+(def constantly f/constantly)
 
 (let [h (fn [ref msg]
           (return :message [(deref ref) msg]))]

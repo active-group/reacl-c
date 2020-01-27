@@ -10,6 +10,17 @@
     (apply js/console.warn args)
     (apply println args)))
 
+(def ^:no-doc check-performance? (atom false))
+
+(defn- performance-check! [f & args]
+  (when @check-performance?
+    (let [e1 (apply f args)
+          e2 (apply f args)]
+      (when-not (= e1 e2)
+        ;; throw or warn? throw gives the better positional information; but stops at first.
+        ;; TODO: can make a data-diff to better visualize the differences?
+        (throw (ex-info "Non-optimal: dynamic elements should return equal elements for equal state and arguments." {:element-1 e1 :element-2 e2}))))))
+
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements."))
 
@@ -228,8 +239,10 @@
     (pass-message child msg))
 
   render
-  (-> (instantiate (rcore/bind this) (apply f (WrapRef. r) args))
-      (rcore/refer child)))
+  (let [rr (WrapRef. r)]
+    (apply performance-check! (partial f rr) args)
+    (-> (instantiate (rcore/bind this) (apply f rr args))
+        (rcore/refer child))))
 
 (extend-type base/WithRef
   IReacl
@@ -250,12 +263,7 @@
     (pass-message child msg))
   
   render
-  (do #_(when true ;; *debug-performance*
-            (let [e1 (apply f state args)
-                  e2 (apply f state args)]
-              (when-not (= e1 e2)
-                ;; TODO: can make a data-diff to better visualize the differences?
-                (throw (ex-info "Non-optimal: dynamic elements should return equal elements for equal state." {:element-1 e1 :element-2 e2})))))
+  (do (apply performance-check! (partial f state) args)
       (-> (instantiate (rcore/bind this) (apply f state args))
           (rcore/refer child))))
 
@@ -341,8 +349,9 @@
   refs [child]
   
   render
-  (-> (instantiate (rcore/bind this) (apply f deliver! args))
-      (rcore/refer child))
+  (do (apply performance-check! (partial f deliver!) args)
+      (-> (instantiate (rcore/bind this) (apply f deliver! args))
+          (rcore/refer child)))
 
   handle-message
   (fn [msg]
@@ -418,7 +427,7 @@
     (cond
       (instance? MonitorMessage msg)
       (let [new-state (:new-state msg)]
-        (f state new-state))
+        (transform-return (f state new-state)))
       :else
       (pass-message child msg))))
 
