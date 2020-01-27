@@ -22,21 +22,24 @@
 (defrecord TodosApp [next-id todos])
 (defrecord Todo [id text done?])
 
+(defn add-item-submit [act e]
+  (.preventDefault e)
+  (c/return :state ""
+            :action act))
+
 (c/defn-dynamic add-item text [submit]
-  ;; TODO: static fns.
-  (dom/form {:onsubmit (fn [e]
-                         (.preventDefault e)
-                         (c/return :state ""
-                                   :action (submit text)))}
+  (dom/form {:onsubmit (c/partial add-item-submit (submit text))}
             textbox
             (dom/button {:type "submit"} "Add")))
 
 (defn add-item-form [submit]
   (c/isolate-state "" (add-item submit)))
 
+(defn button-action [action ev]
+  (c/return :action action))
+
 (defn button [label action]
-  ;; TODO: static fns.
-  (dom/button {:onclick (constantly (c/return :action action))}
+  (dom/button {:onclick (c/partial button-action action)}
               label))
 
 (c/defn-dynamic item todo [delete]
