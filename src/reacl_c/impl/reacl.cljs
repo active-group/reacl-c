@@ -33,7 +33,7 @@
        (apply class args))]))
 
 (defn lift [class & args]
-  (apply LiftedClass. class args))
+  (LiftedClass. class args))
 
 (defn instantiate
   "Returns a Reacl component/element for the given element and state binding."
