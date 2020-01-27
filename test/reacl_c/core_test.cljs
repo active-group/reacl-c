@@ -1,4 +1,4 @@
-(ns reacld.test.core-test
+(ns reacl-c.test.core-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
