@@ -72,4 +72,21 @@
       (is (not @mounted))
       (is (= [:mounted [:updated 1] [:updated 2]] @states)))))
 
+(deftest defn-dynamic-test
+  (testing "a regression with varargs"
+    (c/defn-dynamic dyn1 state [& args]
+      (dom/div))
+
+    (is (= (dyn1) (dyn1)))
+
+    (is (= (dyn1 "x") (dyn1 "x")))
+
+    (c/defn-dynamic dyn2 state [a1 & args]
+      (dom/div))
+
+    (is (= (dyn1 "x") (dyn1 "x")))
+
+    (is (= (dyn1 "x" "y") (dyn1 "x" "y")))
+    ))
+
 ;; TODO: test every higher level feature in core.

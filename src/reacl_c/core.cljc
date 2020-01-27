@@ -429,7 +429,8 @@ a change."}  merge-lens
 (defmacro ^:no-doc fn+ [all-args args & body]
   ;; generates a simplified param vector, in order to bind all args also to
   ;; 'all-args', regardless of destructuring.
-  (let [[fargs vargs] (partition-by #(= '& %) args)
+  (let [[fargs_ vargs] (partition-by #(= '& %) args)
+        fargs (if (= '& (first fargs_)) (rest fargs_) fargs_)
         fparams (map (fn [_] (gensym "a")) fargs)
         vparam (when (not-empty vargs) (gensym "a"))
         params (vec (concat fparams (when vparam ['& vparam])))
