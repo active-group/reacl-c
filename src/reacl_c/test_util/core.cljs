@@ -62,10 +62,11 @@
   state."
   [comp msg]
   {:per [(some? comp)]}
-  ;; TODO: better check the comp? sending a message to a fragment/dom/string element gives weirt reacl errors.
+  ;; TODO: better check the comp? sending a message to a fragment/dom/string element gives weird reacl errors.
   (->ret (r-tu/send-message! comp msg)))
 
 (defn invoke-callback! [comp callback event]
+  ;; TODO: enable this on dom class elements?! then we can remove the xpath case for the raw dom element.
   (->ret (r-tu/invoke-callback! comp callback event)))
 
 (defn inject-action! [comp action]
