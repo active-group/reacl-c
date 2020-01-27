@@ -311,31 +311,44 @@ a change."}  merge-lens
            (ifn? f)]}
     (capture-state-change e (f/partial h f args))))
 
-(defrecord ^:private Mount [f])
-(defrecord ^:private Unmount [f])
+(let [mount (fn [state m mount! unmount!]
+              (return :state [state (assoc m
+                                           :state (mount!)
+                                           :mount! mount!
+                                           :unmount! unmount!)]))
+      update (fn [state e m update! mount! unmount! [old-state old-m] old-e]
+               (cond
+                 ;; ignore initial update after mount
+                 (= ::initial (:state old-m))
+                 (return)
 
-(let [handle (fn [[state mstate] a]
-               (condp instance? a
-                 Mount
-                 (return :state [state ((:f a))])
-                 
-                 Unmount
-                 (do ((:f a) mstate)
-                     (return))
+                 ;; remount when mount fn changed
+                 (not= mount! (:mount! old-m))
+                 (do
+                   ((:unmount! old-m) (:state old-m)) ;; old m-state or the new one?
+                   (return :state [state (assoc m :state (mount!))]))
 
-                 :else (return :action a)))
-      dh (fn [st e mount! unmount!]
-           ;; Note: must 'delay' the mount and unmount functions, because we allow side effects there.
-           (-> e
-               (did-mount (return :action (->Mount mount!)))
-               (will-unmount (return :action (->Unmount unmount!)))
-               (handle-action (f/partial handle st))))]
-  (defn ^:private while-mounted [e mount! unmount!]
-    {:pre [(ifn? mount!)
-           (ifn? unmount!)]}
-    ;; TODO: add a (update! st)=>st, run when e changes (or state?); but do unmount/mount when mount or unmount fns change.
-    (-> (dynamic dh e mount! unmount!)
-        (hide-state nil id-lens))))
+                 ;; update, when relevant.
+                 (and (some? update) (or (not= old-e e) (not= old-state state)))
+                 (let [old (:state m)
+                       new (update! old)]
+                   (if (= new old)
+                     (return)
+                     (return :state [state (assoc m :state new)])))
+
+                 :else (return)))
+      unmount (fn [state unmount! m-state]
+                (unmount! m-state)
+                (return :state [state nil]))
+      dyn (fn [[state m] e mount! update! unmount!]
+            (let [me (focus e first-lens)]
+              (-> me
+                  (did-update (f/partial update state me m update! mount! unmount!)) ;; must be first!
+                  (did-mount (f/partial mount state m mount! unmount!))
+                  (will-unmount (f/partial unmount state (:unmount! m) (:state m))))))]
+  (defn ^:no-doc while-mounted [e mount! update! unmount!]
+    (-> (dynamic dyn e mount! update! unmount!)
+        (local-state {:state ::initial}))))
 
 (letfn [(mount [deliver! f args]
           {:post [(ifn? %)]}
@@ -345,6 +358,7 @@ a change."}  merge-lens
         (stu [deliver! f args]
           (-> (fragment)
               (while-mounted (f/partial mount deliver! f args)
+                             nil
                              unmount)
               ;; different f or args must result in a new
               ;; 'mount'/'unmount' cycle. Could be done with

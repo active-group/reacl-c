@@ -1,6 +1,8 @@
 (ns reacld.test.core-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
+            [reacl-c.test-util.core :as tu]
+            [reacl-c.test-util.xpath :as xpath :include-macros true]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
 (deftest element-equality-test
@@ -33,5 +35,41 @@
   (testing "monitor-state"
     (is (= (c/capture-state-change (dom/div) :f) (c/capture-state-change (dom/div) :f))))
   )
+
+(deftest while-mounted-test
+  (testing "mount, unmount"
+    (let [mounted (atom false)
+          states (atom [])
+          env (tu/env (c/while-mounted (c/fragment)
+                                       #(do (reset! mounted true) :mounted)
+                                       identity
+                                       #(do (reset! mounted false) (swap! states conj %))))]
+      (tu/mount! env :state1)
+      (is @mounted)
+      
+      (tu/unmount! env)
+      (is (not @mounted))
+      (is (= [:mounted] @states))))
+
+  (testing "process over updates"
+    (let [mounted (atom false)
+          states (atom [])
+          upd (atom 0)
+          env (tu/env (c/while-mounted (c/dynamic pr-str)
+                                       #(do (reset! mounted true) :mounted)
+                                       #(do (swap! states conj %) (swap! upd inc) [:updated @upd])
+                                       #(do (reset! mounted false) (swap! states conj %))))]
+      (tu/mount! env :state1)
+      (is @mounted)
+
+      (tu/update! env :state2)
+      (is (= [:mounted] @states))
+
+      (tu/update! env :state3)
+      (is (= [:mounted [:updated 1]] @states))
+      
+      (tu/unmount! env)
+      (is (not @mounted))
+      (is (= [:mounted [:updated 1] [:updated 2]] @states)))))
 
 ;; TODO: test every higher level feature in core.
