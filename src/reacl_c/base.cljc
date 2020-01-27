@@ -34,7 +34,7 @@
 
 (defrecord Returned [opt-state actions messages])
 
-(defn return? [v] (instance? Returned v))
+(defn returned? [v] (instance? Returned v))
 
 (defprotocol Application
   (-send-message! [this msg]))

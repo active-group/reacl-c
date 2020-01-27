@@ -359,24 +359,28 @@
     [(apply with-async-action binding f args)]))
 
 (rcore/defclass ^:private did-mount this state [return]
-  component-did-mount (fn [] return)
+  component-did-mount (fn [] (if (rcore/returned? return)
+                               return
+                               (transform-return (return))))
 
   render (rdom/fragment))
 
 (extend-type base/DidMount
   IReacl
   (-instantiate-reacl [{return :return} binding]
-    [(did-mount binding (transform-return return))]))
+    [(did-mount binding (if (base/returned? return) (transform-return return) return))]))
 
 (rcore/defclass ^:private will-unmount this state [return]
-  component-will-unmount (fn [] return)
+  component-will-unmount (fn [] (if (rcore/returned? return)
+                                  return
+                                  (transform-return (return))))
 
   render (rdom/fragment))
 
 (extend-type base/WillUnmount
   IReacl
   (-instantiate-reacl [{return :return} binding]
-    [(will-unmount binding (transform-return return))]))
+    [(will-unmount binding (if (base/returned? return) (transform-return return) return))]))
 
 (rcore/defclass ^:private did-update this state [e f]
   refs [child]

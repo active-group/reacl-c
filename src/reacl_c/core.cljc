@@ -268,7 +268,7 @@ a change."}  merge-lens
   change or action as specified by the given [[return]] value when
   mounted."
   ([return]
-   {:pre [(base/return? return)]}
+   {:pre [(or (base/returned? return) (ifn? return))]}
    (base/->DidMount return))
   ([e return]
    (fragment e (did-mount return))))
@@ -277,7 +277,7 @@ a change."}  merge-lens
   "An element like `e`, or an invisible element, which emits the state
   change or action as specified by the given [[return]] value."
   ([return]
-   {:pre [(base/return? return)]}
+   {:pre [(or (base/returned? return) (ifn? return))]}
    (base/->WillUnmount return))
   ([e return]
    (fragment e (will-unmount return))))
