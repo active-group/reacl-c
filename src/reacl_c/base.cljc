@@ -36,5 +36,16 @@
 
 (defn returned? [v] (instance? Returned v))
 
+(defn merge-returned [r1 & rs]
+  (loop [r1 r1
+         rs rs]
+    (if (empty? rs)
+      r1
+      (let [r2 (first rs)
+            rm (Returned. (or (:opt-state r2) (:opt-state r1))
+                          (vec (concat (:actions r1) (:actions r2)))
+                          (vec (concat (:messages r1) (:messages r2))))]
+        (recur rm (rest rs))))))
+
 (defprotocol Application
   (-send-message! [this msg]))

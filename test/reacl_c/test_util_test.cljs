@@ -22,6 +22,24 @@
            (tu/mount! e :state1)
            (tu/update! e :state2)))))
 
+(deftest full-update-test
+  (let [e (tu/env (c/dynamic (fn [state]
+                               (c/did-update (dom/div)
+                                             (constantly (if (< state 10)
+                                                           (c/return :state (inc state))
+                                                           (c/return)))))))]
+    (is (= (c/return) (tu/mount! e 0)))
+    (is (= (c/return :state 2) (tu/update! e 1))) ;; only one did-update
+    (is (= (c/return :state 10) (tu/update!! e 2)))) ;; all did-updates
+  (let [e (tu/env (c/dynamic (fn [state]
+                               (c/did-update (dom/div)
+                                             (constantly (c/return :state (inc state)))))))]
+    (tu/mount! e 0)
+    (try (tu/update!! e 1)
+         (is false)
+         (catch :default e
+           (is true)))))
+
 (deftest unmount-test
   (is (= (c/return :action ::act)
          (let [e (tu/env (c/will-unmount (c/return :action ::act)))]

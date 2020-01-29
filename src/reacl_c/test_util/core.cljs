@@ -50,6 +50,27 @@
   [env state]
   (->ret (r-tu/update! env state)))
 
+(def ^:dynamic *max-update-loops* 100)
+
+(defn update!!
+  "Updates the state of the element of the given test environment, and
+  if the state is changed in reaction to that, then keeps on updating
+  it. Returns actions and the final changed state, if it was changed
+  at all. Throws if there are more than *max-update-loops* recursions,
+  which are a sign for bug in the element."
+  [env state]
+  (loop [r (core/return)
+         state state
+         n 1]
+    (let [r2 (update! env state)
+          rm (base/merge-returned r r2)]
+      (if (:opt-state r2)
+        (let [state (first (:opt-state r2))]
+          (when (> n *max-update-loops*)
+            (throw (ex-info "Elements keeps on updating. Check any [[did-update]] elements, which should eventually reach a fixed state." {:intermediate-state state})))
+          (recur rm state (inc n)))
+        rm))))
+
 (defn unmount!
   "Unmounts the element of the given test environment, and return
   actions and maybe a changed state."
