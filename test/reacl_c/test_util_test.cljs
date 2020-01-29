@@ -83,3 +83,35 @@
                (tu/mount! e :state1)
                (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> ** #'foobar))
                                         :state2))))))
+
+(deftest performance-util-test
+  ;; ideal is, when it uses no state, but there is only one value in the state domain
+  (testing "performance-check"
+    (is (= :ideal (tu/performance-check (dom/div) (list nil))))
+    ;; not ideal is, when more than one state value exists, but it's independant of it
+    (is (= :good (tu/performance-check (dom/div) (list :a :b))))
+    (is (= :good (tu/performance-check (c/dynamic (c/partial #(dom/div))) (list :a :b))))
+    ;; but ideal again, when that state is used.
+    (is (= :ideal (tu/performance-check (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))))
+    ;; bad is, when the dynamic rendering has side effects (returns different result for the same state)
+    (is (= :bad (tu/performance-check (c/dynamic (fn [state]
+                                                   (c/dynamic
+                                                    (fn [state]
+                                                      (dom/div (str state))))))
+                                      (list :a)))))
+  (testing "verify-performance"
+    (tu/verify-performance! :good (c/dynamic (c/partial #(dom/div))) (list :a :b))
+    (is true)
+    (tu/verify-performance! :ideal (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))
+    (is true)
+
+    (try (tu/verify-performance! :good (c/dynamic (fn [state] (c/dynamic (fn [state] (dom/div (str state)))))) (list :a :b))
+         (is false)
+         (catch :default e
+           (is true)))
+    
+    (try (tu/verify-performance! :ideal (c/dynamic (c/partial #(dom/div))) (list :a :b))
+         (is false)
+         (catch :default e
+           (is true)))))
+
