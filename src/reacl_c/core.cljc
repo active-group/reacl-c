@@ -3,7 +3,7 @@
             [reacl-c.dom :as dom]
             [clojure.set :as set]
             [active.clojure.functions :as f])
-  (:refer-clojure :exclude [deref partial constantly]))
+  (:refer-clojure :exclude [deref partial constantly empty]))
 
 ;; Rationale:
 ;; The basic building block is en Element (base/E), which is merely
@@ -29,6 +29,8 @@
   [& children]
   {:pre [(every? base/element? children)]}
   (base/->Fragment children))
+
+(def ^{:doc "An invisible element with no behavior."} empty (fragment))
 
 (defn with-ref
   "Creates an element for which `(f ref & args)` is called when it is
@@ -357,7 +359,7 @@ a change."}  merge-lens
         (unmount [stop!]
           (stop!))
         (stu [deliver! f args]
-          (-> (fragment)
+          (-> empty
               (while-mounted (f/partial mount deliver! f args)
                              nil
                              unmount)
