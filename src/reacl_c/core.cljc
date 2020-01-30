@@ -43,6 +43,12 @@
   [f & args]
   (base/->WithRef f args))
 
+;; TODO: add? Maybe change to/allow (return :message [ref msg])
+#_(defn with-self [f]
+  (with-ref (fn [ref]
+              (-> (f)
+                  (set-ref ref)))))
+
 (defn set-ref
   "Returns an element identical to `e`, but with the given reference
   assigned. Replaces the reference previously assigned to
@@ -94,16 +100,15 @@ shoved values."} id-lens
 
 (def ^{:arglists '([:state state :action action :message [target message]])
        :doc "Creates a value to be used for example in the function
-       passed to [[handle-action]]. All arguments are optional, and
-       `:action` and `:message` may be specified more than one, but
-       `:state` only once. At some points where such a *return value*
-       is expected, not all options may be valid, but if they are, then
+       passed to [[handle-action]]. All arguments are optional:
 
 - `:state`   means that the element changes its state to the given value
 - `:action`  means that the given action is emitted by the element
-- `:message` means that the given message is sent to the element.
+- `:message` means that the given message is sent to the given target.
 
-If not `:state` option is used, the state of the element will not change.
+If no `:state` option is used, the state of the element will not
+change. `:state` must occur at most once, `:message` and `:action` can
+be specified multiple times.
 "}
   return
   (fn [& args]
@@ -372,6 +377,14 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     (with-async-actions stu f args)))
 
+;; TODO: add? or replace primitive with-async-return?
+#_(defn with-async-messages [f e]
+  (with-ref (fn [ref]
+              (-> (fragment e (with-async-actions (fn [devlier!]
+                                                    (-> (did-mount (fn send! [] (f deliver!))) ;; TODO needs an extra did-mount? what if unmounted?
+                                                        (handle-actions #(return :message [(deref ref) msg]))))))
+                  (set-ref ref)))))
+
 (defn error-boundary
   "Creates an error boundary around the element `e`. When the
   rendering of `e` throws an exception, then `(f error)` is evaluated,
@@ -461,6 +474,8 @@ a change."}  merge-lens
   [var]
   (let [m (meta var)]
     (str (:ns m) "/" (:name m))))
+
+;; TODO: allow docstrings in defn macros.
 
 (defmacro def-named
   "A macro to define a named element. This is the same as Clojures
