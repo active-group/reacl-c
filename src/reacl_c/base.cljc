@@ -11,23 +11,26 @@
 (defprotocol Ref
   (-deref-ref [this]))
 
+(defrecord Fragment [children] E)
+
 (defrecord Dynamic [f args] E) ;; aka WithState
-(defrecord Focus [e lens] E)
-(defrecord HandleAction [e f] E)
-(defrecord LocalState [e initial] E)
-(defrecord WithRef [f args] E)
-(defrecord SetRef [e ref] E)
-(defrecord DidMount [return] E)
-(defrecord WillUnmount [return] E)
-(defrecord DidUpdate [e f] E)
 (defrecord WithAsyncActions [f args] E)
+(defrecord WithRef [f args] E)
+
+(defrecord Focus [e lens] E)
+(defrecord LocalState [e initial] E)
+
+(defrecord HandleAction [e f] E)
+(defrecord SetRef [e ref] E)
+(defrecord DidUpdate [e f] E)
 (defrecord CaptureStateChange [e f] E)
 (defrecord HandleMessage [e f] E)
 (defrecord Named [e name] E)
 (defrecord ErrorBoundary [e f] E)
-
 (defrecord Keyed [e key] E)
-(defrecord Fragment [children] E)
+
+(defrecord DidMount [return] E)
+(defrecord WillUnmount [return] E)
 
 (defn fragment? [v]
   (instance? Fragment v))
