@@ -85,6 +85,17 @@
                                         :state2))))))
 
 (deftest performance-util-test
+  (testing "resolve-1"
+    (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))
+    (is (= (dom/div "foo") (tu/resolve-deep (c/dynamic #(dom/div %)) "foo")))
+    (is (= (c/named (dom/div "foo") "x") (tu/resolve-deep (c/named (c/dynamic #(dom/div %)) "x") "foo")))
+    (is (= (c/focus (dom/div "foo") :x) (tu/resolve-deep (c/focus (c/dynamic #(dom/div %)) :x) {:x "foo"})))
+    (is (= (c/fragment (dom/div "foo")) (tu/resolve-deep (c/fragment (c/dynamic #(dom/div %))) "foo")))
+    (is (= (dom/span (dom/div "foo")) (tu/resolve-deep (dom/span (c/dynamic #(dom/div %))) "foo")))
+    (is (= (c/handle-action (dom/div "foo") :f) (tu/resolve-deep (c/handle-action (c/dynamic #(dom/div %)) :f) "foo")))
+    ;; ...?
+    )
+  
   ;; ideal is, when it uses no state, but there is only one value in the state domain
   (testing "performance-check"
     (is (= :ideal (tu/performance-check (dom/div) (list nil))))

@@ -7,7 +7,8 @@
             [active.clojure.lens :as lens]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
-            [reacl2.test-util.xpath :as r-xpath]))
+            [reacl2.test-util.xpath :as r-xpath])
+  (:refer-clojure :exclude [resolve]))
 
 ;; Note: just reusing rcore/test-util is not a good fit, esp. because
 ;; when/if xpath reveals much of the internals (dom class wrapper,
@@ -113,64 +114,127 @@
     (first (drop lens state))
     (lens/yank state lens)))
 
-(defn ^:no-doc resolve-element-1
-  "Resolves the given element to only dynamic and leaf elements (dom elements, strings, fragments, dynamic and with-*)
-  that it renders to for the given state."
+;; Note: part of the resolve-x functions could probably defined via this fold; but blows my mind currently.
+#_(defn ^:no-doc fold-element
+  [init elem dynamics wrapper container leaf]
+  (let [rec (fn [init elem]
+              (fold-element init elem dynamics wrapper container leaf))
+        w (fn [elem]
+            (wrapper (rec init (:e elem)) elem))
+        wc (fn [elem]
+             ;; map or fold?
+             (container init elem (map (partial rec init) (:children elem))))]
+    (if (string? elem)
+      (leaf init elem)
+      (condp instance? elem
+        ;; the dynamics
+        base/Dynamic (dynamics init elem)
+        base/WithRef (dynamics init elem)
+        base/WithAsyncActions (dynamics init elem)
+
+        ;; the wrappers
+        base/Focus (w elem)
+        base/HandleAction (w elem)
+        base/LocalState (w elem)
+        base/SetRef (w elem)
+        base/Keyed (w elem)
+        base/Named (w elem)
+        base/ErrorBoundary (w elem) ;; and the error fn?
+        base/HandleMessage (w elem)
+        base/DidUpdate (w elem)
+
+        base/Fragment (wc elem)
+        dom/Element   (wc elem)
+
+        ;; the leafs
+        base/DidMount (leaf init elem)
+        base/WillUnmount (leaf init elem)))))
+
+(defn ^:no-doc resolve-1-shallow
+  "Shallowly replaces all dynamic elements with the elements they resolve to for the given state."
   [elem state]
+  {:post [#(not (instance? base/Dynamic %))
+          #(not (instance? base/WithRef %))
+          #(not (instance? base/WithAsyncActions %))]}
   (if (string? elem)
     elem
     (condp instance? elem
       ;; the dynamics
-      base/Dynamic [(apply (:f elem) state (:args elem)) state]
-      base/WithRef [(apply (:f elem) dummy-ref (:args elem)) state]
-      base/WithAsyncActions [(apply (:f elem) dummy-deliver! (:args elem)) state]
+      base/Dynamic (apply (:f elem) state (:args elem))
+      base/WithRef (apply (:f elem) dummy-ref (:args elem))
+      base/WithAsyncActions (apply (:f elem) dummy-deliver! (:args elem))
 
-      ;; the wrappers
-      base/Focus (recur (:e elem) (yank state (:lens elem)))
-      base/HandleAction (recur (:e elem) state)
-      base/LocalState (recur (:e elem) [state (:initial elem)])
-      base/SetRef (recur (:e elem) state)
-      base/Keyed (recur (:e elem) state)
-      base/Named (recur (:e elem) state)
-      base/ErrorBoundary (recur (:e elem) state) ;; and the error fn?
-      base/HandleMessage (recur (:e elem) state)
-      base/DidUpdate (recur (:e elem) state)
+      elem)))
 
-      base/Fragment [(assoc elem :children (mapv #(resolve-element-1 % state) (:children elem))) state]
-      dom/Element   [(assoc elem :children (mapv #(resolve-element-1 % state) (:children elem))) state]
-
-      ;; the leafs
-      base/DidMount [core/empty state]
-      base/WillUnmount [core/empty state])))
-
-(defn ^:no-doc resolve-element
-  "Resolves the given element to only the leaf elements (dom elements and fragments)
-  that it renders to for the given state."
-  [elem state]
-  (loop [[elem state] (resolve-element-1 elem state)]
-    (if (string? elem)
-      elem
+(defn ^:no-doc resolve-*
+  [elem state resolve-dyn]
+  (if (string? elem)
+    elem
+    (let [w (fn []
+              (update elem :e #(resolve-* % state resolve-dyn)))
+          wc (fn []
+               (update elem :children (fn [es]
+                                        (mapv #(resolve-* % state resolve-dyn) es))))]
       (condp instance? elem
         ;; the dynamics
-        base/Dynamic (recur (resolve-element-1 elem state))
-        base/WithRef (recur (resolve-element-1 elem state))
-        base/WithAsyncActions (recur (resolve-element-1 elem state))
+        base/Dynamic (resolve-dyn elem state)
+        base/WithRef (resolve-dyn elem state)
+        base/WithAsyncActions (resolve-dyn elem state)
 
-        base/Fragment elem
-        dom/Element   elem))))
+        ;; the wrappers
+        base/Focus (update elem :e #(resolve-* % (yank state (:lens elem)) resolve-dyn))
+        base/LocalState (update elem :e #(resolve-* % [state (:initial elem)] resolve-dyn))
+        
+        base/HandleAction (w)
+        base/SetRef (w)
+        base/Keyed (w)
+        base/Named (w)
+        base/ErrorBoundary (w) ;; and the error fn?
+        base/HandleMessage (w)
+        base/DidUpdate (w)
 
-(defn ^:no-doc check-pure [elem state]
+        base/Fragment (wc)
+        dom/Element   (wc)
+
+        ;; the leafs
+        base/DidMount elem
+        base/WillUnmount elem))))
+
+(defn ^:no-doc resolve-1
+  "Replaces one level of dynamicity from the given elemt, or just returns it if there is none"
+  [elem state]
+  (resolve-* elem state resolve-1-shallow))
+
+(defn ^:no-doc resolve-deep
+  "Deeply replaces all dynamic elements with the elements they resolve to for the given state."
+  [elem state]
+  (resolve-* elem state (fn [elem state]
+                          (resolve-deep (resolve-1 elem state) state))))
+
+(defn ^:no-doc check-pure
+  "Checks if the given element always resolves to the same for the
+  given state, i.e. that rendering has no side effects."
+  [elem state]
   ;; Note: ideal performance also depends on our reacl implementation; but for what the user can do, this is even a better test.
   ;; Note: error boundary alternative elements are not checked.
-  (let [e1 (resolve-element-1 elem state)
-        e2 (resolve-element-1 elem state)]
-    (= e1 e2)))
+  ;; Resolving more and more levels of dynamicity, until we find an impure element (or there is nothing dynamic left)
+  (loop [e1 (resolve-1 elem state)
+         e2 (resolve-1 elem state)]
+    (and (= e1 e2)
+         (let [e1_ (resolve-1 e1 state)
+               e2_ (resolve-1 e2 state)]
+           ;; either nothing more to resolve, or recur
+           (or (and (= e1 e1_)
+                    (= e2 e2_))
+               (recur e1_ e2_))))))
 
-(defn ^:no-doc check-minimal [elem s1 s2]
+(defn ^:no-doc check-minimal
+  "Checks if the given element resolves to something different, given the two different states."
+  [elem s1 s2]
   ;; Note: only makes sense if check-pure is true
   (assert (not= s1 s2) "States must be different to check.")
-  (let [e1 (resolve-element elem s1)
-        e2 (resolve-element elem s2)]
+  (let [e1 (resolve-deep elem s1)
+        e2 (resolve-deep elem s2)]
     (not= e1 e2)))
 
 (defn- performance-check*
@@ -225,21 +289,23 @@
                                      (reset! non-ideal-example [element state-1 state-2])))]
     (cond
       (= actual :bad)
+      ;; TODO: add a 'path of named and dom tag to the first difference' and what is different.
       (throw (ex-info (str "Performance should be " level ", but was actually :bad.")
                       (let [[element state] @bad-example]
-                        ;; Note: with this state, elem resolved to different elements on repeated calls (some (fn) or other side effect.
+                        ;; Note: with this state, elem resolved to different elements on repeated calls (some (fn) or other side effect?)
                         {:state state
                          :element element ;; always the main element currently.
-                         :element-diff (data/diff (resolve-element-1 element state) (resolve-element-1 element state))})))
+                         :element-diff (data/diff (resolve-1 element state) (resolve-1 element state))
+                         })))
 
       (and (= level :ideal) (= actual :good))
       (throw (ex-info (str "Performance should be :ideal, but was actually only :good")
                       (let [[element state-1 state-2] @non-ideal-example]
-                        ;; Note: on state-1 and state-2, the element looked live the resolved element.    FIXME: but there is also behavior? :-/
+                        ;; Note: on state-1 and state-2, the element always looks and behaves the same - like 'resolved'
                         {:state-1 state-1
                          :state-2 state-2
                          :state-diff (data/diff state-1 state-2)
-                         :resolved (resolve-element element state-1)
+                         :resolved (resolve-deep element state-1)
                          :element element})))
 
       :else nil)))
