@@ -376,7 +376,7 @@
 
 (extend-type base/DidMount
   IReacl
-  (-instantiate-reacl [{return :return} binding]
+  (-instantiate-reacl [{return :ret} binding]
     [(did-mount binding (if (base/returned? return) (transform-return return) return))]))
 
 (rcore/defclass ^:private will-unmount this state [return]
@@ -388,7 +388,7 @@
 
 (extend-type base/WillUnmount
   IReacl
-  (-instantiate-reacl [{return :return} binding]
+  (-instantiate-reacl [{return :ret} binding]
     [(will-unmount binding (if (base/returned? return) (transform-return return) return))]))
 
 (rcore/defclass ^:private did-update this state [e f]

@@ -29,8 +29,9 @@
 (defrecord ErrorBoundary [e f] E)
 (defrecord Keyed [e key] E)
 
-(defrecord DidMount [return] E)
-(defrecord WillUnmount [return] E)
+;; Note: fields must not be named 'return', because of a ClojureScript bug.
+(defrecord DidMount [ret] E)
+(defrecord WillUnmount [ret] E)
 
 (defn fragment? [v]
   (instance? Fragment v))
