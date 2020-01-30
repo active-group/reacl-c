@@ -211,22 +211,115 @@
   (resolve-* elem state (fn [elem state]
                           (resolve-deep (resolve-1 elem state) state))))
 
+(defn- map-diff [m1 m2]
+  (let [[only-1 only-2 _] (data/diff m1 m2)]
+    [only-1 only-2]))
+
+(defn seq-diff [s1 s2]
+  ;; TODO: something else, like [_ _ x _] ...?
+  (let [[only-1 only-2 _] (data/diff s1 s2)]
+    [only-1 only-2]))
+
+(defn ^:no-doc find-first-difference [elem1 elem2 & [path]]
+  ;; returns [path differences] path=[item ...] and differences {:name [left right]}
+  (let [t1 (type elem1)
+        t2 (type elem2)
+        path (or path [])
+        w (fn [e1 e2 e-k res-k]
+            (let [path (conj path (type e1))]
+              (if (= (e-k elem1) (e-k elem2))
+                (find-first-difference (:e elem1) (:e elem2) path)
+                [path {res-k [(e-k elem1) (e-k elem2)]}])))]
+    (cond
+      (= elem1 elem2) nil
+      
+      (not= t1 t2) [path {:types [t1 t2]}]
+
+      ;; dynamics
+      (or (= t1 base/Dynamic) (= t1 base/WithRef) (= t1 base/WithAsyncActions))
+      (let [path (conj path t1)]
+        (if (= (:f elem1) (:f elem2))
+          [path {:arguments (seq-diff (:args elem1) (:args elem2))}]
+          [path {:function [(:f elem1) (:f elem2)]}]))
+
+      ;; wrappers
+      (or (= t1 base/HandleAction) (= t1 base/DidUpdate) (= t1 base/ErrorBoundary) (= t1 base/CaptureStateChange) (= t1 base/HandleMessage))
+      (w elem1 elem2 :f :function)
+
+      (= t1 base/SetRef)
+      (w elem1 elem2 :ref :reference)
+
+      (= t1 base/Focus)
+      (w elem1 elem2 :lens :lens)
+      
+      (= t1 base/Named)
+      (if (= (:name elem1) (:name elem2))
+        ;; TODO: or put the named 'var' in the path?
+        (find-first-difference (:e elem1) (:e elem2) (conj path (:name elem1)))
+        [(conj path base/Named) {:name [(:name elem1) (:name elem2)]}])
+      
+      (= t1 base/Keyed)
+      (w elem1 elem2 :key :key)
+
+      ;; containers
+      (or (= t1 base/Fragment) (= t1 dom/Element))
+      (let [cs1 (:children elem1)
+            cs2 (:children elem2)
+            in-path path
+            path (conj path (if (= t1 dom/Element) (:type elem1) t1))]
+        (cond
+          (and (= t1 dom/Element) (not= (:type elem1) (:type elem2)))
+          [in-path {:tag [(:type elem1) (:type elem2)]}]
+
+          (not= (count cs1) (count cs2))
+          ;; could look for keys, if there is an additional in front or back, etc. here.
+          [path {:child-count [(count cs1) (count cs2)]}]
+
+          (and (= t1 dom/Element) (not= (:attrs elem1) (:attrs elem2)))
+          [path {:attributes (map-diff (:attrs elem1) (:attrs elem2))}]
+
+          (and (= t1 dom/Element) (not= (:events elem1) (:events elem2)))
+          [path {:events (map-diff (:events elem1) (:events elem2))}]
+
+          (and (= t1 dom/Element) (not= (:ref elem1) (:ref elem2)))
+          [path {:ref [(:ref elem1) (:ref elem2)]}] ;; the native/raw ref.
+              
+          :else
+          (reduce (fn [res [idx [c1 c2]]]
+                    (or res
+                        (find-first-difference c1 c2 (conj path idx))))
+                  nil
+                  (map-indexed vector (map vector cs1 cs2)))))
+
+      ;; leafs
+      (= t1 base/DidMount) [path {:did-mount [(:ret elem1) (:ret elem2)]}]
+      (= t1 base/WillUnmount) [path {:will-unmount [(:ret elem1) (:ret elem2)]}]
+      
+      :else ;; string?!
+      [path {:not= [elem1 elem2]}])))
+
+(defn ^:no-doc resolve-differences
+  "Resolve up to the first difference, returns nil if equal, or a tuple of resolved elememts."
+  [elem state]
+  ;; Resolving more and more levels of dynamicity, until we find an impure element (or there is nothing dynamic left)
+  (loop [e1 (resolve-1 elem state)
+         e2 (resolve-1 elem state)]
+    (if (not= e1 e2)
+      [e1 e2]
+      (let [e1_ (resolve-1 e1 state)
+            e2_ (resolve-1 e2 state)]
+        (if (and (= e1 e1_)
+                 (= e2 e2_))
+          nil ;; fully resolved, no differences
+          (recur e1_ e2_) ;; search deeper
+          )))))
+
 (defn ^:no-doc check-pure
   "Checks if the given element always resolves to the same for the
   given state, i.e. that rendering has no side effects."
   [elem state]
   ;; Note: ideal performance also depends on our reacl implementation; but for what the user can do, this is even a better test.
-  ;; Note: error boundary alternative elements are not checked.
-  ;; Resolving more and more levels of dynamicity, until we find an impure element (or there is nothing dynamic left)
-  (loop [e1 (resolve-1 elem state)
-         e2 (resolve-1 elem state)]
-    (and (= e1 e2)
-         (let [e1_ (resolve-1 e1 state)
-               e2_ (resolve-1 e2 state)]
-           ;; either nothing more to resolve, or recur
-           (or (and (= e1 e1_)
-                    (= e2 e2_))
-               (recur e1_ e2_))))))
+  (nil? (resolve-differences elem state)))
 
 (defn ^:no-doc check-minimal
   "Checks if the given element resolves to something different, given the two different states."
@@ -289,16 +382,19 @@
                                      (reset! non-ideal-example [element state-1 state-2])))]
     (cond
       (= actual :bad)
-      ;; TODO: add a 'path of named and dom tag to the first difference' and what is different.
-      (throw (ex-info (str "Performance should be " level ", but was actually :bad.")
-                      (let [[element state] @bad-example]
+      (let [[element state] @bad-example ;; element = always the main element currently.
+            diff (let [[e1 e2] (resolve-differences element state)]
+                   (find-first-difference e1 e2))]
+        (throw (ex-info (str "Performance should be " level ", but was actually :bad."
+                             ;; TODO: could make the diff even more human-readable...
+                             " What makes it bad is this difference: " (pr-str diff))
                         ;; Note: with this state, elem resolved to different elements on repeated calls (some (fn) or other side effect?)
                         {:state state
-                         :element element ;; always the main element currently.
-                         :element-diff (data/diff (resolve-1 element state) (resolve-1 element state))
-                         })))
+                         :element element
+                         :element-diff diff})))
 
       (and (= level :ideal) (= actual :good))
+      ;; TODO: we should be able to find the paths to (the first) child that looks and behaves the same. If that makes sense?
       (throw (ex-info (str "Performance should be :ideal, but was actually only :good")
                       (let [[element state-1 state-2] @non-ideal-example]
                         ;; Note: on state-1 and state-2, the element always looks and behaves the same - like 'resolved'
