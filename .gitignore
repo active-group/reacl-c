@@ -4,3 +4,5 @@
 .lein-repl-history
 pom.xml
 pom.xml.asc
+scala
+_scratch.cljc
