@@ -23,8 +23,8 @@
 (defrecord Fragment [children] E)
 
 (defrecord Dynamic [f args] E) ;; aka WithState
-(defrecord WithAsyncActions [f args] E)
 (defrecord WithRef [f args] E)
+(defrecord WithAsyncReturn [f args] E)
 
 (defrecord Focus [e lens] E)
 (defrecord LocalState [e initial] E)

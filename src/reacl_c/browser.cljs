@@ -1,4 +1,4 @@
-(ns reacl-c.browser
+(ns reacl-c.browser ;; TODO: rename 'reacl' or react?
   (:require [reacl-c.impl.reacl :as impl]))
 
 (defn run
@@ -11,6 +11,11 @@
   "Returns an element implemented by the given Reacl class and arguments."
   [class & args]
   (apply impl/lift class args))
+
+(defn send-message!
+  "Sends a message to the runtime component `target`."
+  [target msg]
+  (impl/send-message! target msg))
 
 (defn render
   "Returns a Reacl element or component implementing the given `element`, and with the given state `binding`."

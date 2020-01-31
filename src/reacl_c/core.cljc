@@ -18,11 +18,6 @@
 
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
 
-;; TODO: implement via send-message and refs?
-(defn ^:no-doc with-async-actions [f & args]
-  {:pre [(ifn? f)]}
-  (base/->WithAsyncActions f args))
-
 (defn fragment
   "Creates an element with a number of child elements, that is
   otherwise invisible, i.e. the child elements are 'propagated' to the
@@ -375,6 +370,26 @@ a change."}  merge-lens
     (-> (dynamic dyn e mount! update! unmount!)
         (local-state {:state ::initial}))))
 
+(defn ^:no-doc with-async-return [f & args]
+  {:pre [(ifn? f)]}
+  (base/->WithAsyncReturn f args))
+
+(let [send! (fn [return! target msg]
+              (return! (return :message [target msg])))
+      h (fn [return! f args]
+          (apply f (f/partial send! return!) args))]
+  (defn ^:no-doc with-async-messages [f & args]
+    {:pre [(ifn? f)]}
+    (with-async-return h f args)))
+
+(let [h (fn [return! action]
+          (return! (return :action action)))
+      g (fn [return! f args]
+          (apply f (f/partial h return!) args))]
+  (defn ^:no-doc with-async-actions [f & args]
+    {:pre [(ifn? f)]}
+    (with-async-return g f args)))
+
 (letfn [(mount [deliver! f args]
           {:post [(ifn? %)]}
           (apply f deliver! args))
@@ -390,14 +405,6 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     ;; Note: when f or args change, this does shall and must do a new unmount/mount cycle.
     (with-async-actions stu f args)))
-
-;; TODO: add? or replace primitive with-async-return?
-#_(defn with-async-messages [f e]
-  (with-ref (fn [ref]
-              (-> (fragment e (with-async-actions (fn [devlier!]
-                                                    (-> (did-mount (fn send! [] (f deliver!))) ;; TODO needs an extra did-mount? what if unmounted?
-                                                        (handle-actions #(return :message [(deref ref) msg]))))))
-                  (set-ref ref)))))
 
 (defn error-boundary
   "Creates an error boundary around the element `e`. When the

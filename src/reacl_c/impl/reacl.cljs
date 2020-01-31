@@ -19,6 +19,7 @@
       (when-not (= e1 e2)
         ;; throw or warn? throw gives the better positional information; but stops at first.
         ;; TODO: can make a data-diff to better visualize the differences?
+        ;; TODO: warn only. Or remove, now that we have test-util performance test.
         (throw (ex-info "Non-optimal: dynamic elements should return equal elements for equal state and arguments." {:element-1 e1 :element-2 e2}))))))
 
 (defprotocol ^:private IReacl
@@ -78,6 +79,11 @@
         (rcore/return)) 
 
       :else (pass-message child msg))))
+
+(defn send-message!
+  "Sends a message to the runtime component `target`."
+  [target msg]
+  (rcore/send-message! target msg))
 
 (defrecord ^:private ReaclApplication [comp]
   base/Application  
@@ -347,32 +353,34 @@
   (-instantiate-reacl [{e :e initial :initial} binding]
     [(local-state binding e initial)]))
 
-(defrecord ^:private AsyncAction [v])
+(defrecord AsyncReturn [ret])
 
-(rcore/defclass ^:private with-async-action this state [f & args]
-  local-state [deliver! (fn [action]
-                          (rcore/send-message! this (AsyncAction. action)))]
-
+(rcore/defclass ^:private with-async-return this state [f & args]
+  local-state [send! (fn [v]
+                       (assert (base/returned? v) v)
+                       ;; Note: if v only contains a message, we might want to optimize and send directly?
+                       ;; (didn't work for some unknown reasons though)
+                       (rcore/send-message! this (AsyncReturn. v)))]
   refs [child]
   
   render
-  (do (apply performance-check! (partial f deliver!) args)
-      (-> (instantiate (rcore/bind this) (apply f deliver! args))
-          (rcore/refer child)))
+  ;; Note: for some unknown reason, sending messages directs to (get-dom child) does not work; it's not assigned when dereferenced in 'async-msg!'.
+  (let []
+    (apply performance-check! send! args)
+    (-> (instantiate (rcore/bind this) (apply f send! args))
+        (rcore/refer child)))
 
   handle-message
   (fn [msg]
-    (cond
-      (instance? AsyncAction msg)
-      (rcore/return :action (:v msg))
-      
-      :else
+    (condp instance? msg
+      AsyncReturn (transform-return (:ret msg))
+
       (pass-message child msg))))
 
-(extend-type base/WithAsyncActions
+(extend-type base/WithAsyncReturn
   IReacl
   (-instantiate-reacl [{f :f args :args} binding]
-    [(apply with-async-action binding f args)]))
+    [(apply with-async-return binding f args)]))
 
 (rcore/defclass ^:private did-mount this state [return]
   component-did-mount (fn [] (if (rcore/returned? return)

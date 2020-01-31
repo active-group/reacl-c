@@ -105,8 +105,8 @@
 (def ^:private dummy-ref (reify base/Ref
                            (-deref-ref [this] (throw (ex-info "References must only be dereferenced in handlers, not during rendering." {})))))
 
-(defn- dummy-deliver! [v]
-  (throw (ex-info "Asynchronous action delivery must only be done asynchronously, not during rendering." {:action v})))
+(defn- dummy-return! [v]
+  (throw (ex-info "Asynchronous return delivery must only be done asynchronously, not during rendering." {:value v})))
 
 (defn- yank [state lens]
   ;; TODO: add a way in reacl or core, to do a manual focus (respecting keywords and numbers; or add numbers to active.clojure?)
@@ -130,7 +130,7 @@
         ;; the dynamics
         base/Dynamic (dynamics init elem)
         base/WithRef (dynamics init elem)
-        base/WithAsyncActions (dynamics init elem)
+        base/WithAsyncReturn (dynamics init elem)
 
         ;; the wrappers
         base/Focus (w elem)
@@ -155,14 +155,14 @@
   [elem state]
   {:post [#(not (instance? base/Dynamic %))
           #(not (instance? base/WithRef %))
-          #(not (instance? base/WithAsyncActions %))]}
+          #(not (instance? base/WithAsyncReturn %))]}
   (if (string? elem)
     elem
     (condp instance? elem
       ;; the dynamics
       base/Dynamic (apply (:f elem) state (:args elem))
       base/WithRef (apply (:f elem) dummy-ref (:args elem))
-      base/WithAsyncActions (apply (:f elem) dummy-deliver! (:args elem))
+      base/WithAsyncReturn (apply (:f elem) dummy-return! (:args elem))
 
       elem)))
 
@@ -179,7 +179,7 @@
         ;; the dynamics
         base/Dynamic (resolve-dyn elem state)
         base/WithRef (resolve-dyn elem state)
-        base/WithAsyncActions (resolve-dyn elem state)
+        base/WithAsyncReturn (resolve-dyn elem state)
 
         ;; the wrappers
         base/Focus (update elem :e #(resolve-* % (yank state (:lens elem)) resolve-dyn))
@@ -236,7 +236,7 @@
       (not= t1 t2) [path {:types [t1 t2]}]
 
       ;; dynamics
-      (or (= t1 base/Dynamic) (= t1 base/WithRef) (= t1 base/WithAsyncActions))
+      (or (= t1 base/Dynamic) (= t1 base/WithRef) (= t1 base/WithAsyncReturn))
       (let [path (conj path t1)]
         (if (= (:f elem1) (:f elem2))
           [path {:arguments (seq-diff (:args elem1) (:args elem2))}]
