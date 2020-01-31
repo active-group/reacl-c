@@ -16,7 +16,7 @@
     (let [f (fn [x] (dom/div x))]
       (is (= (c/dynamic f) (c/dynamic f)))))
   (testing "focus"
-    (is (= (c/focus (dom/div) :a) (c/focus (dom/div) :a))))
+    (is (= (c/focus :a (dom/div)) (c/focus :a (dom/div)))))
   (testing "handle-action"
     (let [f (fn [a])]
       (is (= (c/handle-action (dom/div) f) (c/handle-action (dom/div) f)))))

@@ -18,6 +18,7 @@
 
 ;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
 
+;; TODO: implement via send-message and refs?
 (defn ^:no-doc with-async-actions [f & args]
   {:pre [(ifn? f)]}
   (base/->WithAsyncActions f args))
@@ -44,7 +45,7 @@
   (base/->WithRef f args))
 
 ;; TODO: add? Maybe change to/allow (return :message [ref msg])
-#_(defn with-self [f]
+#_(defn with-self-ref [f]
   (with-ref (fn [ref]
               (-> (f)
                   (set-ref ref)))))
@@ -88,15 +89,21 @@ shoved values."} id-lens
     ([[a _] b] [a b])))
 
 (defn focus
-  "Restricts the state of `e` to a part of the state of the resulting
-  element, or translates it into a different form, via the given
-  *lens*."
-  [e lens]
+  "Returns an element that focuses the outer state to the part of it
+  that `e` shall see, via the given *lens*. is like `e`. Otherwise
+  behaves and looks like `e`."
+  [lens e]
   {:pre [(base/element? e)
          (base/lens? lens)]}
   (if (= lens id-lens)
     e
     (base/->Focus e lens)))
+
+(defn embed-state
+  "Embeds the state of `e` into a part of the state of the resulting
+  element, via the given *lens*."
+  [e lens]
+  (focus lens e))
 
 (def ^{:arglists '([:state state :action action :message [target message]])
        :doc "Creates a value to be used for example in the function
@@ -243,7 +250,7 @@ a change."}  merge-lens
   `inner` state is `initial`. Note that the resulting element has only
   `outer` as its state."
   [initial lens e] ;; aka extend-state?
-  (local-state (focus e lens) initial))
+  (local-state (focus lens e) initial))
 
 (defn hide-state
   "Hides a part of the state of an element `e`, via a lens that
@@ -359,7 +366,7 @@ a change."}  merge-lens
                 (unmount! m-state)
                 (return :state [state nil]))
       dyn (fn [[state m] e mount! update! unmount!]
-            (let [me (focus e first-lens)]
+            (let [me (focus first-lens e)]
               (-> me
                   (did-update (f/partial update state me m update! mount! unmount!)) ;; must be first!
                   (did-mount (f/partial mount state m mount! unmount!))
@@ -412,7 +419,7 @@ a change."}  merge-lens
       dyn (fn [[state error] try-e catch-e]
             (if (some? error)
               catch-e
-              (-> (focus try-e first-lens)
+              (-> (focus first-lens try-e)
                   (error-boundary (f/partial set-error state)))))]
   (defn try-catch
     "Returns an element that looks an works the same as the element

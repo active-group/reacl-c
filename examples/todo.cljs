@@ -43,16 +43,14 @@
               label))
 
 (c/defn-dynamic item todo [delete]
-  (dom/div (-> checkbox
-               (c/focus :done?))
+  (dom/div (c/focus :done? checkbox)
            (button "Zap" delete)
            " " (:text todo)))
 
 (c/defn-dynamic item-list todos [delete-item]
   (apply dom/div
          (map-indexed (fn [idx id]
-                        (-> (item (delete-item id))
-                            (c/focus idx)
+                        (-> (c/focus idx (item (delete-item id)))
                             (c/keyed id)))
                       (map :id todos))))
 
@@ -77,8 +75,7 @@
 
 (c/def-dynamic main state
   (-> (c/fragment (dom/h3 "TODO")
-                  (-> (item-list ->DeleteItem)
-                      (c/focus :todos))
+                  (c/focus :todos (item-list ->DeleteItem))
                   (dom/br)
                   (add-item-form ->AddItem))
       (c/handle-action (c/partial list-actions state))))

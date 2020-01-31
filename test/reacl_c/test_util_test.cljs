@@ -99,9 +99,9 @@
 (deftest resolve-deep-test
   (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))
   (is (= (dom/div "foo") (tu/resolve-deep (c/dynamic #(dom/div %)) "foo")))
-  (is (= (c/focus (dom/div "foo") :x) (tu/resolve-deep (c/focus (c/dynamic #(dom/div %)) :x) {:x "foo"})))
   (let [x (c/name-id "x")]
     (is (= (c/named x (dom/div "foo")) (tu/resolve-deep (c/named x (c/dynamic #(dom/div %))) "foo"))))
+  (is (= (c/focus :x (dom/div "foo")) (tu/resolve-deep (c/focus :x (c/dynamic #(dom/div %))) {:x "foo"})))
   (is (= (c/fragment (dom/div "foo")) (tu/resolve-deep (c/fragment (c/dynamic #(dom/div %))) "foo")))
   (is (= (dom/span (dom/div "foo")) (tu/resolve-deep (dom/span (c/dynamic #(dom/div %))) "foo")))
   (is (= (c/handle-action (dom/div "foo") :f) (tu/resolve-deep (c/handle-action (c/dynamic #(dom/div %)) :f) "foo")))
@@ -182,8 +182,8 @@
            (f (c/did-mount (c/return :state :a)) (c/did-mount (c/return :state :b)))))
     ;; will-unmount is same.
 
-    (is (= [[base/Focus] {:lens [:a :b]}] (f (c/focus (dom/div) :a) (c/focus (dom/div) :b))))
-    (is (= [[base/Focus "div"] {:attributes [{:a 10} {:a 42}]}] (f (c/focus (dom/div {:a 10 :b 1}) :k1) (c/focus (dom/div {:a 42 :b 1}) :k1))))
+    (is (= [[base/Focus] {:lens [:a :b]}] (f (c/focus :a (dom/div)) (c/focus :b (dom/div)))))
+    (is (= [[base/Focus "div"] {:attributes [{:a 10} {:a 42}]}] (f (c/focus :k1 (dom/div {:a 10 :b 1})) (c/focus :k1 (dom/div {:a 42 :b 1})))))
     )
   
   )
