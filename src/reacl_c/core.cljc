@@ -384,14 +384,11 @@ a change."}  merge-lens
           (-> empty
               (while-mounted (f/partial mount deliver! f args)
                              nil
-                             unmount)
-              ;; different f or args must result in a new
-              ;; 'mount'/'unmount' cycle. Could be done with
-              ;; did-update, but easiest to achieve with a key.
-              (keyed [f args])))]
+                             unmount)))]
   (defn ^:no-doc subscription
     [f & args]
     {:pre [(ifn? f)]}
+    ;; Note: when f or args change, this does shall and must do a new unmount/mount cycle.
     (with-async-actions stu f args)))
 
 ;; TODO: add? or replace primitive with-async-return?
