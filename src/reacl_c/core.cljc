@@ -354,7 +354,7 @@ a change."}  merge-lens
                    (return :state [state (assoc m :state (mount!))]))
 
                  ;; update, when relevant.
-                 (and (some? update) (or (not= old-e e) (not= old-state state)))
+                 (and (some? update!) (or (not= old-e e) (not= old-state state)))
                  (let [old (:state m)
                        new (update! old)]
                    (if (= new old)
