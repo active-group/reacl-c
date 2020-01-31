@@ -35,10 +35,10 @@
   [(into {} (remove #(event? (first %)) attrs))
    (into {} (filter #(event? (first %)) attrs))])
 
-(defn- flatten-fragment [elem]
-  (if (base/fragment? elem)
-    (mapcat flatten-fragment (:children elem))
-    (list elem)))
+(defn- flatten-fragment [item]
+  (if (base/fragment? item)
+    (mapcat flatten-fragment (:children item))
+    (list item)))
 
 (defn- flatten-children [children]
   (mapcat flatten-fragment children))
@@ -48,7 +48,7 @@
          (map? attrs)
          (map? events)
          (every? ifn? (clojure.core/map second events))
-         (every? base/element? children)]}
+         (every? base/item? children)]}
   (Element. type attrs events nil (flatten-children children)))
 
 (defn ^:no-doc dom-element [type & args]

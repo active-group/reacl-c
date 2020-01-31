@@ -2,7 +2,7 @@
 
 (defprotocol E)
 
-(defn element? [v]
+(defn item? [v]
   (or (string? v) (satisfies? E v)))
 
 (defn lens? [v]

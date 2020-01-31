@@ -81,7 +81,7 @@
     (tu/mount! e :state)
     (is (= (c/return :action :act1) (as foobar)))
     ;; TODO: (is (= (c/return :action :act1) (as "div")))
-    ;; TODO: we could make it a requirement that the element does really emit actions normally; saying plain dom elements can't be used here.
+    ;; TODO: we could make it a requirement that the item does really emit actions normally; saying plain dom elements can't be used here.
     ;; TODO: (is (= (c/return :action :act1) (as dom/div)))
     ))
 

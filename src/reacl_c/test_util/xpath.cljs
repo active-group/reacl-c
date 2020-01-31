@@ -48,8 +48,8 @@
   Valid selectors are all the primitives from this module,
   as well as:\n
 
-  - strings stand for a virtual dom node or elements named by [[reacl-c.core.name]] as with [[named]],
-  - vars generated from one of the 'def-' and 'defn-' macros stand for those nodes created by them, as with [[named-var]]. Note: use #'name to get the vars instead of the functions.
+  - strings stand for a virtual dom nodes
+  - named item or the function creating named item, stand for such items.
   - keywords stand for attribute names of dom nodes as with [[attr]]\n
 
   Also see [[>>]] for a convenience macro version of this."
@@ -64,6 +64,6 @@
                           (keyword? v) (attr v)
                           (some? (c/meta-name-id v)) (named v)
                           (base/named? v) (named (base/named-name-id v))
-                          ;; TODO: add all other elements??!!
+                          ;; TODO: add all other items??!!
                           :else v))
                       selectors)))

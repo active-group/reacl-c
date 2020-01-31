@@ -20,7 +20,7 @@
         ;; throw or warn? throw gives the better positional information; but stops at first.
         ;; TODO: can make a data-diff to better visualize the differences?
         ;; TODO: warn only. Or remove, now that we have test-util performance test.
-        (throw (ex-info "Non-optimal: dynamic elements should return equal elements for equal state and arguments." {:element-1 e1 :element-2 e2}))))))
+        (throw (ex-info "Non-optimal: dynamic item should return equal items for equal state and arguments." {:item-1 e1 :item-2 e2}))))))
 
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements."))
@@ -37,7 +37,7 @@
   (LiftedClass. class args))
 
 (defn instantiate
-  "Returns a Reacl component/element for the given element and state binding."
+  "Returns a Reacl component/element for the given item and state binding."
   [binding e]
   (cond
     (satisfies? IReacl e) (let [cs (-instantiate-reacl e binding)]
@@ -46,14 +46,14 @@
                               (apply rdom/fragment cs)))
     (string? e) (rdom/fragment e)
     
-    :else (throw (ex-info "Expected an element or a string only." {:value e}))))
+    :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defn- instantiate-child [binding e]
   ;; returns multiple elements or strings
   (cond
     (satisfies? IReacl e) (-instantiate-reacl e binding)
     (string? e) [e]
-    :else (throw (ex-info "Expected an element or a string only." {:value e}))))
+    :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])
 
@@ -91,13 +91,11 @@
     (rcore/send-message! comp msg)))
 
 (defn run
-  "Run and mount the given element `e` in the native dom element
-  `dom`, with the given initial state."
-  [dom e initial-state]
+  [dom item initial-state]
   (ReaclApplication. (rcore/render-component dom
                                              toplevel
                                              initial-state
-                                             e)))
+                                             item)))
 
 (defn- transform-return [r]
   ;; a base/Returned value to a rcore/return value.
@@ -173,7 +171,7 @@
     (if-let [c (let [c (rcore/get-dom first-ref)] (and c (rcore/component? c)))]
       (rcore/return :message [c msg])
       ;; TODO: or maybe 'the first child that can receive messages'? like (dom "ab" target "de")
-      (throw (ex-info "Cannot send a message to dom elements that have no other elements as children." {:value msg})))))
+      (throw (ex-info "Cannot send a message to dom elements that have no other items as children." {:value msg})))))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -216,7 +214,7 @@
 
 (defn- dom [binding type attrs events ref & children]
   ;; TODO: is it even worth it to 'optimize' ?
-  (if (and (empty? events) (not (some base/element? children)))
+  (if (and (empty? events) (not (some base/item? children)))
     (apply native-dom binding type attrs ref nil children)
     (apply dom-class binding type attrs events ref children)))
 

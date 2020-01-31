@@ -5,8 +5,8 @@
             [reacl-c.test-util.xpath :as xpath :include-macros true]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
-(deftest element-equality-test
-  ;; ell element should be referentially equal
+(deftest item-equality-test
+  ;; all item should be referentially equal
   (testing "div"
     (is (= (dom/div) (dom/div)))
     (is (= (dom/div "a") (dom/div "a")))
