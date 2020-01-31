@@ -371,10 +371,11 @@
                       (fn [& args])
                       (fn [& args])))
 
-(defn verify-performance! [level element state-seq]
+(defn verify-performance [level element state-seq]
+  ;; TODO: cljs.test checker variant of this?
   (assert (base/element? element))
   (assert (or (= level :good) (= level :ideal)))
-  (assert (or (= level :good) (not (empty? (rest state-seq)))) "To test test for :ideal performance, at least two state values are needed.")
+  (assert (or (= level :good) (not (empty? (rest (distinct state-seq))))) "To test test for :ideal performance, at least two different state values are needed.")
   (let [bad-example (atom nil)
         non-ideal-example (atom nil)
         
@@ -389,24 +390,36 @@
       (= actual :bad)
       (let [[element state] @bad-example ;; element = always the main element currently.
             diff (let [[e1 e2] (resolve-differences element state)]
-                   (find-first-difference e1 e2))]
-        (throw (ex-info (str "Performance should be " level ", but was actually :bad."
-                             ;; TODO: could make the diff even more human-readable...
-                             " What makes it bad is this difference: " (pr-str diff))
-                        ;; Note: with this state, elem resolved to different elements on repeated calls (some (fn) or other side effect?)
-                        {:state state
-                         :element element
-                         :element-diff diff})))
-
+                   (find-first-difference e1 e2))
+            ;; Meaning: with this state, element resolved differently on repeated calls, with at least one difference at the specified place
+            ;; = (some (fn) or other side effect?)
+            cause {:state state
+                   :different-at diff}]
+        [:bad [cause]])
+      
       (and (= level :ideal) (= actual :good))
-      ;; TODO: we should be able to find the paths to (the first) child that looks and behaves the same. If that makes sense?
-      (throw (ex-info (str "Performance should be :ideal, but was actually only :good")
-                      (let [[element state-1 state-2] @non-ideal-example]
-                        ;; Note: on state-1 and state-2, the element always looks and behaves the same - like 'resolved'
-                        {:state-1 state-1
-                         :state-2 state-2
-                         :state-diff (data/diff state-1 state-2)
-                         :resolved (resolve-deep element state-1)
-                         :element element})))
+      (let [[element state-1 state-2] @non-ideal-example
+            ;; Meaning: with these states that are different, the element resolved to the same thing. The state could be made smaller.
+            ;; TODO: we could try mutation testing; reduce the state, while still resolving to same (and without errors); then say "this part of the state might be unused".
+            cause {:state-1 state-1
+                   :state-2 state-2
+                   :state-diff (data/diff state-1 state-2)
+                   :resolved (resolve-deep element state-1)}]
+        [:good [cause]])
 
       :else nil)))
+
+(defn verify-performance! [level element state-seq]
+  (when-let [[actual causes] (verify-performance level element state-seq)]
+    (cond
+      (= actual :bad)
+      (let [[path diff] (:different-at (first causes))]
+        (throw (ex-info (str "Performance should be " level ", but was actually :bad."
+                             ;; TODO: could make the diff even more human-readable...
+                             " What makes it bad is at " (pr-str path) " where this differs: " (pr-str diff))
+                        (first causes))))
+      (= actual :good)
+      (throw (ex-info (str "Performance should be :ideal, but was actually only :good.")
+                      (first causes)))
+
+      :else (assert false actual))))

@@ -125,26 +125,32 @@
   )
 
 (deftest verify-performance-test
-  (tu/verify-performance! :good (c/dynamic (c/partial #(dom/div))) (list :a :b))
-  (is true)
-  (tu/verify-performance! :ideal (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))
-  (is true)
+  (is (nil? (tu/verify-performance :good (c/dynamic (c/partial #(dom/div))) (list :a :b))))
+  (is (nil? (tu/verify-performance :ideal (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))))
 
-  (tu/verify-performance! :ideal
-                          (c/fragment (c/focus :x (c/dynamic #(dom/div %)))
-                                      (c/focus :a (c/dynamic #(dom/div %))))
-                          (list {:a "1" :x "y"} {:a "2" :x "y"}))
-  (is true)
+  (is (nil? (tu/verify-performance :ideal
+                                   (c/fragment (c/focus :x (c/dynamic #(dom/div %)))
+                                               (c/focus :a (c/dynamic #(dom/div %))))
+                                   (list {:a "1" :x "y"} {:a "2" :x "y"}))))
 
-  (try (tu/verify-performance! :good (c/dynamic (fn [state] (c/dynamic (fn [state] (dom/div (str state)))))) (list :a :b))
-       (is false)
-       (catch :default e
-         (is true)))
-    
-  (try (tu/verify-performance! :ideal (c/dynamic (c/partial #(dom/div))) (list :a :b))
-       (is false)
-       (catch :default e
-         (is true))))
+  (let [f1 (fn [state] (dom/div)) 
+        f2 (fn [state] (dom/div))
+        fst (atom true)]
+    (is (= [:bad [{:state :a
+                   :different-at [[base/Dynamic] {:function [f1 f2]}]}]]
+           ;; Note: we 'simulate' a dynamic with a (fn) in the body, in order to make a = check against them.
+           ;; The order in the result might depend on how often the impl resolves the dynamic. Not an error if the other way round.
+           (tu/verify-performance :good (c/dynamic (fn [state]
+                                                     (c/dynamic (if @fst
+                                                                  (do (reset! fst false) f1)
+                                                                  (do (reset! fst true) f2)))))
+                                  (list :a)))))
+
+  (is (= [:good [{:state-1 :a
+                  :state-2 :b
+                  :state-diff [:a :b nil]
+                  :resolved (dom/div)}]]
+         (tu/verify-performance :ideal (c/dynamic (c/partial #(dom/div))) (list :a :b)))))
 
 (deftest find-first-difference-test
   (let [f tu/find-first-difference]
