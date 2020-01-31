@@ -192,14 +192,24 @@ be specified multiple times.
            (base/element? e)]}
     (with-ref (f/partial wr f e))))
 
+(defn name-id
+  "Generates a fresh unique value that can be used to generate named
+  elements via [[named]]. Note that calling this twice with the same
+  name returns different values."
+  [s]
+  {:pre [(string? s)]}
+  (base/->NameId s))
+
 (defn named
   "Returns an element that looks and works exactly like the element
-  `e`, but with has the given name, that appears and can be used in
-  testing and debugging utilities."
-  [e name]
+  `e`, but with has a user defined name, that appears and can be used
+  in testing and debugging utilities. Use [[name-id]] to generate a
+  name. See [[def-named]] and [[defn-named]] for more convenient ways
+  to create named elements."
+  [name-id e]
   {:pre [(base/element? e)
-         (string? name)]}
-  (base/->Named e name))
+         (base/name-id? name-id)]}
+  (base/->Named name-id e))
 
 (defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
@@ -469,12 +479,6 @@ a change."}  merge-lens
                       (get :pre))]
     [{:pre expr}]))
 
-(defn ^:no-doc named-name
-  "Return the (class) name, that def-named and defn-named uses, for the given 'named' variable."
-  [var]
-  (let [m (meta var)]
-    (str (:ns m) "/" (:name m))))
-
 ;; TODO: allow docstrings in defn macros.
 
 (defmacro def-named
@@ -483,16 +487,23 @@ a change."}  merge-lens
   used by testing and debugging utilities."
   [name element]
   (let [name_ (str *ns* "/" name)]
-    `(def ~name
-       (-> ~element
-           (named ~name_)))))
+    `(let [id# (name-id ~name_)]
+       (def ~name
+         (named id# ~element)))))
+
+(defn ^:no-doc meta-name-id [v]
+  (::name-id (meta v)))
 
 (defmacro ^:no-doc defn-named+
   [name all-args args & body]
   (let [name_ (str *ns* "/" name)]
-    `(defn+ ~name ~all-args ~args
-       (-> ((fn [] ~@body))
-           (named ~name_)))))
+    `(let [id# (name-id ~name_)]
+       (def ~(vary-meta name assoc
+                        :arglists `'(~args))
+         (-> (fn+ ~all-args ~args
+                  ;; Note: wrapped fn allows for preconditions in body.
+                  (named id# ((fn [] ~@body))))
+             (vary-meta assoc ::name-id id#))))))
 
 (defmacro defn-named
   "A macro to define an abstract element. This is the same as Clojures

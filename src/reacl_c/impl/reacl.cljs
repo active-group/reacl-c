@@ -129,12 +129,18 @@
                render (-> (instantiate (rcore/bind this) e)
                           (rcore/refer child))))
 
-(def ^:no-doc named (memoize gen-named))
+(let [classes (js/WeakMap.)]
+  (defn ^:no-doc named [name-id]
+    (assert (instance? base/NameId name-id))
+    (or (.get classes name-id)
+        (let [c (gen-named (base/name-id-name name-id))]
+          (.set classes name-id c)
+          c))))
 
 (extend-type base/Named
   IReacl
-  (-instantiate-reacl [{e :e name :name} binding]
-    [((named name) binding e)]))
+  (-instantiate-reacl [{e :e name-id :name-id} binding]
+    [((named name-id) binding e)]))
 
 (defrecord ^:private EventMessage [ev])
 
@@ -184,6 +190,7 @@
                    (rest children))))))
 
 (def ^:private dom-class_
+  ;; There should be a finite set of tag names, so using memoize should be ok.
   (memoize
    (fn [type]
      (rcore/class ^:private (str "reacl-c.dom/" type) this state [attrs events ref & children]

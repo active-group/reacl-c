@@ -11,6 +11,15 @@
 (defprotocol Ref
   (-deref-ref [this]))
 
+(deftype NameId [name])
+
+(defn name-id? [v]
+  (instance? NameId v))
+
+(defn name-id-name [^NameId v]
+  {:pre [(name-id? v)]}
+  (.-name v))
+
 (defrecord Fragment [children] E)
 
 (defrecord Dynamic [f args] E) ;; aka WithState
@@ -25,13 +34,21 @@
 (defrecord DidUpdate [e f] E)
 (defrecord CaptureStateChange [e f] E)
 (defrecord HandleMessage [e f] E)
-(defrecord Named [e name] E)
+(defrecord Named [name-id e] E)
 (defrecord ErrorBoundary [e f] E)
 (defrecord Keyed [e key] E)
 
 ;; Note: fields must not be named 'return', because of a ClojureScript bug.
 (defrecord DidMount [ret] E)
 (defrecord WillUnmount [ret] E)
+
+(defn named? [v]
+  (instance? Named v))
+
+(defn named-name-id
+  [e]
+  {:pre [(named? e)]}
+  (:name-id e))
 
 (defn fragment? [v]
   (instance? Fragment v))

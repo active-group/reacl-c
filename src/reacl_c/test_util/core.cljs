@@ -253,10 +253,15 @@
       (w elem1 elem2 :lens :lens)
       
       (= t1 base/Named)
-      (if (= (:name elem1) (:name elem2))
-        ;; TODO: or put the named 'var' in the path?
-        (find-first-difference (:e elem1) (:e elem2) (conj path (:name elem1)))
-        [(conj path base/Named) {:name [(:name elem1) (:name elem2)]}])
+      (let [id1 (:name-id elem1)
+            id2 (:name-id elem2)]
+        (assert (base/name-id? id1))
+        (assert (base/name-id? id2))
+        (if (= id1 id2)
+          (find-first-difference (:e elem1) (:e elem2) (conj path (base/name-id-name id1)))
+          (if (= (base/name-id-name id1) (base/name-id-name id2))
+            [(conj path base/Named) {:name-id [id1 id2]}]
+            [(conj path base/Named) {:name [(base/name-id-name id1) (base/name-id-name id2)]}])))
       
       (= t1 base/Keyed)
       (w elem1 elem2 :key :key)

@@ -64,32 +64,44 @@
            (tu/send-message! (tu/get-component e) :state2)))))
 
 (deftest invoke-callback-test
-  (is (= (c/return :action :act1)
-         (let [e (tu/env (dom/div {:onclick (constantly (c/return :action :act1))}))]
-           (tu/mount! e :state)
-           (tu/invoke-callback! (xpath/select-one (tu/get-component e) (xpath/>> ** "div"))
-                                :onclick #js {:type "click"})))))
+  (let [e (tu/env (dom/div {:onclick (constantly (c/return :action :act1))}))
+        as (fn [v]
+             (tu/invoke-callback! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
+                                  :onclick #js {:type "click"}))]
+    (tu/mount! e :state)
+    (is (= (c/return :action :act1) (as "div")))
+    ;; TODO: (is (= (c/return :action :act1) (as dom/div)))
+    ))
 
 (deftest inject-action-test
-  (is (= (c/return :action :act1)
-         (let [e (tu/env (c/named (dom/div) "foobar"))]
-           (tu/mount! e :state)
-           (tu/inject-action! (xpath/select-one (tu/get-component e) (xpath/>> ** "foobar"))
-                              :act1)))))
+  (let [foobar (c/name-id "foobar")
+        e (tu/env (c/named foobar (dom/div)))
+        as (fn [v] (tu/inject-action! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
+                                      :act1))]
+    (tu/mount! e :state)
+    (is (= (c/return :action :act1) (as foobar)))
+    ;; TODO: (is (= (c/return :action :act1) (as "div")))
+    ;; TODO: we could make it a requirement that the element does really emit actions normally; saying plain dom elements can't be used here.
+    ;; TODO: (is (= (c/return :action :act1) (as dom/div)))
+    ))
 
 (deftest inject-state-change-test
-  (is (= (c/return :state :state2)
-         (do (c/def-dynamic foobar state (dom/div (pr-str state)))
-             (let [e (tu/env foobar)]
-               (tu/mount! e :state1)
-               (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> ** #'foobar))
-                                        :state2))))))
+  (c/defn-dynamic foobar state [] (dom/div (pr-str state)))
+  (let [e (tu/env (foobar))
+        as (fn [v st] (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
+                                               st))]
+    (tu/mount! e :state1)
+    (is (= (c/return :state :state2) (as foobar :state2)))
+    ;; TODO: (is (= (c/return :state :state3) (as "div" :state3)))
+    ;; TODO: (is (= (c/return :state :state4) (as dom/div :state4)))
+    ))
 
 (deftest resolve-deep-test
   (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))
   (is (= (dom/div "foo") (tu/resolve-deep (c/dynamic #(dom/div %)) "foo")))
-  (is (= (c/named (dom/div "foo") "x") (tu/resolve-deep (c/named (c/dynamic #(dom/div %)) "x") "foo")))
   (is (= (c/focus (dom/div "foo") :x) (tu/resolve-deep (c/focus (c/dynamic #(dom/div %)) :x) {:x "foo"})))
+  (let [x (c/name-id "x")]
+    (is (= (c/named x (dom/div "foo")) (tu/resolve-deep (c/named x (c/dynamic #(dom/div %))) "foo"))))
   (is (= (c/fragment (dom/div "foo")) (tu/resolve-deep (c/fragment (c/dynamic #(dom/div %))) "foo")))
   (is (= (dom/span (dom/div "foo")) (tu/resolve-deep (dom/span (c/dynamic #(dom/div %))) "foo")))
   (is (= (c/handle-action (dom/div "foo") :f) (tu/resolve-deep (c/handle-action (c/dynamic #(dom/div %)) :f) "foo")))
@@ -152,8 +164,12 @@
     (is (= [[base/HandleAction] {:tag ["div" "span"]}] (f (c/handle-action (dom/div) :f) (c/handle-action (dom/span) :f))))
     ;; same other Wrappers
 
-    (is (= [[base/Named] {:name ["foo" "bar"]}]  (f (c/named (dom/div) "foo") (c/named (dom/div) "bar"))))
-    (is (= [["foo"] {:tag ["div" "span"]}]  (f (c/named (dom/div) "foo") (c/named (dom/span) "foo"))))
+    (is (= [[base/Named] {:name ["foo" "bar"]}]  (f (c/named (c/name-id "foo") (dom/div)) (c/named (c/name-id "bar") (dom/div)))))
+    (let [foo1 (c/name-id "foo")
+          foo2 (c/name-id "foo")]
+      (is (= [[base/Named] {:name-id [foo1 foo2]}] (f (c/named foo1 (dom/div)) (c/named foo2 (dom/div))))))
+    (let [foo (c/name-id "foo")]
+      (is (= [["foo"] {:tag ["div" "span"]}]  (f (c/named foo (dom/div)) (c/named foo (dom/span))))))
 
     (is (= [[base/Keyed] {:key ["foo" "bar"]}]  (f (c/keyed (dom/div) "foo") (c/keyed (dom/span) "bar"))))
 

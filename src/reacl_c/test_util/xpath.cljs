@@ -1,15 +1,16 @@
 (ns reacl-c.test-util.xpath
   (:require [reacl2.test-util.xpath :as rp]
             [reacl-c.core :as c]
+            [reacl-c.base :as base]
             [reacl-c.impl.reacl :as impl])
   (:refer-clojure :exclude [and or contains? nth nth-last comp first last range]))
 
-(defn named [s]
-  (rp/or (rp/tag s)
-         (rp/class (impl/named s))))
-
-(defn named-var [v]
-  (rp/class (impl/named (c/named-name v))))
+(defn named [n]
+  (cond
+    (string? n) (rp/tag n)
+    (some? (c/meta-name-id n)) (rp/class (impl/named (c/meta-name-id n)))
+    (base/name-id? n) (rp/class (impl/named n))
+    :else (assert false n)))
 
 (def attr rp/attr)
 
@@ -54,10 +55,15 @@
   Also see [[>>]] for a convenience macro version of this."
 
   [& selectors]
+  ;; TODO: maybe insert a 'skip all wrappers' after every selector to hide them? (which makes this a pure 'visual xpath'?!)
   (apply rp/comp (map (fn [v]
                         (cond
                           (string? v) (named v)
-                          (var? v) (named-var v)
+                          (base/name-id? v) (named v)
+                          ;; (var? v) (named-var v)
                           (keyword? v) (attr v)
+                          (some? (c/meta-name-id v)) (named v)
+                          (base/named? v) (named (base/named-name-id v))
+                          ;; TODO: add all other elements??!!
                           :else v))
                       selectors)))
