@@ -1,5 +1,6 @@
 (ns reacl-c.test.core-test
   (:require [reacl-c.core :as c :include-macros true]
+            [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
             [reacl-c.test-util.xpath :as xpath :include-macros true]
@@ -35,6 +36,11 @@
   (testing "monitor-state"
     (is (= (c/capture-state-change (dom/div) :f) (c/capture-state-change (dom/div) :f))))
   )
+
+(deftest def-dynamic-test
+  (c/defn-dynamic xxx state [a]
+    (dom/div (str state a)))
+  (is (base/item? (xxx "foo"))))
 
 (deftest while-mounted-test
   (testing "mount, unmount"
