@@ -33,7 +33,7 @@
 (defrecord SetRef [e ref] E)
 (defrecord DidUpdate [e f] E)
 (defrecord CaptureStateChange [e f] E)
-(defrecord HandleMessage [e f] E)
+(defrecord HandleMessage [f e] E)
 (defrecord Named [name-id e] E)
 (defrecord ErrorBoundary [e f] E)
 (defrecord Keyed [e key] E)

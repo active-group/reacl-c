@@ -147,10 +147,10 @@ be specified multiple times.
   via [[send-message!]] or [[return]]), by calling `(f message)`,
   which must return a [[return]] value. The resulting element
   otherwise looks and behaves exactly like `e`."
-  [e f]
+  [f e]
   {:pre [(base/element? e)
          (ifn? f)]}
-  (base/->HandleMessage e f))
+  (base/->HandleMessage f e))
 
 (defn handle-action
   "Handles actions emitted by e, by evaluating `(f action)` for each
