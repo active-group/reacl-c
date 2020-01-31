@@ -234,7 +234,7 @@ a change."}  merge-lens
      [(id-merge s1 (select-keys ns (set/difference k1 k2)))
       (id-merge s2 (select-keys ns k2))]))))
 
-(defn ^:no-doc local-state [item initial] ;; TODO: turn around order of args?
+(defn ^:no-doc local-state [initial item]
   {:pre [(base/item? item)]}
   (base/->LocalState item initial))
 
@@ -244,7 +244,7 @@ a change."}  merge-lens
   `inner` state is `initial`. Note that the resulting item has only
   `outer` as its state."
   [initial lens item] ;; aka extend-state?
-  (local-state (focus lens item) initial))
+  (local-state initial (focus lens item)))
 
 (defn hide-state
   "Hides a part of the state of the given item, via a lens that
@@ -367,8 +367,8 @@ a change."}  merge-lens
                   (did-mount (f/partial mount state m mount! unmount!))
                   (will-unmount (f/partial unmount state (:unmount! m) (:state m))))))]
   (defn ^:no-doc while-mounted [item mount! update! unmount!]
-    (-> (dynamic dyn item mount! update! unmount!)
-        (local-state {:state ::initial}))))
+    (local-state {:state ::initial}
+                 (dynamic dyn item mount! update! unmount!))))
 
 (defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
