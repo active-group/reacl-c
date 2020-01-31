@@ -130,7 +130,11 @@
   (tu/verify-performance! :ideal (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))
   (is true)
 
-  ;; TODO: test if focus elements can be ideal at all, resp. change the definition of ideal to make that possible.
+  (tu/verify-performance! :ideal
+                          (c/fragment (c/focus :x (c/dynamic #(dom/div %)))
+                                      (c/focus :a (c/dynamic #(dom/div %))))
+                          (list {:a "1" :x "y"} {:a "2" :x "y"}))
+  (is true)
 
   (try (tu/verify-performance! :good (c/dynamic (fn [state] (c/dynamic (fn [state] (dom/div (str state)))))) (list :a :b))
        (is false)
