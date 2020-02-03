@@ -260,11 +260,21 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-ref binding f args)]))
 
+(rcore/defclass ^:privte set-ref this state [e ref]
+  handle-message
+  (fn [msg]
+    (pass-message (:reacl-ref ref) msg))
+
+  render
+  (-> (instantiate (rcore/bind this) e)
+      (rcore/refer (:reacl-ref ref))))
+
 (extend-type base/SetRef
   IReacl
   (-instantiate-reacl [{e :e ref :ref} binding]
-    [(-> (instantiate binding e)
-         (rcore/refer (:reacl-ref ref)))]))
+    ;; has to be a class for now, because otherwise we would override the ref with all our 'child' refs for passing messages down.
+    ;; TODO: either change that; or we could name this 'add-ref' or refer, as one can add multiple refs then...?
+    [(set-ref binding e ref)]))
 
 (rcore/defclass ^:private dynamic this state [f & args]
   refs [child]

@@ -95,4 +95,18 @@
     (is (= (dyn1 "x" "y") (dyn1 "x" "y")))
     ))
 
+(deftest with-async-messages-test
+  (let [env (tu/env (c/with-ref (fn [ref]
+                                  (c/with-async-messages
+                                    (fn [send!]
+                                      (dom/div (-> (c/handle-message (fn [msg]
+                                                                       (c/return :state msg))
+                                                                     (dom/div))
+                                                   (c/set-ref ref))
+                                               (c/did-mount (fn []
+                                                              (send! (c/deref ref) :msg)
+                                                              (c/return)))))))))]
+    (= (c/return :state :msg)
+       (tu/mount! env :st))))
+
 ;; TODO: test every higher level feature in core.
