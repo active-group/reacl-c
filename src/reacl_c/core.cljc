@@ -29,7 +29,7 @@
 
 (defn with-ref
   "Creates an item for which `(f ref & args)` is called when it is
-  renderd, which should return an item, and where `ref` is a fresh
+  rendered, which should return an item, and where `ref` is a fresh
   *reference*. A reference should be assigned to one of the items
   below via [[set-ref]]. You can then [[deref]] a refernce, and use it
   as the target of a `(return :message [target msg])` for example. If
@@ -54,7 +54,7 @@
   ;; get that.
   (if (dom/element? item)
     (dom/set-ref item ref)
-    (base/Ref item ref)))
+    (base/->SetRef item ref)))
 
 (defn deref
   "Returns an implementation specific value, usable as a target in
