@@ -285,25 +285,35 @@ a change."}  merge-lens
   {:pre [(base/item? item)]}
   (base/->Keyed item key))
 
+(defn- call-thunk [f _]
+  (f))
+
 (defn did-mount
   "An item like the given one, or an invisible item, which emits the state
   change or action as specified by the given [[return]] value when
   mounted."
-  ([return]
-   {:pre [(or (base/returned? return) (ifn? return))]}
-   ;; TODO: can't create a :message [deref...] at rendering time.
-   (base/->DidMount return))
-  ([item return]
-   (fragment item (did-mount return))))
+  ([ret]
+   {:pre [(or (base/returned? ret) (ifn? ret))]}
+   ;; TODO: can't create a :message [deref...] at rendering time; zap the fn variant when that's solved? (and need built-in effects then?)
+   (if (not (base/returned? ret))
+     (-> (did-mount (return :action true))
+         (handle-action (f/partial call-thunk ret)))
+     (base/->DidMount ret)))
+  ([item ret]
+   (fragment item (did-mount ret))))
 
 (defn will-unmount
   "An item like the given one, or an invisible item, which emits the
   state change or action as specified by the given [[return]] value."
-  ([return]
-   {:pre [(or (base/returned? return) (ifn? return))]}
-   (base/->WillUnmount return))
-  ([item return]
-   (fragment item (will-unmount return))))
+  ([ret]
+   {:pre [(or (base/returned? ret) (ifn? ret))]}
+   ;; TODO: can't create a :message [deref...] at rendering time; zap the fn variant when that's solved? (and need built-in effects then?)
+   (if (not (base/returned? ret))
+     (-> (will-unmount (return :action true))
+         (handle-action (f/partial call-thunk ret)))
+     (base/->WillUnmount ret)))
+  ([item ret]
+   (fragment item (will-unmount ret))))
 
 (defn ^:no-doc did-update
   ;; TODO: better doc
