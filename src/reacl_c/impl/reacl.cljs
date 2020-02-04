@@ -351,12 +351,20 @@
     st2))
 
 (rcore/defclass ^:private local-state this astate [e initial]
-  local-state [lstate initial]
+  local-state [lstate {:initial initial
+                       :current initial}]
+
+  component-will-receive-args
+  (fn [new-e new-initial]
+    (if (not= (:initial lstate) new-initial)
+      (rcore/return :local-state {:initial new-initial
+                                  :current new-initial})
+      (rcore/return)))
 
   refs [child]
   
   render
-  (-> (instantiate (rcore/use-reaction [astate lstate]
+  (-> (instantiate (rcore/use-reaction [astate (:current lstate)]
                                        (rcore/reaction this ->NewIsoState))
                    e)
       (rcore/refer child))
@@ -367,7 +375,7 @@
       (instance? NewIsoState msg)
       (let [{[new-app-state new-local-state] :state} msg]
         (rcore/return :app-state (id-state astate new-app-state)
-                      :local-state (id-state lstate new-local-state)))
+                      :local-state (id-state lstate (assoc lstate :current new-local-state))))
       :else
       (pass-message child msg))))
 
