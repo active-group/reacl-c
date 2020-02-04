@@ -70,3 +70,8 @@
 
 (defprotocol Application
   (-send-message! [this msg]))
+
+(defrecord Effect [f])
+
+(defn effect? [v]
+  (instance? Effect v))

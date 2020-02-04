@@ -404,6 +404,9 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     (with-async-return g f args)))
 
+(defn ^:no-doc effect [f]
+  (base/->Effect f))
+
 (letfn [(mount [deliver! f args]
           {:post [(ifn? %)]}
           (apply f deliver! args))
@@ -601,3 +604,8 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   `(defn-named-delayed ~name [subscription] [~deliver!] ~args ~@body))
+
+(defmacro defn-effect [name args & body]
+  `(let [f# (fn ~args ~@body)]
+     (defn+ ~name args# ~args
+       (effect (apply f/partial f# args#)))))

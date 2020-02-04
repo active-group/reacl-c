@@ -28,25 +28,19 @@
                                          show-date)
                                 show-error)))
 
-(defrecord Effect [f args])
-
-(defn reload [_]
-  (c/return :action (Effect. #(.reload (.-location js/window) true) nil)))
-
-(defn effects [{f :f args :args}]
-  (apply f args)
+(c/defn-effect reload []
+  (.reload (.-location js/window) true)
   (c/return))
 
 (defn hide [_] (c/return :state false))
 (defn show [_] (c/return :state true))
 
 (c/def-dynamic world-app show?
-  (-> (if show?
-        (dom/div (dom/button {:onclick hide} "Hide")
-                 clock
-                 (dom/button {:onclick reload} "Reload"))
-        (dom/button {:onclick show} "Show"))
-      (c/handle-action effects)))
+  (if show?
+    (dom/div (dom/button {:onclick hide} "Hide")
+             clock
+             (dom/button {:onclick (c/constantly (c/return :action (reload)))} "Reload"))
+    (dom/button {:onclick show} "Show")))
 
 (browser/run (.getElementById js/document "app-world")
   world-app

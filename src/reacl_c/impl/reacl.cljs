@@ -62,6 +62,19 @@
     (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use set-ref?"))
     (rcore/return :message [comp msg])))
 
+(declare transform-return)
+(defn- handle-effect-return [toplevel eff ret]
+  (assert (base/returned? ret) "Effects must return a (return ..) value.")
+  (if (:opt-state ret)
+    (throw (ex-info "Effects must not return a new state." {:effect eff :value ret}))
+    (transform-return (base/merge-returned
+                       (base/->Returned nil [] (:mesages ret))
+                       (if-let [actions (not-empty (:actions ret))]
+                         ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
+                         (base/->Returned nil [] (mapv #(vector toplevel (ActionMessage. %))
+                                                       actions))
+                         (base/->Returned nil [] []))))))
+
 (rcore/defclass ^:private toplevel this state [e]
   refs [child]
   
@@ -75,8 +88,10 @@
     (cond
       (instance? ActionMessage msg)
       (let [action (:action msg)]
-        (warn "Unhandled action:" action)
-        (rcore/return)) 
+        (if (base/effect? action)
+          (handle-effect-return this action ((:f action)))
+          (do (warn "Unhandled action:" action)
+              (rcore/return)))) 
 
       :else (pass-message child msg))))
 
