@@ -345,7 +345,7 @@ a change."}  merge-lens
            (ifn? f)]}
     (capture-state-change item (f/partial h f args))))
 
-(let [mount (fn [state m mount! unmount!]
+#_(let [mount (fn [state m mount! unmount!]
               (return :state [state (assoc m
                                            :state (mount!)
                                            :mount! mount!
@@ -407,21 +407,37 @@ a change."}  merge-lens
 (defn ^:no-doc effect [f]
   (base/->Effect f))
 
-(letfn [(mount [deliver! f args]
-          {:post [(ifn? %)]}
-          (apply f deliver! args))
-        (unmount [stop!]
-          (stop!))
-        (stu [deliver! f args]
-          (-> empty
-              (while-mounted (f/partial mount deliver! f args)
-                             nil
-                             unmount)))]
-  (defn ^:no-doc subscription
+(defrecord ^:private SubscribedMessage [stop!])
+
+(defn- subscribe! [f deliver! args host]
+  (let [stop! (apply f deliver! args)]
+    (assert (some? (deref host)))
+    (return :message [(deref host) (SubscribedMessage. stop!)])))
+
+(let [store-sub (fn [f args msg]
+                  (assert (instance? SubscribedMessage msg))
+                  (return :state {:f f :args args :stop! (:stop! msg)}))
+      msgs (fn [deliver! f args host]
+             (fragment (-> (handle-message (f/partial store-sub f args)
+                                           (fragment))
+                           (set-ref host))
+                       (did-mount (return :action (effect (f/partial subscribe! f deliver! args host))))))
+      do-stop (fn [stop!]
+                (stop!)
+                (return))
+      dyn (fn [deliver! {f :f args :args stop! :stop!}]
+            (if (some? stop!)
+              (will-unmount (return :action (effect (f/partial do-stop stop!))))
+              (with-ref (f/partial msgs deliver! f args))))
+      stu (fn [f args deliver!]
+            ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
+            (isolate-state {:f f
+                            :args args
+                            :stop! nil}
+                           (dynamic (f/partial dyn deliver!))))]
+  (defn subscription
     [f & args]
-    {:pre [(ifn? f)]}
-    ;; Note: when f or args change, this does shall and must do a new unmount/mount cycle.
-    (with-async-actions stu f args)))
+    (with-async-actions (f/partial stu f args))))
 
 (defn error-boundary
   "Creates an error boundary around the given item. When the rendering

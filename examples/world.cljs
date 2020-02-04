@@ -24,7 +24,8 @@
 (def clock
   (c/isolate-state (js/Date.)
                    (c/try-catch (dom/div (-> (interval-timer 1000)
-                                             (c/handle-action (fn [date] (c/return :state date))))
+                                             (c/handle-action (fn [date]
+                                                                (c/return :state date))))
                                          show-date)
                                 show-error)))
 

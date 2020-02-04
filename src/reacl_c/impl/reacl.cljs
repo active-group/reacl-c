@@ -319,7 +319,10 @@
 (rcore/defclass ^:private handle-action this state [e f]
   local-state [action-to-message
                (fn [_ action]
-                 (rcore/return :message [this (ActionMessage. action)]))]
+                 ;; never handle effects, esp. because of subscriptions (maybe add as an option?)
+                 (if (base/effect? action)
+                   (rcore/return :action action)
+                   (rcore/return :message [this (ActionMessage. action)])))]
 
   refs [child]
   

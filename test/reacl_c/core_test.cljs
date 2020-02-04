@@ -42,7 +42,7 @@
     (dom/div (str state a)))
   (is (base/item? (xxx "foo"))))
 
-(deftest while-mounted-test
+#_(deftest while-mounted-test
   (testing "mount, unmount"
     (let [mounted (atom false)
           states (atom [])
