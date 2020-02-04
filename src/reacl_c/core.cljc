@@ -39,9 +39,10 @@
   (base/->WithRef f args))
 
 ;; TODO: add? Maybe change to/allow (return :message [ref msg])
+#_(declare set-ref)
 #_(defn with-self-ref [f]
   (with-ref (fn [ref]
-              (-> (f)
+              (-> (f ref)
                   (set-ref ref)))))
 
 (defn set-ref
@@ -152,6 +153,8 @@ be specified multiple times.
   {:pre [(base/item? item)
          (ifn? f)]}
   (base/->HandleMessage f item))
+
+;; TODO: add a (with-handle-message (fn [send!] (div ...)) (fn [msg] ...)) ?
 
 (defn handle-action
   "Handles actions emitted by given item, by evaluating `(f action)` for each
@@ -288,6 +291,7 @@ a change."}  merge-lens
   mounted."
   ([return]
    {:pre [(or (base/returned? return) (ifn? return))]}
+   ;; TODO: can't create a :message [deref...] at rendering time.
    (base/->DidMount return))
   ([item return]
    (fragment item (did-mount return))))
