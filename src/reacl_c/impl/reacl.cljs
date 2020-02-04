@@ -68,7 +68,7 @@
   (if (:opt-state ret)
     (throw (ex-info "Effects must not return a new state." {:effect eff :value ret}))
     (transform-return (base/merge-returned
-                       (base/->Returned nil [] (:mesages ret))
+                       (base/->Returned nil [] (:messages ret))
                        (if-let [actions (not-empty (:actions ret))]
                          ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
                          (base/->Returned nil [] (mapv #(vector toplevel (ActionMessage. %))
