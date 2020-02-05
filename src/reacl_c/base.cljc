@@ -10,6 +10,8 @@
 
 (defprotocol Ref
   (-deref-ref [this]))
+(defn ref? [v]
+  (satisfies? Ref v))
 
 (deftype NameId [name])
 

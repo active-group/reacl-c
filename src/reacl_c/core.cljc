@@ -31,14 +31,12 @@
   "Creates an item for which `(f ref & args)` is called when it is
   rendered, which should return an item, and where `ref` is a fresh
   *reference*. A reference should be assigned to one of the items
-  below via [[set-ref]]. You can then [[deref]] a refernce, and use it
-  as the target of a `(return :message [target msg])` for example. If
-  the returned item is a dom element item, then [[deref]] will return
-  the native dom node."
+  below via [[set-ref]]. You can use it as the target of
+  a `(return :message [target msg])` for example."
   [f & args]
   (base/->WithRef f args))
 
-;; TODO: add? Maybe change to/allow (return :message [ref msg])
+;; TODO: add this? is this safer than with-ref... which is hard to use correctly. Or add (handle-message ref ...)
 #_(declare set-ref)
 #_(defn with-self-ref [f]
   (with-ref (fn [ref]
@@ -106,7 +104,7 @@ shoved values."} id-lens
 
 - `:state`   means that the item changes its state to the given value
 - `:action`  means that the given action is emitted by the item
-- `:message` means that the given message is sent to the given target.
+- `:message` means that the given message is sent to the given target reference.
 
 If no `:state` option is used, the state of the item will not
 change. `:state` must occur at most once, `:message` and `:action` can
@@ -130,6 +128,7 @@ be specified multiple times.
             (:action) (recur nxt state (conj! actions arg) messages)
             (:message) (let [[target msg] arg]
                          (assert (some? target) "Missing target for message.")
+                         (assert (base/ref? target) "Target must be a reference created by with-ref.")
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
@@ -178,14 +177,14 @@ be specified multiple times.
 (def constantly f/constantly)
 
 (let [h (fn [ref msg]
-          (return :message [(deref ref) msg]))]
+          (return :message [ref msg]))]
   (defn ^:no-doc redirect-messages [ref item]
     {:pre [(satisfies? base/Ref ref)
            (base/item? item)]}
     (handle-message item (f/partial h ref))))
 
 (let [h (fn [f ref msg]
-          (return :message [(deref ref) (f msg)]))
+          (return :message [ref (f msg)]))
       wr (fn [f item ref]
            (handle-message (set-ref item ref) (f/partial h f ref)))]
   (defn ^:no-doc map-messages
@@ -293,12 +292,8 @@ a change."}  merge-lens
   change or action as specified by the given [[return]] value when
   mounted."
   ([ret]
-   {:pre [(or (base/returned? ret) (ifn? ret))]}
-   ;; TODO: can't create a :message [deref...] at rendering time; zap the fn variant when that's solved? (and need built-in effects then?)
-   (if (not (base/returned? ret))
-     (-> (did-mount (return :action true))
-         (handle-action (f/partial call-thunk ret)))
-     (base/->DidMount ret)))
+   {:pre [(base/returned? ret)]}
+   (base/->DidMount ret))
   ([item ret]
    (fragment item (did-mount ret))))
 
@@ -306,12 +301,8 @@ a change."}  merge-lens
   "An item like the given one, or an invisible item, which emits the
   state change or action as specified by the given [[return]] value."
   ([ret]
-   {:pre [(or (base/returned? ret) (ifn? ret))]}
-   ;; TODO: can't create a :message [deref...] at rendering time; zap the fn variant when that's solved? (and need built-in effects then?)
-   (if (not (base/returned? ret))
-     (-> (will-unmount (return :action true))
-         (handle-action (f/partial call-thunk ret)))
-     (base/->WillUnmount ret)))
+   {:pre [(base/returned? ret)]}
+   (base/->WillUnmount ret))
   ([item ret]
    (fragment item (will-unmount ret))))
 
@@ -411,8 +402,8 @@ a change."}  merge-lens
 
 (defn- subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
-    (assert (some? (deref host)))
-    (return :message [(deref host) (SubscribedMessage. stop!)])))
+    (assert (ifn? stop!) "Subscription must return a stop function.")
+    (return :message [host (SubscribedMessage. stop!)])))
 
 (defn- subscribe-effect [f deliver! args host]
   (assert (ifn? f))

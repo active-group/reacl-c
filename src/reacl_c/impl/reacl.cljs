@@ -122,9 +122,9 @@
          (concat (map (fn [a] (rcore/return :action a))
                       (:actions r))
                  (map (fn [[target msg]]
-                        (assert (some? target) "Missing target for message. Forgot to use set-ref?")
-                        (assert (rcore/component? target) "Target for a message must be a component. Forgot to use deref?")
-                        (rcore/return :message [target msg]))
+                        (let [c (rcore/get-dom (:reacl-ref target))]
+                          (assert (rcore/component? c) "Target for message not assigned. Forgot to use set-ref?")
+                          (rcore/return :message [c msg])))
                       (:messages r)))))
 
 

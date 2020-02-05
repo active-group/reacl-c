@@ -137,10 +137,24 @@
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
-                                               (c/did-mount (fn []
-                                                              (send! (c/deref ref) :msg)
-                                                              (c/return)))))))))]
-    (= (c/return :state :msg)
-       (tu/mount! env :st))))
+                                               (-> (c/did-mount (c/return :action ::test
+                                                                          ))
+                                                   (c/handle-action (fn [_]
+                                                                      (send! ref :msg)
+                                                                      (c/return))))))))))]
+    (is (= (c/return :state :msg)
+           (tu/mount! env :st)))))
+
+(deftest sync-messages-test
+  (let [env (tu/env (c/with-ref (fn [ref]
+                                  (c/with-async-messages
+                                    (fn [send!]
+                                      (dom/div (-> (c/handle-message (fn [msg]
+                                                                       (c/return :state msg))
+                                                                     (dom/div))
+                                                   (c/set-ref ref))
+                                               (c/did-mount (c/return :message [ref :msg]))))))))]
+    (is (= (c/return :state :msg)
+           (tu/mount! env :st)))))
 
 ;; TODO: test every higher level feature in core.
