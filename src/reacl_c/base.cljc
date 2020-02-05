@@ -55,7 +55,10 @@
 (defn fragment? [v]
   (instance? Fragment v))
 
-(defrecord Returned [opt-state actions messages])
+(defrecord KeepState [])
+(def keep-state (KeepState.))
+
+(defrecord Returned [state actions messages])
 
 (defn returned? [v] (instance? Returned v))
 
@@ -65,7 +68,7 @@
     (if (empty? rs)
       r1
       (let [r2 (first rs)
-            rm (Returned. (or (:opt-state r2) (:opt-state r1))
+            rm (Returned. (if (not= keep-state (:state r2)) (:state r2) (:state r1))
                           (vec (concat (:actions r1) (:actions r2)))
                           (vec (concat (:messages r1) (:messages r2))))]
         (recur rm (rest rs))))))

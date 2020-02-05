@@ -67,8 +67,8 @@
          n 1]
     (let [r2 (update! env state)
           rm (base/merge-returned r r2)]
-      (if (:opt-state r2)
-        (let [state (first (:opt-state r2))]
+      (if (not= base/keep-state (:state r2))
+        (let [state (:state r2)]
           (when (> n *max-update-loops*)
             (throw (ex-info "Item keeps on updating. Check any [[did-update]] items, which should eventually reach a fixed state." {:intermediate-state state})))
           (recur rm state (inc n)))

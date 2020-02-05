@@ -65,15 +65,15 @@
 (declare transform-return)
 (defn- handle-effect-return [toplevel eff ret]
   (assert (base/returned? ret) "Effects must return a (return ..) value.")
-  (if (:opt-state ret)
+  (if (not= base/keep-state (:state ret))
     (throw (ex-info "Effects must not return a new state." {:effect eff :value ret}))
     (transform-return (base/merge-returned
-                       (base/->Returned nil [] (:messages ret))
+                       (base/->Returned base/keep-state [] (:messages ret))
                        (if-let [actions (not-empty (:actions ret))]
                          ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
-                         (base/->Returned nil [] (mapv #(vector toplevel (ActionMessage. %))
-                                                       actions))
-                         (base/->Returned nil [] []))))))
+                         (base/->Returned base/keep-state [] (mapv #(vector toplevel (ActionMessage. %))
+                                                                   actions))
+                         (base/->Returned base/keep-state [] []))))))
 
 (rcore/defclass ^:private toplevel this state [e]
   refs [child]
@@ -116,8 +116,8 @@
   ;; a base/Returned value to a rcore/return value.
   (assert (instance? base/Returned r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
   (apply rcore/merge-returned
-         (if-let [st (:opt-state r)]
-           (rcore/return :app-state (first st))
+         (if (not= base/keep-state (:state r))
+           (rcore/return :app-state (:state r))
            (rcore/return))
          (concat (map (fn [a] (rcore/return :action a))
                       (:actions r))

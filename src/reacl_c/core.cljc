@@ -114,7 +114,7 @@ be specified multiple times.
   (fn [& args]
     (assert (even? (count args)) "Expected an even number of arguments.")
     (loop [args (seq args)
-           state nil
+           state base/keep-state
            actions (transient [])
            messages (transient [])]
       (if (empty? args)
@@ -122,9 +122,9 @@ be specified multiple times.
         (let [arg (second args)
               nxt (nnext args)]
           (case (first args)
-            (:state) (do (when-not (nil? state)
+            (:state) (do (when-not (= base/keep-state state)
                            (assert false (str "A :state argument to return must be specified only once.")))
-                         (recur nxt [arg] actions messages))
+                         (recur nxt arg actions messages))
             (:action) (recur nxt state (conj! actions arg) messages)
             (:message) (let [[target msg] arg]
                          (assert (some? target) "Missing target for message.")
