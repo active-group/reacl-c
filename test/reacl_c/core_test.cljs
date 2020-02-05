@@ -121,8 +121,11 @@
 
     (is (= (dyn1 "x") (dyn1 "x")))
 
-    (c/defn-dynamic dyn2 state [a1 & args]
+    (c/defn-dynamic dyn2 "docstring" state [a1 & args]
       (dom/div))
+
+    (is (= "docstring")
+        (:doc (meta #'dyn2)))
 
     (is (= (dyn1 "x") (dyn1 "x")))
 

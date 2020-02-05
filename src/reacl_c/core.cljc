@@ -509,10 +509,11 @@ a change."}  merge-lens
          ;; Note: this looks unneccessary, but enables the use of {:pre ...}, which must be the first expr in a fn.
          ((fn [] ~@body))))))
 
-(defmacro ^:no-doc defn+ [name all-args args & body]
+(defmacro ^:no-doc defn+ [name docstring? all-args args & body]
   ;; generates a simplified param vector, in order to bind all args also to
   ;; 'all-args', regardless of destructuring.
   `(def ~(vary-meta name assoc
+                    :doc (or docstring? (:doc (meta name)))
                     :arglists `'(~args))
      (fn+ ~all-args ~args ~@body)))
 
@@ -521,8 +522,6 @@ a change."}  merge-lens
                       (first)
                       (get :pre))]
     [{:pre expr}]))
-
-;; TODO: allow docstrings in defn macros.
 
 (defmacro def-named
   "A macro to define a named item. This is the same as Clojures
@@ -538,28 +537,35 @@ a change."}  merge-lens
   (::name-id (meta v)))
 
 (defmacro ^:no-doc defn-named+
-  [name all-args args & body]
+  [name docstring? all-args args & body]
   (let [name_ (str *ns* "/" name)]
     `(let [id# (name-id ~name_)]
        (def ~(vary-meta name assoc
+                        :doc (or docstring? (:doc (meta name)))
                         :arglists `'(~args))
          (-> (fn+ ~all-args ~args
                   ;; Note: wrapped fn allows for preconditions in body.
                   (named id# ((fn [] ~@body))))
              (vary-meta assoc ::name-id id#))))))
 
+(defn- maybe-docstring [candidate & more]
+  (if (string? candidate)
+    (cons candidate more)
+    (cons nil (cons candidate more))))
+
 (defmacro defn-named
   "A macro to define an abstract item. This is the same as Clojures
   `defn`, but in addition assigns its name to the returned item which can be
   used by testing and debugging utilities."
   [name args & body]
-  `(defn-named+ ~name all# ~args ~@body))
+  (let [[docstring? args & body] (apply maybe-docstring args body)]
+    `(defn-named+ ~name ~docstring? all# ~args ~@body)))
 
-(defmacro ^:no-doc defn-named-delayed [name f delayed-args args & body]
+(defmacro ^:no-doc defn-named-delayed [name docstring? f delayed-args args & body]
   (let [precond (maybe-get-precond body)]
     `(let [f# (fn [~@delayed-args ~@args]
                 ~@body)]
-       (defn-named+ ~name all# ~args
+       (defn-named+ ~name ~docstring? all# ~args
          ~@precond
          (apply ~@f f# all#)))))
 
@@ -579,7 +585,8 @@ a change."}  merge-lens
 
   when the current state of the item is `state`, and changes whenever the state changes."
   [name state args & body]
-  `(defn-named-delayed ~name [dynamic] [~state] ~args ~@body))
+  (let [[docstring? state args & body] (apply maybe-docstring state args body)]
+    `(defn-named-delayed ~name ~docstring? [dynamic] [~state] ~args ~@body)))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic item. For example, given
@@ -619,9 +626,11 @@ Note that `deliver!` must never be called directly in the body of
   removed from the application afterwards.
  "
   [name deliver! args & body]
-  `(defn-named-delayed ~name [subscription] [~deliver!] ~args ~@body))
+  (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
+    `(defn-named-delayed ~name ~docstring? [subscription] [~deliver!] ~args ~@body)))
 
 (defmacro defn-effect [name args & body]
-  `(let [f# (fn ~args ~@body)]
-     (defn+ ~name args# ~args
-       (apply effect f# args#))))
+  (let [[docstring? args & body] (apply maybe-docstring args body)]
+    `(let [f# (fn ~args ~@body)]
+       (defn+ ~name ~docstring? args# ~args
+         (apply effect f# args#)))))
