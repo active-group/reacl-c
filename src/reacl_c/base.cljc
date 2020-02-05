@@ -71,7 +71,7 @@
 (defprotocol Application
   (-send-message! [this msg]))
 
-(defrecord Effect [f])
+(defrecord Effect [f args])
 
 (defn effect? [v]
   (instance? Effect v))

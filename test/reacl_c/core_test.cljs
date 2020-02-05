@@ -78,6 +78,40 @@
       (is (not @mounted))
       (is (= [:mounted [:updated 1] [:updated 2]] @states)))))
 
+(deftest subscription-test
+  (let [subscribed (atom false)
+        sub-impl (fn [deliver! x]
+                   (reset! subscribed true)
+                   (fn []
+                     (reset! subscribed false)))
+        sub (c/subscription sub-impl :x)
+        env (tu/env (c/dynamic #(if % sub "")))]
+    (tu/mount! env false)
+    
+    ;; sub on mount
+    (let [r (tu/update! env true)
+          a (first (:actions r))]
+      (is (some? a))
+      (is (tu/subscribe-effect? a sub))
+
+      (is (not @subscribed))
+
+      ;; execute subscribe effect.
+      (is (= (c/return)
+             (tu/execute-effect! env a)))
+
+      (is @subscribed))
+
+    ;; unsub on unmount
+    (let [r (tu/update! env false)
+          a (first (:actions r))]
+      (is (tu/unsubscribe-effect? a sub))
+
+      (is (= (c/return)
+             (tu/execute-effect! env a)))
+      (is (not @subscribed)))))
+
+
 (deftest defn-dynamic-test
   (testing "a regression with varargs"
     (c/defn-dynamic dyn1 state [& args]

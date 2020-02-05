@@ -89,7 +89,7 @@
       (instance? ActionMessage msg)
       (let [action (:action msg)]
         (if (base/effect? action)
-          (handle-effect-return this action ((:f action)))
+          (handle-effect-return this action (apply (:f action) (:args action)))
           (do (warn "Unhandled action:" action)
               (rcore/return)))) 
 
@@ -112,7 +112,7 @@
                                              initial-state
                                              item)))
 
-(defn- transform-return [r]
+(defn ^:no-doc transform-return [r]
   ;; a base/Returned value to a rcore/return value.
   (assert (instance? base/Returned r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
   (apply rcore/merge-returned

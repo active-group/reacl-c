@@ -404,15 +404,27 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     (with-async-return g f args)))
 
-(defn ^:no-doc effect [f]
-  (base/->Effect f))
+(defn ^:no-doc effect [f & args]
+  (base/->Effect f args))
 
 (defrecord ^:private SubscribedMessage [stop!])
 
-(defn- subscribe! [f deliver! args host]
+(defn- subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
     (assert (some? (deref host)))
     (return :message [(deref host) (SubscribedMessage. stop!)])))
+
+(defn- subscribe-effect [f deliver! args host]
+  (assert (ifn? f))
+  (effect subscribe! f args deliver! host))
+
+(defn- unsubscribe! [stop! _]
+  (stop!)
+  (return))
+
+(defn- unsubscribe-effect [stop! f args]
+  ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]] below.
+  (effect unsubscribe! stop! (cons f args)))
 
 (let [store-sub (fn [f args msg]
                   (assert (instance? SubscribedMessage msg))
@@ -421,13 +433,10 @@ a change."}  merge-lens
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (set-ref host))
-                       (did-mount (return :action (effect (f/partial subscribe! f deliver! args host))))))
-      do-stop (fn [stop!]
-                (stop!)
-                (return))
+                       (did-mount (return :action (subscribe-effect f deliver! args host)))))
       dyn (fn [deliver! {f :f args :args stop! :stop!}]
             (if (some? stop!)
-              (will-unmount (return :action (effect (f/partial do-stop stop!))))
+              (will-unmount (return :action (unsubscribe-effect stop! f args)))
               (with-ref (f/partial msgs deliver! f args))))
       stu (fn [f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
@@ -624,4 +633,4 @@ Note that `deliver!` must never be called directly in the body of
 (defmacro defn-effect [name args & body]
   `(let [f# (fn ~args ~@body)]
      (defn+ ~name args# ~args
-       (effect (apply f/partial f# args#)))))
+       (apply effect f# args#))))

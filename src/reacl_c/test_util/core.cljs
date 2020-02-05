@@ -93,14 +93,49 @@
   ;; TODO: enable this on dom class items?! then we can remove the xpath case for the raw dom element.
   (->ret (r-tu/invoke-callback! comp callback event)))
 
+(defn inject-return! [comp ret]
+  (->ret (r-tu/inject-return! comp (impl/transform-return ret))))
+
 (defn inject-action! [comp action]
   ;; Note: for dom tags in an xpath, the user will find the native element; so actions cannot be injected into them :-/
   ;; Rule: dom element => invoke-callback; non-dom items => inject-action + inject-state-change.
   ;; TODO: document that, if it cannot be changed.
-  (->ret (r-tu/inject-return! comp (rcore/return :action action))))
+  (inject-return! comp (core/return :action action)))
 
 (defn inject-state-change! [comp state]
-  (->ret (r-tu/inject-change! comp state)))
+  (inject-return! comp (core/return :state state)))
+
+(defn execute-effect!
+  "Executed the given effect in the given test environment."
+  [env eff]
+  (inject-return! (get-component env)
+                  (apply (:f eff) (:args eff))))
+
+(defn subscribe-effect?
+  "Tests if the given effect, is one that is emitted by a subscription
+  equal to the given one on mount. This can be useful in unit tests."
+  [eff subs]
+  (and (base/effect? eff)
+       (let [e-f (:f eff)
+             e-args (:args eff)]
+         (and (= e-f core/subscribe!)
+              ;; the first arg is the subs-f, the second arg it's user args.
+              ;; creating a new subscription with same args, should be an = item then.
+              (= subs (apply core/subscription (first e-args) (second e-args)))))))
+
+(defn unsubscribe-effect?
+  "Tests if the given effect, is one that is emitted by a subscription
+  equal to the given one, on unmount. This can be useful in unit
+  tests."
+  [eff subs]
+  (and (base/effect? eff)
+       (let [e-f (:f eff)
+             e-args (:args eff)]
+         (and (= e-f core/unsubscribe!)
+              ;; the second arg is the subs-f and user args.
+              ;; creating a new subscription with same args, should be an = item then.
+              (= subs (apply core/subscription (second e-args)))))))
+
 
 (def ^:private dummy-ref (reify base/Ref
                            (-deref-ref [this] (throw (ex-info "References must only be dereferenced in handlers, not during rendering." {})))))
