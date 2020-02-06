@@ -91,6 +91,7 @@
         as (fn [v st] (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
                                                st))]
     (tu/mount! e :state1)
+    (is (some? (.-name (c/meta-name-id foobar))))
     (is (= (c/return :state :state2) (as foobar :state2)))
     ;; TODO: (is (= (c/return :state :state3) (as "div" :state3)))
     ;; TODO: (is (= (c/return :state :state4) (as dom/div :state4)))

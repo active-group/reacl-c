@@ -37,11 +37,6 @@
     (is (= (c/capture-state-change (dom/div) :f) (c/capture-state-change (dom/div) :f))))
   )
 
-(deftest def-dynamic-test
-  (c/defn-dynamic xxx state [a]
-    (dom/div (str state a)))
-  (is (base/item? (xxx "foo"))))
-
 #_(deftest while-mounted-test
   (testing "mount, unmount"
     (let [mounted (atom false)
@@ -111,26 +106,85 @@
              (tu/execute-effect! env a)))
       (is (not @subscribed)))))
 
+(deftest defn-named-test
+  (testing "schematized args and state"
+    (c/defn-named ^:always-validate defn-named-test-1 [a :- schema.core/Str]
+      (dom/div (str a)))
+    (is (base/item? (defn-named-test-1 "foo")))
+
+    (try (defn-named-test-1 42)
+         (is false)
+         (catch :default e
+           (is true))))
+
+  (testing "it is named"
+    (c/defn-named defn-named-test-2 "mydoc" [a]
+      (dom/div (str a)))
+    (is (contains? (meta defn-named-test-2) :reacl-c.core/name-id))
+
+    ;; no clue why this test fails: (is (= '([a]) (:arglists (meta #'defn-named-test-2))))
+    (is (= "mydoc" (:doc (meta #'defn-named-test-2)))))
+
+  (testing "checks arity"
+    (c/defn-named defn-named-test-3 [a]
+      (dom/div (str a)))
+    (try (defn-named-test-3)
+         (is false)
+         (catch :default e
+           (is true)))))
 
 (deftest defn-dynamic-test
+  (testing "schematized args and state"
+    (c/defn-dynamic ^:always-validate defn-dynamic-test-1 state :- schema.core/Int [a :- schema.core/Str]
+      (dom/div (str state a)))
+    (is (base/item? (defn-dynamic-test-1 "foo")))
+
+    (try (defn-dynamic-test-1 42)
+         (is false)
+         (catch :default e
+           (is true)))
+
+    (do (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) 42)
+        (is true))
+    
+    (try (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) "42")
+         (is false)
+         (catch :default e
+           (is true))))
+
+  (testing "it is named"
+    (c/defn-dynamic defn-dynamic-test-2 "mydoc" state [a]
+      (dom/div (str state a)))
+    (is (contains? (meta defn-dynamic-test-2) :reacl-c.core/name-id))
+    ;; no clue why this test fails: (is (= '([a]) (:arglists (meta #'defn-dynamic-test-2))))
+    (is (= "mydoc" (:doc (meta #'defn-dynamic-test-2))))
+    )
+
+  (testing "checks arity"
+    (c/defn-dynamic defn-dynamic-test-3 state [a]
+      (dom/div (str state a)))
+    (try (defn-dynamic-test-3)
+         (is false)
+         (catch :default e
+           (is true))))
+  
   (testing "a regression with varargs"
-    (c/defn-dynamic dyn1 state [& args]
+    (c/defn-dynamic defn-dynamic-test-4 state [& args]
       (dom/div))
 
-    (is (= (dyn1) (dyn1)))
+    (is (= (defn-dynamic-test-4) (defn-dynamic-test-4)))
 
-    (is (= (dyn1 "x") (dyn1 "x")))
+    (is (= (defn-dynamic-test-4 "x") (defn-dynamic-test-4 "x")))
 
-    (c/defn-dynamic dyn2 "docstring" state [a1 & args]
+    (c/defn-dynamic defn-dynamic-test-5 "docstring" state [a1 & args]
       (dom/div))
 
     (is (= "docstring")
-        (:doc (meta #'dyn2)))
+        (:doc (meta #'defn-dynamic-test-5)))
 
-    (is (= (dyn1 "x") (dyn1 "x")))
+    (is (= (defn-dynamic-test-5 "x") (defn-dynamic-test-5 "x")))
 
-    (is (= (dyn1 "x" "y") (dyn1 "x" "y")))
-    ))
+    (is (= (defn-dynamic-test-5 "x" "y") (defn-dynamic-test-5 "x" "y")))))
 
 (deftest with-async-messages-test
   (let [env (tu/env (c/with-ref (fn [ref]

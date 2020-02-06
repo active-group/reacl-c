@@ -2,6 +2,7 @@
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [clojure.set :as set]
+            [schema.core :as s]
             [active.clojure.functions :as f])
   (:refer-clojure :exclude [deref partial constantly empty]))
 
@@ -494,35 +495,6 @@ a change."}  merge-lens
     (-> (dynamic (f/partial df item validate!))
         (monitor-state (f/partial mf validate!)))))
 
-(defmacro ^:no-doc fn+ [all-args args & body]
-  ;; generates a simplified param vector, in order to bind all args also to
-  ;; 'all-args', regardless of destructuring.
-  (let [[fargs_ vargs] (partition-by #(= '& %) args)
-        fargs (if (= '& (first fargs_)) (rest fargs_) fargs_)
-        fparams (map (fn [_] (gensym "a")) fargs)
-        vparam (when (not-empty vargs) (gensym "a"))
-        params (vec (concat fparams (when vparam ['& vparam])))
-        all (if vparam `(concat ~(vec fparams) ~vparam) (vec fparams))]
-    `(fn ~params
-       (let [~all-args ~all
-             ~args ~all-args]
-         ;; Note: this looks unneccessary, but enables the use of {:pre ...}, which must be the first expr in a fn.
-         ((fn [] ~@body))))))
-
-(defmacro ^:no-doc defn+ [name docstring? all-args args & body]
-  ;; generates a simplified param vector, in order to bind all args also to
-  ;; 'all-args', regardless of destructuring.
-  `(def ~(vary-meta name assoc
-                    :doc (or docstring? (:doc (meta name)))
-                    :arglists `'(~args))
-     (fn+ ~all-args ~args ~@body)))
-
-(defn- maybe-get-precond [body]
-  (if-let [expr (-> (not-empty body)
-                      (first)
-                      (get :pre))]
-    [{:pre expr}]))
-
 (defmacro def-named
   "A macro to define a named item. This is the same as Clojures
   `def`, but in addition assigns its name to the item which can be
@@ -536,38 +508,73 @@ a change."}  merge-lens
 (defn ^:no-doc meta-name-id [v]
   (::name-id (meta v)))
 
-(defmacro ^:no-doc defn-named+
-  [name docstring? all-args args & body]
-  (let [name_ (str *ns* "/" name)]
-    `(let [id# (name-id ~name_)]
-       (def ~(vary-meta name assoc
-                        :doc (or docstring? (:doc (meta name)))
-                        :arglists `'(~args))
-         (-> (fn+ ~all-args ~args
-                  ;; Note: wrapped fn allows for preconditions in body.
-                  (named id# ((fn [] ~@body))))
-             (vary-meta assoc ::name-id id#))))))
-
 (defn- maybe-docstring [candidate & more]
   (if (string? candidate)
     (cons candidate more)
     (cons nil (cons candidate more))))
+
+(defn- arity [args]
+  ;; args may contain destructuring and schema annotations.
+  ;; var-args may have an annotation too [x & args :- schema]
+
+  ;; result: n fixed args, negative n = at least n-1, but variadic (-2 = 1 + many)
+  (first
+   (reduce (fn [[res schema?] a]
+             (cond
+               (= '& a) (reduced [(- (inc res)) nil]) ;; done 
+               (= ':- a) [res true] ;; schema annotation; skip next too.
+               :else (if schema?
+                       [res false]
+                       [(inc res) false])))
+           [0 false]
+           args)))
+
+(defn ^:no-doc arity-checker [name arity]
+  (if (= arity -1)
+    (fn [n-args] nil)
+    (fn [n-args]
+      (when (if (< arity 0)
+              (< n-args (dec (- arity)))
+              (not= n-args arity))
+        (throw (ex-info (str "Wrong number of args (" n-args ") passed to " name) {:function name}))))))
+
+(defmacro ^:no-doc defn+
+  "Internal utility macro."
+  [create mod-fn opt-wrapper wrapper-args name args & body]
+  (let [[docstring? args & body] (apply maybe-docstring args body)
+        name_ (clojure.core/name name)
+        name (vary-meta name assoc
+                        :doc (or docstring? (:doc (meta name)))
+                        :arglists `'(~args))]
+    `(let [check-arity# (arity-checker ~name_ ~(arity args))
+           f# (s/fn ~name [~@wrapper-args ~@args] ~@body)
+           check-args-schema# (s/fn ~name [~@args] nil)]
+       (def ~name
+         (~mod-fn (fn ~name [& args#]
+                    (assert (do (check-arity# (count args#))
+                                (apply check-args-schema# args#)
+                                true))               
+                    (~@create (apply ~@opt-wrapper f# args#))))))))
+
+(defmacro ^:no-doc defn-named+
+  "Internal utility macro."
+  [opt-wrapper wrapper-args name args & body]
+  (let [name_ (str *ns* "/" name)]
+    `(let [id# (name-id ~name_)]
+       (defn+ [named id#] (fn [f#] (vary-meta f# assoc ::name-id id#))
+         ~opt-wrapper ~wrapper-args ~name ~args ~@body))))
 
 (defmacro defn-named
   "A macro to define an abstract item. This is the same as Clojures
   `defn`, but in addition assigns its name to the returned item which can be
   used by testing and debugging utilities."
   [name args & body]
-  (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn-named+ ~name ~docstring? all# ~args ~@body)))
+  `(defn-named+ nil nil ~name ~args ~@body))
 
-(defmacro ^:no-doc defn-named-delayed [name docstring? f delayed-args args & body]
-  (let [precond (maybe-get-precond body)]
-    `(let [f# (fn [~@delayed-args ~@args]
-                ~@body)]
-       (defn-named+ ~name ~docstring? all# ~args
-         ~@precond
-         (apply ~@f f# all#)))))
+(defn- maybe-schema-arg [candidate & more]
+  (if (and (not-empty more) (= ':- (first more)))
+    (list* (list candidate (first more) (second more)) (rest (rest more)))
+    (list* (list candidate) more)))
 
 (defmacro defn-dynamic
   "A macro to define a new abstract dynamic item. For example, given
@@ -585,8 +592,9 @@ a change."}  merge-lens
 
   when the current state of the item is `state`, and changes whenever the state changes."
   [name state args & body]
-  (let [[docstring? state args & body] (apply maybe-docstring state args body)]
-    `(defn-named-delayed ~name ~docstring? [dynamic] [~state] ~args ~@body)))
+  (let [[docstring? state args & body] (apply maybe-docstring state args body)
+        [statev args & body] (apply maybe-schema-arg state args body)]
+    `(defn-named+ [dynamic] ~statev ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic item. For example, given
@@ -600,7 +608,8 @@ a change."}  merge-lens
   changes over time. This is similar to [[defn-dynamic]] but without the
   arguments."
   [name state & body]
-  `(def-named ~name (dynamic (fn [~state] ~@body))))
+  (let [[statev & body] (apply maybe-schema-arg state body)]
+    `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
 
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
@@ -627,10 +636,20 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
-    `(defn-named-delayed ~name ~docstring? [subscription] [~deliver!] ~args ~@body)))
+    `(defn-named+ [subscription] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
-(defmacro defn-effect [name args & body]
-  (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(let [f# (fn ~args ~@body)]
-       (defn+ ~name ~docstring? args# ~args
-         (apply effect f# args#)))))
+(defmacro defn-effect
+  "A macro similar to defn, that defines a new effect.
+
+```
+(defn-effect my-effect [arg]
+  (change-the-world! args)
+  (return)
+```
+
+Calling it returns an effect action, which can be returned by an item
+  as an action. The body of the effect then executed later, when side
+  effects on some external entity are safe.
+ "
+  [name args & body]
+  `(defn+ [identity] identity [effect] [] ~name ~args ~@body))
