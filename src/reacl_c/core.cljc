@@ -289,23 +289,22 @@ a change."}  merge-lens
   (f))
 
 (defn did-mount
-  "An item like the given one, or an invisible item, which emits the state
-  change or action as specified by the given [[return]] value when
-  mounted."
-  ([ret]
-   {:pre [(base/returned? ret)]}
-   (base/->DidMount ret))
-  ([item ret]
-   (fragment item (did-mount ret))))
+  "An invisible item, which emits the state change or action as
+  specified by the given [[return]] value when mounted."
+  [ret]
+  ;; TODO: should a new ret be a new event?
+  {:pre [(base/returned? ret)]}
+  #_(once ret)
+  (base/->DidMount ret))
 
 (defn will-unmount
-  "An item like the given one, or an invisible item, which emits the
-  state change or action as specified by the given [[return]] value."
-  ([ret]
-   {:pre [(base/returned? ret)]}
-   (base/->WillUnmount ret))
-  ([item ret]
-   (fragment item (will-unmount ret))))
+  "An invisible item, which emits the state change or action as
+  specified by the given [[return]] value."
+  [ret]
+  ;; TODO: should a new ret be a new event?
+  {:pre [(base/returned? ret)]}
+  (once (return) ret)
+  (base/->WillUnmount ret))
 
 (defn ^:no-doc did-update
   ;; TODO: better doc
@@ -370,8 +369,8 @@ a change."}  merge-lens
             (let [me (focus first-lens e)]
               (-> me
                   (did-update (f/partial update state me m update! mount! unmount!)) ;; must be first!
-                  (did-mount (f/partial mount state m mount! unmount!))
-                  (will-unmount (f/partial unmount state (:unmount! m) (:state m))))))]
+                  (fragment (did-mount (f/partial mount state m mount! unmount!))
+                            (will-unmount (f/partial unmount state (:unmount! m) (:state m)))))))]
   (defn ^:no-doc while-mounted [item mount! update! unmount!]
     (local-state {:state ::initial}
                  (dynamic dyn item mount! update! unmount!))))
