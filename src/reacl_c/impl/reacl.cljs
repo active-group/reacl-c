@@ -175,7 +175,7 @@
                  f))
           events)))
 
-(defn- dom-message-to-action [msg events first-ref]
+(defn- dom-message-to-action [msg events]
   (cond
     (instance? EventMessage msg)
     (let [{ev :ev} msg
@@ -183,10 +183,7 @@
       (transform-return (f ev)))
 
     :else
-    (if-let [c (let [c (rcore/get-dom first-ref)] (and c (rcore/component? c)))]
-      (rcore/return :message [c msg])
-      ;; TODO: or maybe 'the first child that can receive messages'? like (dom "ab" target "de")
-      (throw (ex-info "Cannot send a message to dom elements that have no other items as children." {:value msg})))))
+    (throw (ex-info "Cannot send a message to dom elements." {:value msg}))))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -198,15 +195,11 @@
                                events))]
     (merge attrs r-events)))
 
-(defn- native-dom [binding type attrs self-ref first-child-ref & children]
+(defn- native-dom [binding type attrs self-ref & children]
   (apply rdom/element type
          (cond-> attrs
            self-ref (assoc :ref (:reacl-ref self-ref)))
-         (let [children (map (partial instantiate binding) children)]
-           (when (not-empty children)
-             (cons (-> (first children)
-                       (rcore/refer first-child-ref))
-                   (rest children))))))
+         (map (partial instantiate binding) children)))
 
 (def ^:private dom-class_
   ;; There should be a finite set of tag names, so using memoize should be ok.
@@ -214,14 +207,12 @@
    (fn [type]
      (rcore/class ^:private (str "reacl-c.dom/" type) this state [attrs events ref & children]
                   ;; dom with action events and children.
-                  refs [first]
-
                   local-state [handler (dom-event-handler this)]
   
-                  handle-message (fn [msg] (dom-message-to-action msg events first))
+                  handle-message (fn [msg] (dom-message-to-action msg events))
   
                   render
-                  (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref first
+                  (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref
                          children)))))
 
 (defn- dom-class [binding type events ref & children]
@@ -230,7 +221,7 @@
 (defn- dom [binding type attrs events ref & children]
   ;; TODO: is it even worth it to 'optimize' ?
   (if (and (empty? events) (not (some base/item? children)))
-    (apply native-dom binding type attrs ref nil children)
+    (apply native-dom binding type attrs ref children)
     (apply dom-class binding type attrs events ref children)))
 
 (extend-type dom/Element
