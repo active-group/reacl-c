@@ -407,47 +407,33 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-async-return binding f args)]))
 
-(rcore/defclass ^:private did-mount this state [return]
-  component-did-mount (fn [] (transform-return return))
-
-  render (rdom/fragment))
-
-(extend-type base/DidMount
-  IReacl
-  (-instantiate-reacl [{return :ret} binding]
-    [(did-mount binding return)]))
-
-(rcore/defclass ^:private will-unmount this state [return]
-  component-will-unmount (fn [] (transform-return return))
-
-  render (rdom/fragment))
-
-(extend-type base/WillUnmount
-  IReacl
-  (-instantiate-reacl [{return :ret} binding]
-    [(will-unmount binding return)]))
-
-(rcore/defclass ^:private did-update this state [e f]
-  refs [child]
-
-  handle-message
-  (fn [msg]
-    (pass-message child msg))
+(rcore/defclass ^:private once this state [ret cleanup-ret]
+  local-state [done nil]
   
   component-did-update
-  (fn [prev-app-state prev-local-state prev-e prev-f]
-    (if (or (not= prev-app-state state)
-            (not= prev-e e))
-      (transform-return (f prev-app-state prev-e))
+  (fn [prev-app-state prev-local-state prev-ret prev-cleanup-ret]
+    (if (not= done ret)
+      (rcore/merge-returned (transform-return ret)
+                            (rcore/return :local-state ret))
       (rcore/return)))
 
-  render (-> (instantiate (rcore/bind this) e)
-             (rcore/refer child)))
+  component-did-mount
+  (fn []
+    (rcore/merge-returned (transform-return ret)
+                          (rcore/return :local-state ret)))
 
-(extend-type base/DidUpdate
+  component-will-unmount
+  (fn []
+    (if (some? cleanup-ret)
+      (transform-return cleanup-ret)
+      (rcore/return)))
+
+  render (rdom/fragment))
+
+(extend-type base/Once
   IReacl
-  (-instantiate-reacl [{e :e f :f} binding]
-    [(did-update binding e f)]))
+  (-instantiate-reacl [{ret :ret cleanup-ret :cleanup-ret} binding]
+    [(once binding ret cleanup-ret)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 

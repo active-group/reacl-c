@@ -11,30 +11,28 @@
          (-> (tu/env (dom/div))
              (tu/mount! :state))))
   (is (= (c/return :action ::act)
-         (-> (tu/env (c/did-mount (c/return :action ::act)))
+         (-> (tu/env (c/once (c/return :action ::act)))
              (tu/mount! :state)))))
 
 (deftest update-test
-  (is (= (c/return :action [::act :state2])
-         (let [e (tu/env (c/dynamic
-                          (fn [state]
-                            (c/did-update (dom/div #_(str state))
-                                          (constantly (c/return :action [::act state]))))))]
-           (tu/mount! e :state1)
-           (tu/update! e :state2)))))
+  (let [e (tu/env (c/dynamic
+                   (fn [state]
+                     (if state (dom/div) (dom/span)))))]
+    (tu/mount! e true)
+    (is (some? (xpath/select-one (tu/get-component e) (xpath/>> ** "div"))))
+    (tu/update! e false)
+    (is (some? (xpath/select-one (tu/get-component e) (xpath/>> ** "span"))))))
 
 (deftest full-update-test
   (let [e (tu/env (c/dynamic (fn [state]
-                               (c/did-update (dom/div)
-                                             (constantly (if (< state 10)
-                                                           (c/return :state (inc state))
-                                                           (c/return)))))))]
-    (is (= (c/return) (tu/mount! e 0)))
-    (is (= (c/return :state 2) (tu/update! e 1))) ;; only one did-update
-    (is (= (c/return :state 10) (tu/update!! e 2)))) ;; all did-updates
+                               (c/once (if (< state 10)
+                                         (c/return :state (inc state))
+                                         (c/return))))))]
+    (is (= (c/return :state 1) (tu/mount! e 0)))
+    (is (= (c/return :state 2) (tu/update! e 1))) ;; only one update
+    (is (= (c/return :state 10) (tu/update!! e 2)))) ;; all updates
   (let [e (tu/env (c/dynamic (fn [state]
-                               (c/did-update (dom/div)
-                                             (constantly (c/return :state (inc state)))))))]
+                               (c/once (c/return :state (inc state))))))]
     (tu/mount! e 0)
     (try (tu/update!! e 1)
          (is false)
@@ -43,7 +41,7 @@
 
 (deftest unmount-test
   (is (= (c/return :action ::act)
-         (let [e (tu/env (c/will-unmount (c/return :action ::act)))]
+         (let [e (tu/env (c/once (c/return) (c/return :action ::act)))]
            (tu/mount! e :state)
            (tu/unmount! e)))))
 
@@ -186,14 +184,13 @@
 
     (is (= [[base/Keyed] {:key ["foo" "bar"]}]  (f (c/keyed (dom/div) "foo") (c/keyed (dom/span) "bar"))))
 
-    (is (= nil (f (c/did-mount (c/return :state :a)) (c/did-mount (c/return :state :a)))))
+    (is (= nil (f (c/once (c/return :state :a)) (c/once (c/return :state :a)))))
+    (is (= nil (f (c/once (c/return :state :a) (c/return :state :b)) (c/once (c/return :state :a) (c/return :state :b)))))
 
-    (is (not= (c/return :state :a) (c/return :state :b)))
-    (is (not= (c/did-mount (c/return :state :a)) (c/did-mount (c/return :state :b))))
-    
-    (is (= [[] {:did-mount [(c/return :state :a) (c/return :state :b)]}] 
-           (f (c/did-mount (c/return :state :a)) (c/did-mount (c/return :state :b)))))
-    ;; will-unmount is same.
+    (is (= [[] {:once [(c/return :state :a) (c/return :state :b)]}] 
+           (f (c/once (c/return :state :a)) (c/once (c/return :state :b)))))
+    (is (= [[] {:once-cleanup [(c/return :state :a) (c/return :state :b)]}] 
+           (f (c/once (c/return) (c/return :state :a)) (c/once (c/return) (c/return :state :b)))))
 
     (is (= [[base/Focus] {:lens [:a :b]}] (f (c/focus :a (dom/div)) (c/focus :b (dom/div)))))
     (is (= [[base/Focus "div"] {:attributes [{:a 10} {:a 42}]}] (f (c/focus :k1 (dom/div {:a 10 :b 1})) (c/focus :k1 (dom/div {:a 42 :b 1})))))

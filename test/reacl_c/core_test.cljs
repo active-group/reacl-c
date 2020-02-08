@@ -25,12 +25,8 @@
     (is (= (c/add-state :a :b (dom/div)) (c/add-state :a :b (dom/div)))))
   (testing "keyed"
     (is (= (c/keyed (dom/div) :a) (c/keyed (dom/div) :a))))
-  (testing "did-mount"
-    (is (= (c/did-mount (c/return :action :a)) (c/did-mount (c/return :action :a)))))
-  (testing "will-unmount"
-    (is (= (c/will-unmount (c/return :action :a)) (c/will-unmount (c/return :action :a)))))
-  (testing "did-update"
-    (is (= (c/did-update (dom/div) :a) (c/did-update (dom/div) :a))))
+  (testing "once"
+    (is (= (c/once (c/return :action :a) (c/return :action :b)) (c/once (c/return :action :a) (c/return :action :b)))))
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
@@ -194,8 +190,7 @@
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
-                                               (-> (c/did-mount (c/return :action ::test
-                                                                          ))
+                                               (-> (c/once (c/return :action ::test))
                                                    (c/handle-action (fn [_]
                                                                       (send! ref :msg)
                                                                       (c/return))))))))))]
@@ -210,7 +205,7 @@
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
-                                               (c/did-mount (c/return :message [ref :msg]))))))))]
+                                               (c/once (c/return :message [ref :msg]))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
 

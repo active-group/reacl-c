@@ -285,38 +285,23 @@ a change."}  merge-lens
   {:pre [(base/item? item)]}
   (base/->Keyed item key))
 
-(defn- call-thunk [f _]
-  (f))
+;; TODO: cleanup once or each time??
+(defn once
+  "An item that emits the things specified in the given [[return]]
+  value once. The optional `cleanup-ret` is emitted, when the returned
+  item is removed from the item tree afterwards. A `once` item with a
+  different `return` value, will emit that return once again, but will
+  not emit the previous `cleanup-ret`, even at the same position in
+  the tree.
 
-(defn did-mount
-  "An invisible item, which emits the state change or action as
-  specified by the given [[return]] value when mounted."
-  [ret]
-  ;; TODO: should a new ret be a new event?
-  {:pre [(base/returned? ret)]}
-  #_(once ret)
-  (base/->DidMount ret))
+  Note that if you return a modified state, you must be careful to not
+  cause an endless loop of updates."
+  [ret & [cleanup-ret]]
+  {:pre [(base/returned? ret)
+         (or (nil? cleanup-ret) (base/returned? cleanup-ret))]}
+  (base/->Once ret cleanup-ret))
 
-(defn will-unmount
-  "An invisible item, which emits the state change or action as
-  specified by the given [[return]] value."
-  [ret]
-  ;; TODO: should a new ret be a new event?
-  {:pre [(base/returned? ret)]}
-  (once (return) ret)
-  (base/->WillUnmount ret))
-
-(defn ^:no-doc did-update
-  ;; TODO: better doc
-  "When the mounted item `e` changes between the [[did-mount]]
-  and [[will-unmount]] points in the livecycle, `(f prev-state
-  prev-e)` is called, which must return a [[return]] value."
-  [item f]
-  {:pre [(base/item? item)
-         (ifn? f)]}
-  (base/->DidUpdate item f))
-
-(defn ^:no-doc capture-state-change
+(defn ^:no-doc capture-state-change ;; rename capture?
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
@@ -335,45 +320,6 @@ a change."}  merge-lens
     {:pre [(base/item? item)
            (ifn? f)]}
     (capture-state-change item (f/partial h f args))))
-
-#_(let [mount (fn [state m mount! unmount!]
-              (return :state [state (assoc m
-                                           :state (mount!)
-                                           :mount! mount!
-                                           :unmount! unmount!)]))
-      update (fn [state e m update! mount! unmount! [old-state old-m] old-e]
-               (cond
-                 ;; ignore initial update after mount
-                 (= ::initial (:state old-m))
-                 (return)
-
-                 ;; remount when mount fn changed
-                 (not= mount! (:mount! old-m))
-                 (do
-                   ((:unmount! old-m) (:state old-m)) ;; old m-state or the new one?
-                   (return :state [state (assoc m :state (mount!))]))
-
-                 ;; update, when relevant.
-                 (and (some? update!) (or (not= old-e e) (not= old-state state)))
-                 (let [old (:state m)
-                       new (update! old)]
-                   (if (= new old)
-                     (return)
-                     (return :state [state (assoc m :state new)])))
-
-                 :else (return)))
-      unmount (fn [state unmount! m-state]
-                (unmount! m-state)
-                (return :state [state nil]))
-      dyn (fn [[state m] e mount! update! unmount!]
-            (let [me (focus first-lens e)]
-              (-> me
-                  (did-update (f/partial update state me m update! mount! unmount!)) ;; must be first!
-                  (fragment (did-mount (f/partial mount state m mount! unmount!))
-                            (will-unmount (f/partial unmount state (:unmount! m) (:state m)))))))]
-  (defn ^:no-doc while-mounted [item mount! update! unmount!]
-    (local-state {:state ::initial}
-                 (dynamic dyn item mount! update! unmount!))))
 
 (defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
@@ -424,10 +370,10 @@ a change."}  merge-lens
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (set-ref host))
-                       (did-mount (return :action (subscribe-effect f deliver! args host)))))
+                       (once (return :action (subscribe-effect f deliver! args host)))))
       dyn (fn [deliver! {f :f args :args stop! :stop!}]
             (if (some? stop!)
-              (will-unmount (return :action (unsubscribe-effect stop! f args)))
+              (once (return) (return :action (unsubscribe-effect stop! f args)))
               (with-ref (f/partial msgs deliver! f args))))
       stu (fn [f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.

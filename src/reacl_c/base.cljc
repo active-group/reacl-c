@@ -33,7 +33,6 @@
 
 (defrecord HandleAction [e f] E)
 (defrecord SetRef [e ref] E)
-(defrecord DidUpdate [e f] E)
 (defrecord CaptureStateChange [e f] E)
 (defrecord HandleMessage [f e] E)
 (defrecord Named [name-id e] E)
@@ -41,8 +40,7 @@
 (defrecord Keyed [e key] E)
 
 ;; Note: fields must not be named 'return', because of a ClojureScript bug.
-(defrecord DidMount [ret] E)
-(defrecord WillUnmount [ret] E)
+(defrecord Once [ret cleanup-ret] E)
 
 (defn named? [v]
   (instance? Named v))

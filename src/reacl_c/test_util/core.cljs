@@ -70,7 +70,7 @@
       (if (not= base/keep-state (:state r2))
         (let [state (:state r2)]
           (when (> n *max-update-loops*)
-            (throw (ex-info "Item keeps on updating. Check any [[did-update]] items, which should eventually reach a fixed state." {:intermediate-state state})))
+            (throw (ex-info "Item keeps on updating. Check any [[once]] items, which should eventually reach a fixed state." {:intermediate-state state})))
           (recur rm state (inc n)))
         rm))))
 
@@ -190,14 +190,12 @@
         base/Named (w)
         base/ErrorBoundary (w) ;; and the error fn?
         base/HandleMessage (w)
-        base/DidUpdate (w)
 
         base/Fragment (wc)
         dom/Element   (wc)
 
         ;; the leafs
-        base/DidMount item
-        base/WillUnmount item))))
+        base/Once item))))
 
 (defn ^:no-doc resolve-1
   "Replaces one level of dynamicity from the given item, or just returns it if there is none."
@@ -242,7 +240,7 @@
           [path {:function [(:f item1) (:f item2)]}]))
 
       ;; wrappers
-      (or (= t1 base/HandleAction) (= t1 base/DidUpdate) (= t1 base/ErrorBoundary) (= t1 base/CaptureStateChange) (= t1 base/HandleMessage))
+      (or (= t1 base/HandleAction) (= t1 base/ErrorBoundary) (= t1 base/CaptureStateChange) (= t1 base/HandleMessage))
       (w item1 item2 :f :function)
 
       (= t1 base/SetRef)
@@ -296,8 +294,10 @@
                   (map-indexed vector (map vector cs1 cs2)))))
 
       ;; leafs
-      (= t1 base/DidMount) [path {:did-mount [(:ret item1) (:ret item2)]}]
-      (= t1 base/WillUnmount) [path {:will-unmount [(:ret item1) (:ret item2)]}]
+      (= t1 base/Once)
+      (if (not= (:ret item1) (:ret item2))
+        [path {:once [(:ret item1) (:ret item2)]}]
+        [path {:once-cleanup [(:cleanup-ret item1) (:cleanup-ret item2)]}])
       
       :else ;; string?!
       [path {:not= [item1 item2]}])))
