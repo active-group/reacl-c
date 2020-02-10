@@ -4,6 +4,7 @@
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
             [reacl-c.test-util.xpath :as xpath :include-macros true]
+            [reacl-c.browser :as browser]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
 (deftest item-equality-test
@@ -172,5 +173,17 @@
                                                (c/once (c/return :message [ref :msg]))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
+
+(deftest app-send-message-test
+  (let [e (js/document.createElement "div")
+        received (atom nil)
+        app (browser/run e
+              (c/handle-message (fn [msg]
+                                  (reset! received msg)
+                                  (c/return))
+                                c/empty)
+              nil)]
+    (c/send-message! app ::hello)
+    (is (= ::hello @received))))
 
 ;; TODO: test every higher level feature in core.

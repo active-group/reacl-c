@@ -95,10 +95,6 @@
 
       :else (pass-message child msg))))
 
-(defn send-message!
-  "Sends a message to the runtime component `target`."
-  [target msg]
-  (rcore/send-message! target msg))
 
 (defrecord ^:private ReaclApplication [comp]
   base/Application  

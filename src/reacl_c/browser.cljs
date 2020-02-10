@@ -12,11 +12,6 @@
   [class & args]
   (apply impl/lift class args))
 
-(defn send-message!
-  "Sends a message to the runtime component `target`."
-  [target msg]
-  (impl/send-message! target msg))
-
 (defn render
   "Returns a Reacl element or component implementing the given item,
   and with the given state `binding`."
