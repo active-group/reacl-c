@@ -95,6 +95,72 @@
     ;; TODO: (is (= (c/return :state :state4) (as dom/div :state4)))
     ))
 
+(deftest effect-utils-test
+  (let [called-with (atom nil)
+        called (atom false)]
+    (c/defn-effect mk-eff0 [v]
+      (reset! called v)
+      (reset! called-with v)
+      (c/return))
+
+    (def eff1 (c/effect (fn []
+                          (reset! called true)
+                          (c/return))))
+
+    (is (tu/effect? eff1))
+    (is (= nil (tu/effect-args eff1)))
+
+    (is (tu/effect? (mk-eff0 42)))
+    (is (tu/effect? (mk-eff0 42) mk-eff0))
+    (is (= (mk-eff0 42) (mk-eff0 42)))
+    (is (tu/effect-args (mk-eff0 42) [42]))
+
+    (let [env (tu/env (dom/div))]
+      (tu/mount! env nil)
+      
+      (tu/execute-effect! env eff1)
+      (is @called)
+
+      (reset! called false)
+      (tu/execute-effect! env (mk-eff0 42))
+      (is @called)
+      (is (= 42 @called-with)))))
+
+(deftest subscription-utils-test
+  (let [started (atom false)
+        stopped (atom false)
+        sub-f (fn [deliver!]
+                (reset! started true)
+                (fn []
+                  (reset! stopped true)))
+        sub (c/subscription sub-f)
+        sub2 (c/subscription sub-f)
+        env (tu/env sub)]
+    (is (= sub sub2))
+    
+    (let [r (tu/mount! env nil)
+          eff (first (:actions r))]
+      (is (tu/subscribe-effect? eff sub))
+      (is (tu/subscribe-effect? eff sub2))
+
+      ;; Nothing would happen on unmmount, if effect not executed.
+      (tu/execute-effect! env eff)
+      (is @started))
+    
+    (let [r (tu/unmount! env)
+          eff (first (:actions r))]
+      (is (tu/unsubscribe-effect? eff sub))
+      (is (tu/unsubscribe-effect? eff sub2))
+
+      (tu/execute-effect! (doto (tu/env c/empty)
+                            (tu/mount! nil))
+                          eff)
+      (is @stopped)))
+  
+  (c/defn-subscription sub-test-2 deliver! [a]
+    (fn []))
+  (is (= (sub-test-2 :foo) (sub-test-2 :foo))))
+
 (deftest resolve-deep-test
   (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))
   (is (= (dom/div "foo") (tu/resolve-deep (c/dynamic #(dom/div %)) "foo")))

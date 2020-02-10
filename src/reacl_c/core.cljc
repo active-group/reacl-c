@@ -481,7 +481,7 @@ a change."}  merge-lens
       (when (if (< arity 0)
               (< n-args (dec (- arity)))
               (not= n-args arity))
-        (throw (ex-info (str "Wrong number of args (" n-args ") passed to " name) {:function name}))))))
+        (throw (ex-info (str "Wrong number of args (" n-args ") passed to " name) {:function name :arity arity}))))))
 
 (defmacro ^:no-doc defn+
   "Internal utility macro."
@@ -581,7 +581,11 @@ Note that `deliver!` must never be called directly in the body of
  "
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
+    (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
     `(defn-named+ [subscription] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
+
+(defn- set-ctor-fn [fn eff]
+  (vary-meta eff assoc ::effect-defn fn))
 
 (defmacro defn-effect
   "A macro similar to defn, that defines a new effect.
@@ -597,4 +601,5 @@ Calling it returns an effect action, which can be returned by an item
   effects on some external entity are safe.
  "
   [name args & body]
-  `(defn+ [identity] identity [effect] [] ~name ~args ~@body))
+  ;; TODO: allow nil to be returned?
+  `(defn+ [set-ctor-fn ~name] identity [effect] [] ~name ~args ~@body))

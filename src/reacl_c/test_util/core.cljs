@@ -53,7 +53,30 @@
   [env state]
   (->ret (r-tu/update! env state)))
 
+(defn unmount!
+  "Unmounts the item of the given test environment, and return
+  actions and maybe a changed state."
+  [env]
+  (->ret (r-tu/unmount! env)))
+
 (def ^:dynamic *max-update-loops* 100)
+
+(defn push!
+  [env ret]
+  (if (not= base/keep-state (:state ret))
+    (base/merge-returned ret (update! env (:state ret)))
+    ret))
+
+(defn push!!
+  [env ret]
+  (loop [r ret
+         state base/keep-state
+         n 1]
+    (when (> n *max-update-loops*)
+      (throw (ex-info "Item keeps on updating. Check any [[once]] items, which should eventually reach a fixed state." {:intermediate-state state})))
+    (if (not= state (:state r))
+      (recur (push! env r) (:state r) (inc n))
+      r)))
 
 (defn update!!
   "Updates the state of the item of the given test environment, and
@@ -62,23 +85,13 @@
   at all. Throws if there are more than *max-update-loops* recursions,
   which are a sign for bug in the item."
   [env state]
-  (loop [r (core/return)
-         state state
-         n 1]
-    (let [r2 (update! env state)
-          rm (base/merge-returned r r2)]
-      (if (not= base/keep-state (:state r2))
-        (let [state (:state r2)]
-          (when (> n *max-update-loops*)
-            (throw (ex-info "Item keeps on updating. Check any [[once]] items, which should eventually reach a fixed state." {:intermediate-state state})))
-          (recur rm state (inc n)))
-        rm))))
+  (push!! env (update! env state)))
 
-(defn unmount!
-  "Unmounts the item of the given test environment, and return
-  actions and maybe a changed state."
-  [env]
-  (->ret (r-tu/unmount! env)))
+(defn mount!! [env state]
+  (push!! env (mount! env state)))
+
+(defn unmount!! [env]
+  (push!! env (unmount! env)))
 
 (defn send-message!
   "Sends a message to the given component or the toplevel component of
@@ -102,7 +115,7 @@
   ;; TODO: document that, if it cannot be changed.
   (inject-return! comp (core/return :action action)))
 
-(defn inject-state-change! [comp state]
+(defn inject-state-change! [comp state] ;; TODO: rename inject-change! (= reacl/tu)
   (inject-return! comp (core/return :state state)))
 
 (defn execute-effect!
@@ -111,30 +124,36 @@
   (inject-return! (get-component env)
                   (apply (:f eff) (:args eff))))
 
+(defn effect? [a & [eff-defn]]
+  (and (base/effect? a)
+       (or (nil? eff-defn)
+           (= (:f a) eff-defn)
+           (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
+
+(defn effect-args [eff]
+  (assert (effect? eff))
+  (:args eff))
+
 (defn subscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one on mount. This can be useful in unit tests."
   [eff subs]
-  (and (base/effect? eff)
-       (let [e-f (:f eff)
-             e-args (:args eff)]
-         (and (= e-f core/subscribe!)
-              ;; the first arg is the subs-f, the second arg it's user args.
-              ;; creating a new subscription with same args, should be an = item then.
-              (= subs (apply core/subscription (first e-args) (second e-args)))))))
+  (and (effect? eff core/subscribe!)
+       (let [e-args (effect-args eff)]
+         ;; the first arg is the subs-f, the second arg it's user args.
+         ;; creating a new subscription with same args, should be an = item then.
+         (= subs (apply core/subscription (first e-args) (second e-args))))))
 
 (defn unsubscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one, on unmount. This can be useful in unit
   tests."
   [eff subs]
-  (and (base/effect? eff)
-       (let [e-f (:f eff)
-             e-args (:args eff)]
-         (and (= e-f core/unsubscribe!)
-              ;; the second arg is the subs-f and user args.
-              ;; creating a new subscription with same args, should be an = item then.
-              (= subs (apply core/subscription (second e-args)))))))
+  (and (effect? eff core/unsubscribe!)
+       (let [e-args (effect-args eff)]
+         ;; the second arg is the subs-f and user args.
+         ;; creating a new subscription with same args, should be an = item then.
+         (= subs (apply core/subscription (second e-args))))))
 
 
 (def ^:private dummy-ref (reify base/Ref
