@@ -495,7 +495,7 @@ a change."}  merge-lens
            f# (s/fn ~name [~@wrapper-args ~@args] ~@body)
            check-args-schema# (s/fn ~name [~@args] nil)]
        (def ~name
-         (~mod-fn (fn ~name [& args#]
+         (~mod-fn (fn [& args#]
                     (assert (do (check-arity# (count args#))
                                 (apply check-args-schema# args#)
                                 true))               
@@ -556,6 +556,13 @@ a change."}  merge-lens
   (let [[statev & body] (apply maybe-schema-arg state body)]
     `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
 
+(defn- subscription-from-defn [fn f & args]
+  ;; Wanted to add some meta data for testing; but unfortunately (vary-meta f ..) is never = (vary-meta f ...)
+  #_(apply subscription (vary-meta f
+                                 assoc ::subscription-defn fn)
+           args)
+  (apply subscription f args))
+
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
   that needs an imperative way to 'inject' actions into an
@@ -582,9 +589,9 @@ Note that `deliver!` must never be called directly in the body of
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
-    `(defn-named+ [subscription] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
+    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
-(defn- set-ctor-fn [fn eff]
+(defn- effect-from-defn [fn eff]
   (vary-meta eff assoc ::effect-defn fn))
 
 (defmacro defn-effect
@@ -602,4 +609,4 @@ Calling it returns an effect action, which can be returned by an item
  "
   [name args & body]
   ;; TODO: allow nil to be returned?
-  `(defn+ [set-ctor-fn ~name] identity [effect] [] ~name ~args ~@body))
+  `(defn+ [effect-from-defn ~name] identity [effect] [] ~name ~args ~@body))

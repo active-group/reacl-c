@@ -157,9 +157,18 @@
                           eff)
       (is @stopped)))
   
-  (c/defn-subscription sub-test-2 deliver! [a]
-    (fn []))
-  (is (= (sub-test-2 :foo) (sub-test-2 :foo))))
+  (do
+    (c/defn-subscription sub-test-2 deliver! [a]
+      (fn []))
+
+    (is (= (sub-test-2 :foo) (sub-test-2 :foo)))
+    
+    (let [env (tu/env (sub-test-2 :foo))]
+      (let [r (tu/mount! env nil)
+            eff (first (:actions r))]
+        (is (some? eff))
+
+        (is (tu/subscribe-effect? eff (sub-test-2 :foo)))))))
 
 (deftest resolve-deep-test
   (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))

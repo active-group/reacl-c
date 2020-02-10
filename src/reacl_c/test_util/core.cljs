@@ -139,10 +139,14 @@
   equal to the given one on mount. This can be useful in unit tests."
   [eff subs]
   (and (effect? eff core/subscribe!)
-       (let [e-args (effect-args eff)]
+       (let [e-args (effect-args eff)
+             reconstr (apply core/subscription (first e-args) (second e-args))]
          ;; the first arg is the subs-f, the second arg it's user args.
          ;; creating a new subscription with same args, should be an = item then.
-         (= subs (apply core/subscription (first e-args) (second e-args))))))
+         (or (= subs reconstr)
+             ;; effects, as created by a defn-subscription, are slightly more wrapped (also named!):
+             (when-let [real-sub (and (base/named? subs) (:e subs))]
+               (= real-sub reconstr))))))
 
 (defn unsubscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
@@ -150,10 +154,13 @@
   tests."
   [eff subs]
   (and (effect? eff core/unsubscribe!)
-       (let [e-args (effect-args eff)]
+       (let [e-args (effect-args eff)
+             reconstr (apply core/subscription (second e-args))]
          ;; the second arg is the subs-f and user args.
          ;; creating a new subscription with same args, should be an = item then.
-         (= subs (apply core/subscription (second e-args))))))
+         (or (= subs reconstr)
+             (when-let [real-sub (and (base/named? subs) (:e subs))]
+               (= real-sub reconstr))))))
 
 
 (def ^:private dummy-ref (reify base/Ref
