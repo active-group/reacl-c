@@ -381,7 +381,8 @@
                        (assert (base/returned? v) v)
                        ;; Note: if v only contains a message, we might want to optimize and send directly?
                        ;; (didn't work for some unknown reasons though)
-                       (rcore/send-message! this (AsyncReturn. v)))]
+                       (rcore/send-message! this (AsyncReturn. v))
+                       nil)]
   refs [child]
   
   render

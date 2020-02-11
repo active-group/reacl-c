@@ -163,12 +163,54 @@
 
     (is (= (sub-test-2 :foo) (sub-test-2 :foo)))
     
-    (let [env (tu/env (sub-test-2 :foo))]
-      (let [r (tu/mount! env nil)
+    (let [env (tu/env (c/dynamic #(if % (sub-test-2 :foo) c/empty)))]
+      (let [r (tu/mount! env true)
             eff (first (:actions r))]
         (is (some? eff))
 
         (is (tu/subscribe-effect? eff (sub-test-2 :foo)))))))
+
+(deftest subscription-result-test
+  (let [sub (c/subscription (fn [& args]
+                              (assert false "should not be called")))
+        env (tu/env (c/dynamic #(if % sub c/empty)))]
+    (let [r (tu/mount! env true)
+          eff (first (:actions r))
+          stopped? (atom false)]
+      (is (some? eff))
+
+      (is (tu/subscribe-effect? eff sub))
+
+      (tu/subscription-start! env eff (fn [] (reset! stopped? true)))
+      (is (= (c/return :action ::test)
+             (tu/subscription-result! env eff ::test)))
+
+      (is (not @stopped?))
+      (let [r (tu/update! env false)]
+        (tu/execute-effect! env (first (:actions r))))
+      (is @stopped?))))
+
+(deftest emulate-subscription-test
+  (let [sub (c/subscription (fn [& args]
+                              (assert false "should not be called")))
+
+        emu (tu/subscription-emulator sub)
+        
+        env (tu/env (c/dynamic #(if % sub c/empty))
+                    {:reduce-effects (tu/subscription-emulator-effect-reducer emu)})]
+
+    (is (not (tu/subscription-emulator-running? emu)))
+
+    (tu/mount! env true)
+    (is (tu/subscription-emulator-running? emu))
+
+    (is (= (c/return :action ::test)
+           (tu/subscription-emulator-inject! emu ::test)))
+    (is (= (c/return :action 42)
+           (tu/subscription-emulator-inject! emu 42)))
+    
+    (tu/update! env false)
+    (is (not (tu/subscription-emulator-running? emu)))))
 
 (deftest resolve-deep-test
   (is (= (dom/div) (tu/resolve-deep (dom/div) nil)))

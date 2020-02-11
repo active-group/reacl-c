@@ -16,6 +16,7 @@
 ;; be replaced by our own simulator.
 
 (defn- ->ret [r]
+  (assert (rcore/returned? r))
   ;; reacl return => reacl-c return
   (apply core/return
          (apply concat
@@ -31,13 +32,23 @@
   [item & [options]]
   ;; Note: this tests items using their Reacl implementation, and
   ;; ultimately Reacts test-renderer.
-  (let [class (rcore/class "env" this state []
+  (let [this (atom nil)
+        action-reducer (if-let [re (:reduce-effects options)]
+                         (fn [_ a]
+                           (if (base/effect? a)
+                             (impl/transform-return (re @this a))
+                             (rcore/return :action a)))
+                         (fn [_ a]
+                           (rcore/return :action a)))
+        class (rcore/class "env" this state []
                            refs [child]
                            handle-message (fn [msg]
                                             (rcore/return :message [(rcore/get-dom child) msg]))
                            render (-> (impl/instantiate (rcore/bind this) item)
-                                      (rcore/refer child)))]
-    (r-tu/env class options)))
+                                      (rcore/refer child)
+                                      (rcore/reduce-action action-reducer)))]
+    (reset! this (r-tu/env class options))
+    @this))
 
 (def get-component r-tu/get-component)
 
@@ -161,6 +172,67 @@
          (or (= subs reconstr)
              (when-let [real-sub (and (base/named? subs) (:e subs))]
                (= real-sub reconstr))))))
+
+(defn subscription-start!
+  "Begins a simulated execution of the subscription given by the given
+  effect that resulting from mounting
+  it (see [[subscribe-effect?]]). The optional given `stop-fn!` will
+  be called when the [[unsubscribe-effect?]] returned on unmount is
+  executed."
+  [env sub-eff & [stop-fn!]]
+  (assert (effect? sub-eff core/subscribe!))
+  ;; = (effect subscribe! f args deliver! host)
+  (let [[f args deliver! host] (effect-args sub-eff)
+        comp (core/deref host)]
+    (assert (some? comp) "Subscription not mounted or already unmounted?")
+    ;; Note: deref host would return the 'reacl component' instead of the test renderer component; need to search for it:
+    (let [tcomp (.find (get-component env)
+                       (fn [ti]
+                         (= (.-instance ti) comp)))]
+      (let [r (send-message! tcomp (core/->SubscribedMessage (or stop-fn! (fn [] nil))))]
+        (assert (= (core/return) r)) ;; subscriptions don't expose anything.
+        nil))))
+
+(defn subscription-result!
+  "For the effect that resulted from mounting a
+  subscription (see [[subscribe-effect?]]), inject the given action as
+  a result of the subscription item, and return what the tested
+  component in the given test environment returns."
+  [env sub-eff action]
+  (assert (effect? sub-eff core/subscribe!))
+  ;; = (effect subscribe! f args deliver! host)
+  (let [[f args deliver! host] (effect-args sub-eff)]
+    (->ret (r-tu/with-component-return (r-tu/get-component env)
+             (fn [comp]
+               (deliver! action))))))
+
+(defn subscription-emulator [sub]
+  {:sub sub
+   :running (atom nil)})
+
+(defn subscription-emulator-inject! [{sub :sub running :running} action]
+  (assert (some? @running) "Subscription not running? Forgot to set :effect-reducer in env?")
+  (if-let [[env eff] @running]
+    (subscription-result! env eff action)
+    (assert false "Subscription not mounted?")))
+
+(defn subscription-emulator-running? [{running :running}]
+  (some? @running))
+
+(defn subscription-emulator-effect-reducer [{sub :sub running :running}]
+  (let [running! (fn [v] (reset! running v) nil)]
+    (fn [env eff]
+      (cond
+        (subscribe-effect? eff sub)
+        (do (subscription-start! env eff (fn [] (running! nil)))
+            (running! [env eff])
+            (core/return))
+
+        (unsubscribe-effect? eff sub)
+        (do (execute-effect! env eff)
+            (core/return))
+
+        :else (core/return :action eff)))))
 
 
 (def ^:private dummy-ref (reify base/Ref

@@ -344,7 +344,7 @@ a change."}  merge-lens
 (defn ^:no-doc effect [f & args]
   (base/->Effect f args))
 
-(defrecord ^:private SubscribedMessage [stop!])
+(defrecord ^:no-doc SubscribedMessage [stop!])
 
 (defn- subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
