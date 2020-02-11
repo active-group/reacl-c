@@ -346,6 +346,8 @@ a change."}  merge-lens
 
 (defrecord ^:no-doc SubscribedMessage [stop!])
 
+(defrecord ^:no-doc SubscribedEmulatedResult [action])
+
 (defn- subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
     (assert (ifn? stop!) "Subscription must return a stop function.")
@@ -364,8 +366,17 @@ a change."}  merge-lens
   (effect unsubscribe! stop! (cons f args)))
 
 (let [store-sub (fn [f args msg]
-                  (assert (instance? SubscribedMessage msg))
-                  (return :state {:f f :args args :stop! (:stop! msg)}))
+                  (cond
+                    (instance? SubscribedMessage msg)
+                    (return :state {:f f :args args :stop! (:stop! msg)})
+
+                    ;; added for test-util emulation of subscriptions.
+                    (instance? SubscribedEmulatedResult msg)
+                    (return :action (:action msg))
+
+                    :else
+                    (do (assert false (str "Unexpected message:" (pr-str msg)))
+                        (return))))
       msgs (fn [deliver! f args host]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))

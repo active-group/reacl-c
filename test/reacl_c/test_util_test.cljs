@@ -140,6 +140,7 @@
     
     (let [r (tu/mount! env nil)
           eff (first (:actions r))]
+      (is (tu/subscribe-effect? eff))
       (is (tu/subscribe-effect? eff sub))
       (is (tu/subscribe-effect? eff sub2))
 
@@ -149,6 +150,7 @@
     
     (let [r (tu/unmount! env)
           eff (first (:actions r))]
+      (is (tu/unsubscribe-effect? eff))
       (is (tu/unsubscribe-effect? eff sub))
       (is (tu/unsubscribe-effect? eff sub2))
 
@@ -194,10 +196,10 @@
   (let [sub (c/subscription (fn [& args]
                               (assert false "should not be called")))
 
-        emu (tu/subscription-emulator sub)
+        emu (tu/subscription-emulator-env sub)
         
         env (tu/env (c/dynamic #(if % sub c/empty))
-                    {:reduce-effects (tu/subscription-emulator-effect-reducer emu)})]
+                    {:emulator (tu/subscription-emulator emu)})]
 
     (is (not (tu/subscription-emulator-running? emu)))
 
@@ -210,6 +212,10 @@
            (tu/subscription-emulator-inject! emu 42)))
     
     (tu/update! env false)
+    (is (not (tu/subscription-emulator-running? emu)))
+
+    (tu/mount! env true)
+    (tu/unmount! env)
     (is (not (tu/subscription-emulator-running? emu)))))
 
 (deftest resolve-deep-test

@@ -27,13 +27,33 @@
                        [:action a])
                      (rcore/returned-actions r)))))
 
+(defn combine-emulators
+  "Combine two or more effect emualtors into one."
+  [emu1 & more]
+  (if (empty? more)
+    emu1
+    (let [emu2 (apply combine-emulators more)]
+      (fn [env eff]
+        (let [r (emu1 env eff)]
+          (reduce (fn [rr act]
+                    (base/merge-returned rr
+                                         (if (base/effect? act)
+                                           (emu2 env act)
+                                           (core/return :action act))))
+                  (assoc r :actions [])
+                  (:actions r)))))))
+
 (defn env
-  "Returns a new test environment to test the behavior of the given item."
+  "Returns a new test environment to test the behavior of the given item.
+  Options map may include
+
+  :emulator   a function (fn [env effect] (return ...)) that may handle
+              effect action reaching the toplevel."
   [item & [options]]
   ;; Note: this tests items using their Reacl implementation, and
   ;; ultimately Reacts test-renderer.
   (let [this (atom nil)
-        action-reducer (if-let [re (:reduce-effects options)]
+        action-reducer (if-let [re (:emulator options)]
                          (fn [_ a]
                            (if (base/effect? a)
                              (impl/transform-return (re @this a))
@@ -47,7 +67,8 @@
                            render (-> (impl/instantiate (rcore/bind this) item)
                                       (rcore/refer child)
                                       (rcore/reduce-action action-reducer)))]
-    (reset! this (r-tu/env class options))
+    (reset! this (r-tu/env class (-> options
+                                     (dissoc :emulator))))
     @this))
 
 (def get-component r-tu/get-component)
@@ -141,6 +162,10 @@
            (= (:f a) eff-defn)
            (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
 
+(defn effect-f [eff]
+  (assert (effect? eff))
+  (:f eff))
+
 (defn effect-args [eff]
   (assert (effect? eff))
   (:args eff))
@@ -148,30 +173,46 @@
 (defn subscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one on mount. This can be useful in unit tests."
-  [eff subs]
-  (and (effect? eff core/subscribe!)
-       (let [e-args (effect-args eff)
-             reconstr (apply core/subscription (first e-args) (second e-args))]
-         ;; the first arg is the subs-f, the second arg it's user args.
-         ;; creating a new subscription with same args, should be an = item then.
-         (or (= subs reconstr)
-             ;; effects, as created by a defn-subscription, are slightly more wrapped (also named!):
-             (when-let [real-sub (and (base/named? subs) (:e subs))]
-               (= real-sub reconstr))))))
+  ([eff]
+   (effect? eff core/subscribe!))
+  ([eff subs]
+   (and (effect? eff core/subscribe!)
+        (let [e-args (effect-args eff)
+              reconstr (apply core/subscription (first e-args) (second e-args))]
+          ;; the first arg is the subs-f, the second arg it's user args.
+          ;; creating a new subscription with same args, should be an = item then.
+          (or (= subs reconstr)
+              ;; effects, as created by a defn-subscription, are slightly more wrapped (also named!):
+              (when-let [real-sub (and (base/named? subs) (:e subs))]
+                (= real-sub reconstr)))))))
+
+(defn subscribe-effect-args
+  "The arguments passed to the subscription the given subscribe effect was generated from."
+  [eff]
+  (assert (subscribe-effect? eff))
+  (second (effect-args eff)))
 
 (defn unsubscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one, on unmount. This can be useful in unit
   tests."
-  [eff subs]
-  (and (effect? eff core/unsubscribe!)
-       (let [e-args (effect-args eff)
-             reconstr (apply core/subscription (second e-args))]
-         ;; the second arg is the subs-f and user args.
-         ;; creating a new subscription with same args, should be an = item then.
-         (or (= subs reconstr)
-             (when-let [real-sub (and (base/named? subs) (:e subs))]
-               (= real-sub reconstr))))))
+  ([eff]
+   (effect? eff core/unsubscribe!))
+  ([eff subs]
+   (and (effect? eff core/unsubscribe!)
+        (let [e-args (effect-args eff)
+              reconstr (apply core/subscription (second e-args))]
+          ;; the second arg is the subs-f and user args.
+          ;; creating a new subscription with same args, should be an = item then.
+          (or (= subs reconstr)
+              (when-let [real-sub (and (base/named? subs) (:e subs))]
+                (= real-sub reconstr)))))))
+
+(defn unsubscribe-effect-args
+  "The arguments passed to the subscription the given unsubscribe effect was generated from."
+  [eff]
+  (assert (unsubscribe-effect? eff))
+  (rest (second (effect-args eff))))
 
 (defn subscription-start!
   "Begins a simulated execution of the subscription given by the given
@@ -193,6 +234,21 @@
         (assert (= (core/return) r)) ;; subscriptions don't expose anything.
         nil))))
 
+(defn subscription-start-return
+  [env sub-eff & [stop-fn!]]
+  (assert (effect? sub-eff core/subscribe!))
+  ;; = (effect subscribe! f args deliver! host)
+  (let [[f args deliver! host] (effect-args sub-eff)]
+    (core/return :message [host (core/->SubscribedMessage (or stop-fn! (fn [] nil)))])))
+
+(defn subscription-result-return
+  [env sub-eff action]
+  (assert (effect? sub-eff core/subscribe!))
+  ;; = (effect subscribe! f args deliver! host)
+  (let [[f args deliver! host] (effect-args sub-eff)]
+    ;; 'deliver!' only allowed in async context; this should do the same:
+    (core/return :message [host (core/->SubscribedEmulatedResult action)])))
+
 (defn subscription-result!
   "For the effect that resulted from mounting a
   subscription (see [[subscribe-effect?]]), inject the given action as
@@ -206,21 +262,39 @@
              (fn [comp]
                (deliver! action))))))
 
-(defn subscription-emulator [sub]
-  {:sub sub
-   :running (atom nil)})
+(defrecord ^:private SubscriptionEmulatorEnv [sub running])
 
-(defn subscription-emulator-inject! [{sub :sub running :running} action]
-  (assert (some? @running) "Subscription not running? Forgot to set :effect-reducer in env?")
-  (if-let [[env eff] @running]
-    (subscription-result! env eff action)
-    (assert false "Subscription not mounted?")))
+(defn subscription-emulator-env
+  "Create a subscription emulation environment for items like the
+  given subscription."
+  [sub]
+  (map->SubscriptionEmulatorEnv {:sub sub
+                                 :running (atom nil)}))
 
-(defn subscription-emulator-running? [{running :running}]
-  (some? @running))
+(defn subscription-emulator-inject!
+  "Make the emulated subscription emit the given action."
+  [subs-env action]
+  (let [{sub :sub running :running} subs-env]
+    (when-not (some? @running)
+      (throw "Subscription not running? Forgot to set the :emulator in env?"))
+    (if-let [[env eff] @running]
+      (subscription-result! env eff action)
+      (throw (ex-info "Subscription not mounted?" {:sub sub})))))
 
-(defn subscription-emulator-effect-reducer [{sub :sub running :running}]
-  (let [running! (fn [v] (reset! running v) nil)]
+(defn subscription-emulator-running?
+  "Checks if the subscription emulation environment is attached as
+  the :emulator to a testing environment and a subscription is
+  mounted."
+  [subs-env]
+  (let [{running :running} subs-env]
+    (some? @running)))
+
+(defn subscription-emulator
+  "Returns the emulator function to be set as the :emulator option of
+  a testing environemnt."
+  [subs-env]
+  (let [{sub :sub running :running} subs-env
+        running! (fn [v] (reset! running v) nil)]
     (fn [env eff]
       (cond
         (subscribe-effect? eff sub)

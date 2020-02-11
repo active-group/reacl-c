@@ -374,7 +374,7 @@
   (-instantiate-reacl [{e :e initial :initial} binding]
     [(local-state binding e initial)]))
 
-(defrecord AsyncReturn [ret])
+(defrecord ^:private AsyncReturn [ret])
 
 (rcore/defclass ^:private with-async-return this state [f & args]
   local-state [send! (fn [v]
