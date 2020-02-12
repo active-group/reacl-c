@@ -71,7 +71,13 @@
                                      (dissoc :emulator))))
     @this))
 
-(def get-component r-tu/get-component)
+(defn- get-root-component [env]
+  (r-tu/get-component env))
+
+(defn get-component [env]
+  ;; we always wrap the "env" class around the main component.
+  (let [env-comp (get-root-component env)]
+    (first (array-seq (.-children env-comp)))))
 
 (defn mount!
   "Mounts the item of the given test environment with the given
@@ -153,7 +159,7 @@
 (defn execute-effect!
   "Executed the given effect in the given test environment."
   [env eff]
-  (inject-return! (get-component env)
+  (inject-return! (get-root-component env)
                   (apply (:f eff) (:args eff))))
 
 (defn effect? [a & [eff-defn]]
@@ -227,7 +233,7 @@
         comp (core/deref host)]
     (assert (some? comp) "Subscription not mounted or already unmounted?")
     ;; Note: deref host would return the 'reacl component' instead of the test renderer component; need to search for it:
-    (let [tcomp (.find (get-component env)
+    (let [tcomp (.find (get-root-component env)
                        (fn [ti]
                          (= (.-instance ti) comp)))]
       (let [r (send-message! tcomp (core/->SubscribedMessage (or stop-fn! (fn [] nil))))]
@@ -258,7 +264,7 @@
   (assert (effect? sub-eff core/subscribe!))
   ;; = (effect subscribe! f args deliver! host)
   (let [[f args deliver! host] (effect-args sub-eff)]
-    (->ret (r-tu/with-component-return (r-tu/get-component env)
+    (->ret (r-tu/with-component-return (get-root-component env)
              (fn [comp]
                (deliver! action))))))
 
