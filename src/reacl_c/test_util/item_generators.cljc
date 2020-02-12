@@ -78,8 +78,8 @@
   (gen/fmap #(c/handle-action % (c/constantly (c/return)))
             item-gen))
 
-(defn capture-state-change [item-gen] ;; TODO: fn?
-  (gen/fmap #(c/capture-state-change % (c/constantly (c/return)))
+(defn handle-state-change [item-gen] ;; TODO: fn?
+  (gen/fmap #(c/handle-state-change % (c/constantly (c/return)))
             item-gen))
 
 (defn error-boundary [item-gen] ;; TODO: fn?
@@ -114,7 +114,7 @@
     (local-state item-gen)
     (handle-action item-gen)
     
-    (capture-state-change item-gen)
+    (handle-state-change item-gen)
     (error-boundary item-gen)
     ;;
     ]))

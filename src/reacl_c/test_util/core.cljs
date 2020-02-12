@@ -418,7 +418,7 @@
           [path {:function [(:f item1) (:f item2)]}]))
 
       ;; wrappers
-      (or (= t1 base/HandleAction) (= t1 base/ErrorBoundary) (= t1 base/CaptureStateChange) (= t1 base/HandleMessage))
+      (or (= t1 base/HandleAction) (= t1 base/ErrorBoundary) (= t1 base/HandleStateChange) (= t1 base/HandleMessage))
       (w item1 item2 :f :function)
 
       (= t1 base/SetRef)

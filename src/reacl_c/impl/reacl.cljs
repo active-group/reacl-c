@@ -508,7 +508,7 @@
 
 (defrecord ^:private MonitorMessage [new-state])
 
-(rcore/defclass ^:private capture-state-change this state [e f]
+(rcore/defclass ^:private handle-state-change this state [e f]
   refs [child]
   
   render
@@ -524,12 +524,12 @@
       :else
       (pass-message child msg))))
 
-(extend-type base/CaptureStateChange
+(extend-type base/HandleStateChange
   IReacl
   (-xpath-pattern [{e :e f :f}]
-    (wrapper-pattern capture-state-change e f))
+    (wrapper-pattern handle-state-change e f))
   (-instantiate-reacl [{e :e f :f} binding]
-    [(capture-state-change binding e f)]))
+    [(handle-state-change binding e f)]))
 
 (rcore/defclass ^:private error-boundary this state [e f]
   

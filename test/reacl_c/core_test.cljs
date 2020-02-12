@@ -31,7 +31,7 @@
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
-    (is (= (c/capture-state-change (dom/div) :f) (c/capture-state-change (dom/div) :f))))
+    (is (= (c/handle-state-change (dom/div) :f) (c/handle-state-change (dom/div) :f))))
   )
 
 (deftest subscription-test

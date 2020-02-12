@@ -301,7 +301,7 @@ a change."}  merge-lens
          (or (nil? cleanup-ret) (base/returned? cleanup-ret))]}
   (base/->Once ret cleanup-ret))
 
-(defn ^:no-doc capture-state-change ;; rename handle-state-change ?
+(defn ^:no-doc handle-state-change
   "An item like the given item, but when a state change is emitted by
   `item`, then `(f prev-state new-state)` is evaluated, which must
   return a [[return]] value. By careful with this, as item usually
@@ -309,7 +309,7 @@ a change."}  merge-lens
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/->CaptureStateChange item f))
+  (base/->HandleStateChange item f))
 
 (let [h (fn [f args old new]
           (apply f old new args)
@@ -323,7 +323,7 @@ a change."}  merge-lens
     [item f & args]
     {:pre [(base/item? item)
            (ifn? f)]}
-    (capture-state-change item (f/partial h f args))))
+    (handle-state-change item (f/partial h f args))))
 
 (defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
