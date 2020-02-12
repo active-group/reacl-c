@@ -2,6 +2,7 @@
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl2.core :as rcore :include-macros true]
+            [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
             [clojure.string :as str]))
 
@@ -23,11 +24,34 @@
         (throw (ex-info "Non-optimal: dynamic item should return equal items for equal state and arguments." {:item-1 e1 :item-2 e2}))))))
 
 (defprotocol ^:private IReacl
-  (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements."))
+  (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
+  (-xpath-pattern [this] "An xpath that selects something like this item.") ;; Note: multiple semantics of this possible; for now a very lose match.
+  )
+
+(defn xpath-pattern [e]
+  (if (string? e)
+    (xp/comp (xp/is= e))
+    (-xpath-pattern e)))
+
+(defn- class-args-pattern [class args]
+  (xp/comp (xp/type class)
+           (xp/where (xp/comp xp/args (xp/is= args)))))
+
+(defn- wrapper-pattern [class e & rest-args]
+  ;; first arg must be the sub item.
+  (xp/comp (xp/type class)
+           (xp/where (if (nil? rest-args) ;; can't select no args   (FIXME: an 'is-empty' selector?)
+                       xp/self
+                       (xp/comp xp/args (xp/is? (fn [args_]
+                                                  (= (rest args_) rest-args))))))
+           ;; TODO: exactly one child or not?
+           (xp/where (xp/comp xp/children (xpath-pattern e)))))
 
 (defrecord ^:private LiftedClass [class args]
   base/E
   IReacl
+  (-xpath-pattern [this]
+    (class-args-pattern class [args]))
   (-instantiate-reacl [this binding]
     [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
        (apply class binding args)
@@ -134,6 +158,8 @@
 
 (extend-type base/HandleMessage
   IReacl
+  (-xpath-pattern [{e :e f :f}]
+    (wrapper-pattern handle-message e f))
   (-instantiate-reacl [{e :e f :f} binding]
     [(handle-message binding e f)]))
 
@@ -154,6 +180,8 @@
 
 (extend-type base/Named
   IReacl
+  (-xpath-pattern [{e :e name-id :name-id}]
+    (wrapper-pattern (named name-id) e))
   (-instantiate-reacl [{e :e name-id :name-id} binding]
     [((named name-id) binding e)]))
 
@@ -197,7 +225,7 @@
            self-ref (assoc :ref (:reacl-ref self-ref)))
          (map (partial instantiate binding) children)))
 
-(def ^:private dom-class_
+(def dom-class-for-type
   ;; There should be a finite set of tag names, so using memoize should be ok.
   (memoize
    (fn [type]
@@ -212,7 +240,7 @@
                          children)))))
 
 (defn- dom-class [binding type events ref & children]
-  (apply (dom-class_ type) binding events ref children))
+  (apply (dom-class-for-type type) binding events ref children))
 
 (defn- dom [binding type attrs events ref & children]
   ;; TODO: is it even worth it to 'optimize' ?
@@ -222,21 +250,51 @@
 
 (extend-type dom/Element
   IReacl
+  (-xpath-pattern [{type :type attrs :attrs events :events ref :ref children :children}]
+    ;; Note: we always select the 'raw dom element', not on the class wrapper.
+    (xp/comp (xp/or (xp/type type)
+                    (xp/comp (xp/type (dom-class-for-type type)) xp/children))
+             (xp/and 
+              (apply xp/and
+                     (map (fn [[k v]]
+                            (case k
+                              (:class :className "class" "className") (xp/css-class? v)
+                              (:style "style") (xp/style? v)
+                              (xp/where (xp/comp (xp/attr k) (xp/is= v)))))
+                          attrs))
+              (apply xp/and
+                     (map (fn [[k v]]
+                            ;; enough to 'have' the event.
+                            (xp/where (xp/attr k)))
+                          events))
+              ;; ref is ignored.
+              (apply xp/and
+                     (map (fn [c]
+                            (xp/where (xp/comp xp/children (xpath-pattern c))))
+                          children)))))
   (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
     [(apply dom binding type attrs events ref children)]))
 
 (extend-type base/Fragment
   IReacl
+  (-xpath-pattern [{children :children}]
+    ;; a frament are 'invisible', eg. matching a fragment is the same as matching (all/some) children.
+    (apply xp/and (map xpath-pattern children)))
   (-instantiate-reacl [{children :children} binding]
     (mapv (partial instantiate binding)
           children)))
 
 (defn- keyed [binding e key]
+  ;; TODO: is a keyed fragment/string meaningful?
   (-> (instantiate binding e)
       (rcore/keyed key)))
 
 (extend-type base/Keyed
   IReacl
+  (-xpath-pattern [{e :e key :key}]
+    ;; FIXME: the key does not work... don't know why.
+    (xp/and #_(xp/where (xp/comp xp/key (xp/is= key)))
+            (xpath-pattern e)))
   (-instantiate-reacl [{e :e key :key} binding]
     [(keyed binding e key)]))
 
@@ -259,6 +317,8 @@
 
 (extend-type base/WithRef
   IReacl
+  (-xpath-pattern [{f :f args :args}]
+    (class-args-pattern with-ref (list* f args)))
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-ref binding f args)]))
 
@@ -273,6 +333,8 @@
 
 (extend-type base/SetRef
   IReacl
+  (-xpath-pattern [{e :e ref :ref}]
+    (wrapper-pattern set-ref e ref))
   (-instantiate-reacl [{e :e ref :ref} binding]
     ;; has to be a class for now, because otherwise we would override the ref with all our 'child' refs for passing messages down.
     ;; TODO: either change that; or we could name this 'add-ref' or refer, as one can add multiple refs then...?
@@ -292,6 +354,8 @@
 
 (extend-type base/Dynamic
   IReacl
+  (-xpath-pattern [{f :f args :args}]
+    (class-args-pattern dynamic (list* f args)))
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply dynamic binding f args)]))
 
@@ -300,6 +364,8 @@
 
 (extend-type base/Focus
   IReacl
+  (-xpath-pattern [{e :e lens :lens}]
+    (wrapper-pattern focus e lens))
   (-instantiate-reacl [{e :e lens :lens} binding]
     [(focus binding e lens)]))
 
@@ -330,6 +396,8 @@
 
 (extend-type base/HandleAction
   IReacl
+  (-xpath-pattern [{e :e f :f}]
+    (wrapper-pattern handle-action e f))
   (-instantiate-reacl [{e :e f :f} binding]
     [(handle-action binding e f)]))
 
@@ -371,6 +439,8 @@
 
 (extend-type base/LocalState
   IReacl
+  (-xpath-pattern [{e :e initial :initial}]
+    (wrapper-pattern local-state e initial))
   (-instantiate-reacl [{e :e initial :initial} binding]
     [(local-state binding e initial)]))
 
@@ -401,6 +471,8 @@
 
 (extend-type base/WithAsyncReturn
   IReacl
+  (-xpath-pattern [{f :f args :args}]
+    (class-args-pattern with-async-return (list* f args)))
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-async-return binding f args)]))
 
@@ -429,6 +501,8 @@
 
 (extend-type base/Once
   IReacl
+  (-xpath-pattern [{ret :ret cleanup-ret :cleanup-ret}]
+    (class-args-pattern once [ret cleanup-ret]))
   (-instantiate-reacl [{ret :ret cleanup-ret :cleanup-ret} binding]
     [(once binding ret cleanup-ret)]))
 
@@ -452,6 +526,8 @@
 
 (extend-type base/CaptureStateChange
   IReacl
+  (-xpath-pattern [{e :e f :f}]
+    (wrapper-pattern capture-state-change e f))
   (-instantiate-reacl [{e :e f :f} binding]
     [(capture-state-change binding e f)]))
 
@@ -475,5 +551,7 @@
 
 (extend-type base/ErrorBoundary
   IReacl
+  (-xpath-pattern [{e :e f :f}]
+    (wrapper-pattern error-boundary e f))
   (-instantiate-reacl [{e :e f :f} binding]
     [(error-boundary binding e f)]))

@@ -3,8 +3,65 @@
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
             [reacl-c.test-util.core :as tu]
+            [reacl-c.impl.reacl :as impl]
             [reacl-c.test-util.xpath :as xpath :include-macros true]
-            [cljs.test :refer (is deftest testing) :include-macros true]))
+            [cljs.test :refer (is deftest testing) :include-macros true]
+            [reacl-c.test-util.item-generators :as item-gen]
+            [clojure.test.check.properties :as prop]
+            [clojure.test.check.clojure-test :include-macros true :refer [defspec]]))
+
+(defspec xpath-find-item-self-test 200
+  (let [same (fn [pat item]
+               (let [env (tu/env item)]
+                 (tu/mount! env nil)
+                 #_(js/console.log item)
+                 (some? (xpath/select (tu/get-component env)
+                                      (xpath/>> (impl/xpath-pattern pat))))))]
+    (prop/for-all [v item-gen/node-item]
+                  (same v v))))
+
+(deftest xpath-find-item-special-test
+  (let [same (fn [pat item]
+               (let [env (tu/env item)]
+                 (tu/mount! env nil)
+                 (some? (xpath/select (tu/get-component env) (xpath/>> (impl/xpath-pattern pat))))))
+        child (fn [pat item]
+                (let [env (tu/env item)]
+                  (tu/mount! env nil)
+                  (some? (xpath/select (tu/get-component env) (xpath/>> / (impl/xpath-pattern pat))))))]
+    ;; TODO? (is (same (xpath/>> xpath/text (xpath/is= "abc")) "abc"))
+    
+    (is (same c/empty (dom/div)))
+    (is (same c/empty (c/fragment (dom/div))))
+    ;; can't find something in nothing :-/
+    ;; (is (same c/empty c/empty))
+    ;; (is (same c/empty (c/fragment c/empty)))
+
+    (is (same (c/fragment (dom/div)) (dom/div)))
+    (is (same (c/fragment (dom/div)) (c/fragment (dom/div))))
+
+    ;; partial dom matches:
+    (is (same (dom/div) (dom/div {:id "x"})))
+    (is (same (dom/div {:id "x"}) (dom/div {:id "x" :type "t"})))
+    (is (same (dom/div {:class "x"}) (dom/div {:class "x y"})))
+    (is (same (dom/div) (dom/div (dom/span))))
+    (is (not (same (dom/div {:id "x"}) (dom/div))))
+
+    (is (same (dom/div (dom/a)) (dom/div (dom/br) (dom/a))))
+
+    ;; Note: is the case; but maybe shouldn't? (is (same (dom/div (dom/a) (dom/br)) (dom/div (dom/br) (dom/a))))
+
+    (is (child (dom/div) (c/handle-message :f (dom/div))))
+
+    ;; dynamic
+    (is (same (c/dynamic (c/constantly (dom/div)) :a) (c/dynamic (c/constantly (dom/div)) :a)))
+    (is (child (dom/div) (c/dynamic (c/constantly (dom/div)))))
+
+    ;; TODO?
+    #_(is (child (dom/div (dom/span)) (c/dynamic (c/constantly
+                                                (dom/div (c/dynamic (c/constantly
+                                                                     (dom/span))))))))
+    ))
 
 (deftest mount-test
   (is (= (c/return)
@@ -64,36 +121,32 @@
 (deftest invoke-callback-test
   (let [e (tu/env (dom/div {:onclick (constantly (c/return :action :act1))}))
         as (fn [v]
-             (tu/invoke-callback! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
+             (tu/invoke-callback! (xpath/select-one (tu/get-component e) (xpath/>> v))
                                   :onclick #js {:type "click"}))]
     (tu/mount! e :state)
     (is (= (c/return :action :act1) (as "div")))
-    ;; TODO: (is (= (c/return :action :act1) (as dom/div)))
+    (is (= (c/return :action :act1) (as (dom/div))))
     ))
 
 (deftest inject-action-test
   (let [foobar (c/name-id "foobar")
         e (tu/env (c/named foobar (dom/div)))
-        as (fn [v] (tu/inject-action! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
+        as (fn [v] (tu/inject-action! (xpath/select-one (tu/get-component e) (xpath/>> v))
                                       :act1))]
     (tu/mount! e :state)
     (is (= (c/return :action :act1) (as foobar)))
-    ;; TODO: (is (= (c/return :action :act1) (as "div")))
     ;; TODO: we could make it a requirement that the item does really emit actions normally; saying plain dom elements can't be used here.
-    ;; TODO: (is (= (c/return :action :act1) (as dom/div)))
+    ;; TODO: (is (= (c/return :action :act1) (as "div")))
+    ;; TODO: (is (= (c/return :action :act1) (as (dom/div))))
     ))
 
 (deftest inject-state-change-test
   (c/defn-dynamic foobar state [] (dom/div (pr-str state)))
-  (let [e (tu/env (foobar))
-        as (fn [v st] (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> ** v))
-                                               st))]
+  (let [e (tu/env (foobar))]
     (tu/mount! e :state1)
-    (is (some? (.-name (c/meta-name-id foobar))))
-    (is (= (c/return :state :state2) (as foobar :state2)))
-    ;; TODO: (is (= (c/return :state :state3) (as "div" :state3)))
-    ;; TODO: (is (= (c/return :state :state4) (as dom/div :state4)))
-    ))
+    (is (= (c/return :state :state2)
+           (tu/inject-state-change! (xpath/select-one (tu/get-component e) (xpath/>> foobar))
+                                    :state2)))))
 
 (deftest effect-utils-test
   (let [called-with (atom nil)

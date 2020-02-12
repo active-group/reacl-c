@@ -5,13 +5,6 @@
             [reacl-c.impl.reacl :as impl])
   (:refer-clojure :exclude [and or contains? nth nth-last comp first last range]))
 
-(defn named [n]
-  (cond
-    (string? n) (rp/tag n)
-    (some? (c/meta-name-id n)) (rp/class (impl/named (c/meta-name-id n)))
-    (base/name-id? n) (rp/class (impl/named n))
-    :else (assert false n)))
-
 (def attr rp/attr)
 
 (def and rp/and)
@@ -41,6 +34,27 @@
 (def select-one rp/select-one)
 (def contains? rp/contains?)
 
+(defn named [n]
+  (cond
+    (string? n)
+    ;; a dom tag might always be one element under the corresponding
+    ;; dom wrapper class, but should appear on the 'same level' for
+    ;; the user.
+    (rp/or (rp/tag n)
+           (rp/comp (rp/type (impl/dom-class-for-type n)) rp/children (rp/tag n)))
+
+    
+    (some? (c/meta-name-id n)) (rp/class (impl/named (c/meta-name-id n)))
+    (base/name-id? n) (rp/class (impl/named n))
+    :else (assert false n)))
+
+(defn item
+  "Matches an item similar to the given one. The given item is
+  intepreted as a pattern, and may contain 'less' attributes or
+  children."
+  [v]
+  (impl/xpath-pattern v))
+
 (defn comp
   "Compose the given xpath selector forms to a combined
   selector, where from left to right, the selectors restrict the filter
@@ -59,11 +73,9 @@
   (apply rp/comp (map (fn [v]
                         (cond
                           (string? v) (named v)
-                          (base/name-id? v) (named v)
-                          ;; (var? v) (named-var v)
                           (keyword? v) (attr v)
-                          (some? (c/meta-name-id v)) (named v)
-                          (base/named? v) (named (base/named-name-id v))
-                          ;; TODO: add all other items??!!
+                          (satisfies? base/E v) (item v)
+                          (some? (c/meta-name-id v)) (named v) ;; covers the 'item constructing fns'
+                          (base/name-id? v) (named v)
                           :else v))
                       selectors)))
