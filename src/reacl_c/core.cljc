@@ -301,7 +301,11 @@ a change."}  merge-lens
          (or (nil? cleanup-ret) (base/returned? cleanup-ret))]}
   (base/->Once ret cleanup-ret))
 
-(defn ^:no-doc capture-state-change ;; rename capture?
+(defn ^:no-doc capture-state-change ;; rename handle-state-change ?
+  "An item like the given item, but when a state change is emitted by
+  `item`, then `(f prev-state new-state)` is evaluated, which must
+  return a [[return]] value. By careful with this, as item usually
+  expect that their changes to the state are eventually successful."
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
