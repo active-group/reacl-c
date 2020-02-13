@@ -225,6 +225,15 @@ be specified multiple times.
              m1
              m2))
 
+(defn- select-keys* [m keys]
+  ;; like clojure/select-keys, but missing keys get a nil value.
+  (reduce (fn [m [k v]]
+            (assoc m k v))
+          {}
+          (map (fn [k]
+                 [k (get m k nil)])
+               keys)))
+
 (def ^{:doc "A lens over a tuple of maps or records, that yields a
 merged map of both. If both maps or records have fields of the same
 name, only the value of the second part of the tuple is used and updated on
@@ -234,12 +243,16 @@ a change."}  merge-lens
   ([[s1 s2] ns]
    ;; Note: if s1/s2 are records, then this restores that:
    ;; id-merge makes the result be identical? if all updated keys are =
-   (let [k1 (set (keys s1))
-         k2 (set (keys s2))]
-     [(id-merge s1 (select-keys ns (set/difference k1 k2)))
-      (id-merge s2 (select-keys ns k2))]))))
+   (let [k2 (set (keys s2))]
+     [(id-merge s1 (select-keys ns (set/difference (set (keys ns)) k2)))
+      (id-merge s2 (select-keys* ns k2))]))))
 
-(defn ^:no-doc local-state [initial item]
+(defn local-state
+  "An item which looks like the given item, with state `outer`,
+  where the given item must take a tuple state `[outer inner]`, and
+  `initial` is an intial value for the inner state, which can then be
+  changed by the item independantly from the outer state."
+  [initial item]
   {:pre [(base/item? item)]}
   (base/->LocalState item initial))
 
@@ -260,13 +273,15 @@ a change."}  merge-lens
   ;; Note: yes, it's actually the same as 'add-state' ;-)
   (add-state initial lens item))
 
-(defn hide-merged-state
-  "Hides a part of the state of an item, which must be a map or
-  record. The hidden part is specified by the given initial value,
-  which can also be a map or record type. The resulting item has the
-  same state as the given item, except that the keys in `initial` are
-  removed."
-  [item initial]
+(defn add-merged-state
+  "Adds new map or record fields that the given item sees as it's
+  state, by merging the the given initial record or hash-map with the
+  state of the resulting item. The given item can then update any
+  field, but the fields from `initial are 'removed' from the outer
+  state. Note that any fields not in the `initial` value are put in
+  the outer state. If there are duplicate fields, the inner state
+  'wins'."
+  [initial item]
   (add-state initial merge-lens item))
 
 (defn- isolate-lens
