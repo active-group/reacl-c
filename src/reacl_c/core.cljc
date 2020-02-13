@@ -308,6 +308,13 @@ a change."}  merge-lens
          (or (nil? cleanup-f) (ifn? cleanup-f))]}
   (base/->Once f cleanup-f))
 
+(defn cleanup
+  "An item that evaluates `(f state)` when it is being removed from
+  the item tree, and emits the [[return]] value that that must
+  return."
+  [f]
+  (once (f/constantly (return)) f))
+
 (defn ^:no-doc handle-state-change
   "An item like the given item, but when a state change is emitted by
   `item`, then `(f prev-state new-state)` is evaluated, which must
@@ -395,7 +402,7 @@ a change."}  merge-lens
                        (once (f/constantly (return :action (subscribe-effect f deliver! args host))))))
       dyn (fn [deliver! {f :f args :args stop! :stop!}]
             (if (some? stop!)
-              (once (f/constantly (return)) (f/constantly (return :action (unsubscribe-effect stop! f args))))
+              (cleanup (f/constantly (return :action (unsubscribe-effect stop! f args))))
               (with-ref (f/partial msgs deliver! f args))))
       stu (fn [f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
