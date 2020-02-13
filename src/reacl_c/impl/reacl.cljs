@@ -384,8 +384,7 @@
     (cond
       (instance? ActionMessage msg)
       (do
-        ;; makes up a nice trace: (println "AM:" (:action msg) "=>" (apply f state (:action msg) args))
-        (transform-return (f (:action msg))))
+        (transform-return (f state (:action msg))))
       :else
       (pass-message child msg)))
   

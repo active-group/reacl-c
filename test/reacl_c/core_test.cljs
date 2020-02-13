@@ -20,7 +20,7 @@
   (testing "focus"
     (is (= (c/focus :a (dom/div)) (c/focus :a (dom/div)))))
   (testing "handle-action"
-    (let [f (fn [a])]
+    (let [f (fn [state a])]
       (is (= (c/handle-action (dom/div) f) (c/handle-action (dom/div) f)))))
   (testing "add-state"
     (is (= (c/add-state :a :b (dom/div)) (c/add-state :a :b (dom/div)))))
@@ -156,7 +156,7 @@
                                                                      (dom/div))
                                                    (c/set-ref ref))
                                                (-> (c/once (c/constantly (c/return :action ::test)))
-                                                   (c/handle-action (fn [_]
+                                                   (c/handle-action (fn [_ _]
                                                                       (send! ref :msg)
                                                                       (c/return))))))))))]
     (is (= (c/return :state :msg)

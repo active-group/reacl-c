@@ -155,7 +155,7 @@ be specified multiple times.
   (base/->HandleMessage f item))
 
 (defn handle-action
-  "Handles actions emitted by given item, by evaluating `(f action)` for each
+  "Handles actions emitted by given item, by evaluating `(f state action)` for each
   of them. That must return the result of calling [[return]] with
   either a new state, and maybe one or more other actions (or the
   given action unchanged). "
@@ -164,7 +164,7 @@ be specified multiple times.
          (ifn? f)]}
   (base/->HandleAction item f))
 
-(let [h (fn [f a] (return :action (f a)))]
+(let [h (fn [f state a] (return :action (f a)))]
   (defn map-actions
     "Returns an item that emits actions `(f action)`, for each
   `action` emitted by `item`, and otherwise looks an behaves exacly
