@@ -146,15 +146,13 @@ be specified multiple times.
 
 (defn handle-message
   "Handles the messages sent to the the resulting item (either
-  via [[send-message!]] or [[return]]), by calling `(f message)`,
+  via [[send-message!]] or [[return]]), by calling `(f state message)`,
   which must return a [[return]] value. The resulting item
   otherwise looks and behaves exactly like the given one."
   [f item]
   {:pre [(base/item? item)
          (ifn? f)]}
   (base/->HandleMessage f item))
-
-;; TODO: add a (with-handle-message (fn [send!] (div ...)) (fn [msg] ...)) ?
 
 (defn handle-action
   "Handles actions emitted by given item, by evaluating `(f action)` for each
@@ -177,20 +175,24 @@ be specified multiple times.
 (def partial f/partial)
 (def constantly f/constantly)
 
-(let [h (fn [ref msg]
+(let [h (fn [ref state msg]
           (return :message [ref msg]))]
-  (defn ^:no-doc redirect-messages [ref item]
+  (defn redirect-messages
+    "An item like the given one, but that handles all messages sent to
+  it by redirecting them to the item specified by the given
+  reference."
+    [ref item]
     {:pre [(satisfies? base/Ref ref)
            (base/item? item)]}
-    (handle-message item (f/partial h ref))))
+    (handle-message (f/partial h ref) item)))
 
-(let [h (fn [f ref msg]
+(let [h (fn [f ref state msg]
           (return :message [ref (f msg)]))
       wr (fn [f item ref]
-           (handle-message (set-ref item ref) (f/partial h f ref)))]
+           (handle-message (f/partial h f ref) (set-ref item ref)))]
   (defn ^:no-doc map-messages
-    "Returns an item like `e`, that transforms all messages sent to
-  it though `(f msg)`, before they are forwarded to `e`."
+    "Returns an item like the given one, that transforms all messages sent to
+  it though `(f msg)`, before they are forwarded to `item`."
     [f item]
     {:pre [(ifn? f)
            (base/item? item)]}
@@ -374,7 +376,7 @@ a change."}  merge-lens
   ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]] below.
   (effect unsubscribe! stop! (cons f args)))
 
-(let [store-sub (fn [f args msg]
+(let [store-sub (fn [f args state msg]
                   (cond
                     (instance? SubscribedMessage msg)
                     (return :state {:f f :args args :stop! (:stop! msg)})

@@ -151,7 +151,7 @@
 (rcore/defclass ^:private handle-message this state [e f]
   handle-message
   (fn [msg]
-    (transform-return (f msg)))
+    (transform-return (f state msg)))
 
   render
   (instantiate (rcore/bind this) e))

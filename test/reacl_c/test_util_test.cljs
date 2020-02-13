@@ -106,14 +106,14 @@
   (is (= (c/return :action :msg)
          (let [e (tu/env (->> (dom/div)
                               (c/handle-message
-                               (fn [msg]
+                               (fn [state msg]
                                  (c/return :action msg)))))]
            (tu/mount! e :state)
            (tu/send-message! e :msg))))
   (is (= (c/return :state :state2)
          (let [e (tu/env (->> (dom/div)
                               (c/handle-message
-                               (fn [msg]
+                               (fn [state msg]
                                  (c/return :state msg)))))]
            (tu/mount! e :state1)
            (tu/send-message! (tu/get-component e) :state2)))))

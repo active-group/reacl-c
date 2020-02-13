@@ -151,7 +151,7 @@
   (let [env (tu/env (c/with-ref (fn [ref]
                                   (c/with-async-messages
                                     (fn [send!]
-                                      (dom/div (-> (c/handle-message (fn [msg]
+                                      (dom/div (-> (c/handle-message (fn [state msg]
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
@@ -166,7 +166,7 @@
   (let [env (tu/env (c/with-ref (fn [ref]
                                   (c/with-async-messages
                                     (fn [send!]
-                                      (dom/div (-> (c/handle-message (fn [msg]
+                                      (dom/div (-> (c/handle-message (fn [state msg]
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
@@ -178,12 +178,36 @@
   (let [e (js/document.createElement "div")
         received (atom nil)
         app (browser/run e
-              (c/handle-message (fn [msg]
+              (c/handle-message (fn [state msg]
                                   (reset! received msg)
                                   (c/return))
                                 c/empty)
               nil)]
     (c/send-message! app ::hello)
     (is (= ::hello @received))))
+
+(deftest map-messages-test
+  (let [env (tu/env (c/map-messages (fn [msg] [:x msg])
+                                    (c/handle-message (fn [state msg]
+                                                        (c/return :state msg))
+                                                      (dom/div))))]
+    (tu/mount! env :st)
+    (is (= (c/return :state [:x :msg])
+           (tu/send-message! (tu/get-component env) :msg)))))
+
+(deftest redirect-messages-test
+  (let [env (tu/env (c/with-ref
+                      (fn [ref]
+                        (c/fragment
+                         (c/redirect-messages ref
+                                              (dom/div (dom/div)
+                                                       (-> (c/handle-message (fn [state msg]
+                                                                               (c/return :state msg))
+                                                                             (dom/div))
+                                                           (c/set-ref ref))))))))]
+    (tu/mount! env :st)
+    (is (= (c/return :state :msg)
+           (tu/send-message! (tu/get-component env) :msg))))
+  )
 
 ;; TODO: test every higher level feature in core.
