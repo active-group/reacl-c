@@ -59,8 +59,8 @@
 
 (def once
   (gen/fmap #(apply c/once %)
-            (gen/tuple (gen/elements [(c/return)])
-                       (gen/elements [nil (c/return)]))))
+            (gen/tuple (gen/elements [(c/constantly (c/return))])
+                       (gen/elements [nil (c/constantly (c/return))]))))
 
 (defn with-async-return [item-gen]  ;; TODO: fn?
   (gen/fmap #(c/with-async-return (c/constantly %))

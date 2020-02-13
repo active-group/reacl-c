@@ -476,35 +476,56 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-async-return binding f args)]))
 
-(rcore/defclass ^:private once this state [ret cleanup-ret]
+(defrecord ^:private Mount []) (def ^:private mount-msg (Mount.))
+(defrecord ^:private Unmount []) (def ^:private unmount-msg (Unmount.))
+(defrecord ^:private Update []) (def ^:private update-msg (Update.))
+
+(rcore/defclass ^:private once this state [f cleanup-f]
   local-state [done nil]
+
+  handle-message
+  (fn [msg]
+    (condp = msg
+      mount-msg
+      (let [ret (f state)]
+        (rcore/merge-returned (transform-return ret)
+                              (rcore/return :local-state ret)))
+      
+      update-msg
+      (let [ret (f state)]
+        (if (not= done ret)
+          (rcore/merge-returned (transform-return ret)
+                                (rcore/return :local-state ret))
+          (rcore/return)))
+
+      unmount-msg
+      (if (some? cleanup-f)
+        (transform-return (cleanup-f state))
+        (rcore/return))
+
+      (throw (ex-info "Cannot send a message to once items." {:value msg}))))
   
   component-did-update
   (fn [prev-app-state prev-local-state prev-ret prev-cleanup-ret]
-    (if (not= done ret)
-      (rcore/merge-returned (transform-return ret)
-                            (rcore/return :local-state ret))
-      (rcore/return)))
+    ;; Note: Reacl does not guarantee that the state is accurate in this method (yet); need to go through a message.
+    (rcore/return :message [this update-msg]))
 
   component-did-mount
   (fn []
-    (rcore/merge-returned (transform-return ret)
-                          (rcore/return :local-state ret)))
+    (rcore/return :message [this mount-msg]))
 
   component-will-unmount
   (fn []
-    (if (some? cleanup-ret)
-      (transform-return cleanup-ret)
-      (rcore/return)))
+    (rcore/return :message [this unmount-msg]))
 
   render (rdom/fragment))
 
 (extend-type base/Once
   IReacl
-  (-xpath-pattern [{ret :ret cleanup-ret :cleanup-ret}]
-    (class-args-pattern once [ret cleanup-ret]))
-  (-instantiate-reacl [{ret :ret cleanup-ret :cleanup-ret} binding]
-    [(once binding ret cleanup-ret)]))
+  (-xpath-pattern [{f :f cleanup-f :cleanup-f}]
+    (class-args-pattern once [f cleanup-f]))
+  (-instantiate-reacl [{f :f cleanup-f :cleanup-f} binding]
+    [(once binding f cleanup-f)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 

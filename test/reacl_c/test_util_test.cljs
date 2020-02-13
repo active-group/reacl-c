@@ -68,7 +68,7 @@
          (-> (tu/env (dom/div))
              (tu/mount! :state))))
   (is (= (c/return :action ::act)
-         (-> (tu/env (c/once (c/return :action ::act)))
+         (-> (tu/env (c/once (c/constantly (c/return :action ::act))))
              (tu/mount! :state)))))
 
 (deftest update-test
@@ -81,15 +81,15 @@
     (is (some? (xpath/select-one (tu/get-component e) (xpath/>> ** "span"))))))
 
 (deftest full-update-test
-  (let [e (tu/env (c/dynamic (fn [state]
-                               (c/once (if (< state 10)
-                                         (c/return :state (inc state))
-                                         (c/return))))))]
+  (let [e (tu/env (c/once (fn [state]
+                            (if (< state 10)
+                              (c/return :state (inc state))
+                              (c/return)))))]
     (is (= (c/return :state 1) (tu/mount! e 0)))
     (is (= (c/return :state 2) (tu/update! e 1))) ;; only one update
     (is (= (c/return :state 10) (tu/update!! e 2)))) ;; all updates
-  (let [e (tu/env (c/dynamic (fn [state]
-                               (c/once (c/return :state (inc state))))))]
+  (let [e (tu/env (c/once (fn [state]
+                            (c/return :state (inc state)))))]
     (tu/mount! e 0)
     (try (tu/update!! e 1)
          (is false)
@@ -98,7 +98,7 @@
 
 (deftest unmount-test
   (is (= (c/return :action ::act)
-         (let [e (tu/env (c/once (c/return) (c/return :action ::act)))]
+         (let [e (tu/env (c/once (c/constantly (c/return)) (c/constantly (c/return :action ::act))))]
            (tu/mount! e :state)
            (tu/unmount! e)))))
 
@@ -360,13 +360,13 @@
 
     (is (= [[base/Keyed] {:key ["foo" "bar"]}]  (f (c/keyed (dom/div) "foo") (c/keyed (dom/span) "bar"))))
 
-    (is (= nil (f (c/once (c/return :state :a)) (c/once (c/return :state :a)))))
-    (is (= nil (f (c/once (c/return :state :a) (c/return :state :b)) (c/once (c/return :state :a) (c/return :state :b)))))
+    (is (= nil (f (c/once (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return :action :a))))))
+    (is (= nil (f (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))) (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))))))
 
-    (is (= [[] {:once [(c/return :state :a) (c/return :state :b)]}] 
-           (f (c/once (c/return :state :a)) (c/once (c/return :state :b)))))
-    (is (= [[] {:once-cleanup [(c/return :state :a) (c/return :state :b)]}] 
-           (f (c/once (c/return) (c/return :state :a)) (c/once (c/return) (c/return :state :b)))))
+    (is (= [[] {:once [(c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))]}] 
+           (f (c/once (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return :action :b))))))
+    (is (= [[] {:once-cleanup [(c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))]}] 
+           (f (c/once (c/constantly (c/return)) (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return)) (c/constantly (c/return :action :b))))))
 
     (is (= [[base/Focus] {:lens [:a :b]}] (f (c/focus :a (dom/div)) (c/focus :b (dom/div)))))
     (is (= [[base/Focus "div"] {:attributes [{:a 10} {:a 42}]}] (f (c/focus :k1 (dom/div {:a 10 :b 1})) (c/focus :k1 (dom/div {:a 42 :b 1})))))

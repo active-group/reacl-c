@@ -285,21 +285,26 @@ a change."}  merge-lens
   {:pre [(base/item? item)]}
   (base/->Keyed item key))
 
-;; TODO: cleanup once or each time??
-(defn once
-  "An item that emits the things specified in the given [[return]]
-  value once. The optional `cleanup-ret` is emitted, when the returned
-  item is removed from the item tree afterwards. A `once` item with a
-  different `return` value, will emit that return once again, but will
-  not emit the previous `cleanup-ret`, even at the same position in
-  the tree.
+#_(defn- lift-static-return [v]
+  (if (base/returned? v)
+    (if (= base/keep-state (:state v))
+      (f/constantly v)
+      (throw (ex-info "The 'return' value used here must not contain a state update. Use a function instead." {:value v})))
+    v))
+
+(defn once  ;; akin to a 'React effect'.
+  "An item that evaluates `(f state)` and emits the [[return]] value
+  that it must return. On subsequent state updates, `f` is called too,
+  but the returned [[return]] value is only emitted if it different
+  than last time. The optional `(cleanup-f state)` is evaluated, when
+  the item is removed from the item tree afterwards.
 
   Note that if you return a modified state, you must be careful to not
   cause an endless loop of updates."
-  [ret & [cleanup-ret]]
-  {:pre [(base/returned? ret)
-         (or (nil? cleanup-ret) (base/returned? cleanup-ret))]}
-  (base/->Once ret cleanup-ret))
+  [f & [cleanup-f]]
+  {:pre [(ifn? f)
+         (or (nil? cleanup-f) (ifn? cleanup-f))]}
+  (base/->Once f cleanup-f))
 
 (defn ^:no-doc handle-state-change
   "An item like the given item, but when a state change is emitted by
@@ -385,10 +390,10 @@ a change."}  merge-lens
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (set-ref host))
-                       (once (return :action (subscribe-effect f deliver! args host)))))
+                       (once (f/constantly (return :action (subscribe-effect f deliver! args host))))))
       dyn (fn [deliver! {f :f args :args stop! :stop!}]
             (if (some? stop!)
-              (once (return) (return :action (unsubscribe-effect stop! f args)))
+              (once (f/constantly (return)) (f/constantly (return :action (unsubscribe-effect stop! f args))))
               (with-ref (f/partial msgs deliver! f args))))
       stu (fn [f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.

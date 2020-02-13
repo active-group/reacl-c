@@ -159,6 +159,7 @@
 (defn execute-effect!
   "Executed the given effect in the given test environment."
   [env eff]
+  (assert (base/effect? eff))
   (inject-return! (get-root-component env)
                   (apply (:f eff) (:args eff))))
 
@@ -473,9 +474,9 @@
 
       ;; leafs
       (= t1 base/Once)
-      (if (not= (:ret item1) (:ret item2))
-        [path {:once [(:ret item1) (:ret item2)]}]
-        [path {:once-cleanup [(:cleanup-ret item1) (:cleanup-ret item2)]}])
+      (if (not= (:f item1) (:f item2))
+        [path {:once [(:f item1) (:f item2)]}]
+        [path {:once-cleanup [(:cleanup-f item1) (:cleanup-f item2)]}])
       
       :else ;; string?!
       [path {:not= [item1 item2]}])))

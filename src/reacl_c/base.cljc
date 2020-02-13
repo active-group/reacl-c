@@ -39,8 +39,7 @@
 (defrecord ErrorBoundary [e f] E)
 (defrecord Keyed [e key] E)
 
-;; Note: fields must not be named 'return', because of a ClojureScript bug.
-(defrecord Once [ret cleanup-ret] E)
+(defrecord Once [f cleanup-f] E)
 
 (defn named? [v]
   (instance? Named v))
