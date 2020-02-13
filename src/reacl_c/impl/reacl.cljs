@@ -199,12 +199,12 @@
                  f))
           events)))
 
-(defn- dom-message-to-action [msg events]
+(defn- dom-message-to-action [state msg events]
   (cond
     (instance? EventMessage msg)
     (let [{ev :ev} msg
           f (find-event-handler ev events)]
-      (transform-return (f ev)))
+      (transform-return (f state ev)))
 
     :else
     (throw (ex-info "Cannot send a message to dom elements." {:value msg}))))
@@ -233,7 +233,8 @@
                   ;; dom with action events and children.
                   local-state [handler (dom-event-handler this)]
   
-                  handle-message (fn [msg] (dom-message-to-action msg events))
+                  handle-message (fn [msg]
+                                   (dom-message-to-action state msg events))
   
                   render
                   (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref

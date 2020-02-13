@@ -6,7 +6,7 @@
                        a `" tag "` tag. The `attrs` argument is an
                        optional map of attributes. Any attribute
                        starting with `on`, is expected to be a
-                       function taking an event and return
+                       function taking the state and an event and return
                        a [[reacl-c.core/return]] value.  The remaining
                        `children` arguments must be other items or
                        strings.")
