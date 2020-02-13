@@ -1,4 +1,4 @@
-(defproject de.active-group/reacl-c "0.6.0-SNAPSHOT"
+(defproject de.active-group/reacl-c "0.6.0"
   :description "Compositional and declarative user interface library for Clojure and Clojurescript."
   :url "http://github.com/active-group/reacl-c"
   
@@ -10,7 +10,7 @@
                  [de.active-group/active-clojure "0.33.0"]
                  [org.clojure/test.check "0.10.0" :scope "provided"]
                  [prismatic/schema "1.1.12"]
-                 [reacl "2.2.1-SNAPSHOT"]]
+                 [reacl "2.2.1"]]
 
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
