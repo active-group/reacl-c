@@ -48,8 +48,8 @@
          (map? attrs)
          (map? events)
          (every? ifn? (clojure.core/map second events))
-         (every? base/item? children)]}
-  (Element. type attrs events nil (flatten-children children)))
+         (every? #(or (nil? %) (base/item? %)) children)]}
+  (Element. type attrs events nil (flatten-children (remove nil? children))))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

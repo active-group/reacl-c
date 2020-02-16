@@ -23,8 +23,8 @@
 (defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
-  {:pre [(every? base/item? children)]}
-  (base/->Fragment children))
+  {:pre [(every? #(or (nil? %) (base/item? %)) children)]}
+  (base/->Fragment (remove nil? children)))
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
