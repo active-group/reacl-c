@@ -183,14 +183,14 @@
 (defn execute-effect!
   "Executed the given effect in the given test environment."
   [env eff]
-  (assert (base/effect? eff))
+  (assert (base/effect? eff) eff)
   (inject-return! (get-root-component env)
                   (apply (:f eff) (:args eff))))
 
 (defn effect? [a & [eff-defn]]
   (and (base/effect? a)
        (or (nil? eff-defn)
-           (= (:f a) eff-defn)
+           (= (base/effect-f a) eff-defn)
            (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
 
 (defn effect-f [eff]

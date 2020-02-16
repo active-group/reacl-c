@@ -92,12 +92,12 @@
   (if (not= base/keep-state (:state ret))
     (throw (ex-info "Effects must not return a new state." {:effect eff :value ret}))
     (transform-return (base/merge-returned
-                       (base/->Returned base/keep-state [] (:messages ret))
+                       (base/make-returned base/keep-state [] (:messages ret))
                        (if-let [actions (not-empty (:actions ret))]
                          ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
-                         (base/->Returned base/keep-state [] (mapv #(vector toplevel (ActionMessage. %))
-                                                                   actions))
-                         (base/->Returned base/keep-state [] []))))))
+                         (base/make-returned base/keep-state [] (mapv #(vector toplevel (ActionMessage. %))
+                                                                      actions))
+                         (base/make-returned base/keep-state [] []))))))
 
 (rcore/defclass ^:private toplevel this state [e]
   refs [child]
@@ -134,7 +134,7 @@
 
 (defn ^:no-doc transform-return [r]
   ;; a base/Returned value to a rcore/return value.
-  (assert (instance? base/Returned r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
+  (assert (base/returned? r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
   (apply rcore/merge-returned
          (if (not= base/keep-state (:state r))
            (rcore/return :app-state (:state r))
@@ -143,7 +143,8 @@
                       (:actions r))
                  (map (fn [[target msg]]
                         (let [c (rcore/get-dom (:reacl-ref target))]
-                          (assert (rcore/component? c) "Target for message not assigned. Forgot to use set-ref?")
+                          (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
+                          (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
                           (rcore/return :message [c msg])))
                       (:messages r)))))
 
@@ -172,7 +173,7 @@
 
 (let [classes (js/WeakMap.)]
   (defn ^:no-doc named [name-id]
-    (assert (instance? base/NameId name-id))
+    (assert (base/name-id? name-id))
     (or (.get classes name-id)
         (let [c (gen-named (base/name-id-name name-id))]
           (.set classes name-id c)
@@ -245,7 +246,7 @@
 
 (defn- dom [binding type attrs events ref & children]
   ;; TODO: is it even worth it to 'optimize' ?
-  (if (and (empty? events) (not (some base/item? children)))
+  (if (and (empty? events) (not (some base/item? children))) ;; TODO: any child is ok, isn't it? (strings at least)
     (apply native-dom binding type attrs ref children)
     (apply dom-class binding type attrs events ref children)))
 

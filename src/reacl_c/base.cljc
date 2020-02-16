@@ -1,4 +1,6 @@
-(ns ^:no-doc reacl-c.base)
+(ns ^:no-doc reacl-c.base
+    (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
+              #?(:clj [active.clojure.record :as r])))
 
 (defprotocol E)
 
@@ -15,6 +17,10 @@
 
 (deftype NameId [name])
 
+(defn make-name-id [s]
+  {:pre [(string? s)]}
+  (NameId. s))
+
 (defn name-id? [v]
   (instance? NameId v))
 
@@ -22,42 +28,112 @@
   {:pre [(name-id? v)]}
   (.-name v))
 
-(defrecord Fragment [children] E)
+(r/define-record-type Fragment
+  (make-fragment children)
+  fragment?
+  [children fragment-children]
+  E)
 
-(defrecord Dynamic [f args] E) ;; aka WithState
-(defrecord WithRef [f args] E)
-(defrecord WithAsyncReturn [f args] E)
+(r/define-record-type Dynamic
+  (make-dynamic f args)
+  dynamic?
+  [f dynamic-f
+   args dynamic-args]
+  E)
 
-(defrecord Focus [e lens] E)
-(defrecord LocalState [e initial] E)
+(r/define-record-type WithRef
+  (make-with-ref f args)
+  with-ref?
+  [f with-ref-f
+   args with-ref-args]
+  E)
 
-(defrecord HandleAction [e f] E)
-(defrecord SetRef [e ref] E)
-(defrecord HandleStateChange [e f] E)
-(defrecord HandleMessage [f e] E)
-(defrecord Named [name-id e] E)
-(defrecord ErrorBoundary [e f] E)
-(defrecord Keyed [e key] E)
+(r/define-record-type WithAsyncReturn
+  (make-with-async-return f args)
+  with-async-return?
+  [f with-async-return-f
+   args with-async-return-args]
+  E)
 
-(defrecord Once [f cleanup-f] E)
+(r/define-record-type Focus
+  (make-focus e lens)
+  focus?
+  [e focus-e
+   lens focus-lens]
+  E)
 
-(defn named? [v]
-  (instance? Named v))
+(r/define-record-type LocalState
+  (make-local-state e initial)
+  local-state?
+  [e local-state-e
+   initial local-state-initial]
+  E)
 
-(defn named-name-id
-  [e]
-  {:pre [(named? e)]}
-  (:name-id e))
+(r/define-record-type HandleAction
+  (make-handle-action e f)
+  handle-action?
+  [e handle-action-e
+   f handle-action-f]
+  E)
 
-(defn fragment? [v]
-  (instance? Fragment v))
+(r/define-record-type SetRef
+  (make-set-ref e ref)
+  set-ref?
+  [e set-ref-e
+   ref set-ref-ref]
+  E)
+
+(r/define-record-type HandleStateChange
+  (make-handle-state-change e f)
+  handle-state-change?
+  [e handle-state-change-e
+   f handle-state-change-f]
+  E)
+
+(r/define-record-type HandleMessage
+  (make-handle-message f e)
+  handle-message?
+  [f handle-message-f
+   e handle-message-e]
+  E)
+
+(r/define-record-type Named
+  (make-named name-id e)
+  named?
+  [name-id named-name-id
+   e named-e]
+  E)
+
+(r/define-record-type ErrorBoundary
+  (make-error-boundary e f)
+  error-boundary?
+  [e error-boundary-e
+   f error-boundary-f]
+  E)
+
+(r/define-record-type Keyed
+  (make-keyed e key)
+  keyed?
+  [e keyed-e
+   key keyed-key]
+  E)
+
+(r/define-record-type Once
+  (make-once f cleanup-f)
+  once?
+  [f once-f
+   cleanup-f once-cleanup-f]
+  E)
 
 (defrecord KeepState [])
 (def keep-state (KeepState.))
 
-(defrecord Returned [state actions messages])
-
-(defn returned? [v] (instance? Returned v))
+(r/define-record-type Returned
+  (make-returned state actions messages)
+  returned?
+  [state returned-state
+   actions returned-actions
+   messages returned-messages])
 
 (defn merge-returned [r1 & rs]
   (loop [r1 r1
@@ -65,15 +141,16 @@
     (if (empty? rs)
       r1
       (let [r2 (first rs)
-            rm (Returned. (if (not= keep-state (:state r2)) (:state r2) (:state r1))
-                          (vec (concat (:actions r1) (:actions r2)))
-                          (vec (concat (:messages r1) (:messages r2))))]
+            rm (make-returned (if (not= keep-state (:state r2)) (:state r2) (:state r1))
+                              (vec (concat (:actions r1) (:actions r2)))
+                              (vec (concat (:messages r1) (:messages r2))))]
         (recur rm (rest rs))))))
 
 (defprotocol Application
   (-send-message! [this msg]))
 
-(defrecord Effect [f args])
-
-(defn effect? [v]
-  (instance? Effect v))
+(r/define-record-type Effect
+  (make-effect f args)
+  effect?
+  [f effect-f
+   args effect-args])

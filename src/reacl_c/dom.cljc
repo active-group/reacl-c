@@ -1,16 +1,23 @@
 (ns reacl-c.dom
   (:require [reacl-c.base :as base]
             [clojure.string :as str]
+            #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
+            #?(:clj [active.clojure.record :as r])
             #?(:clj [reacl-c.impl.macros :refer (defdom)]))
   #?(:cljs (:require-macros [reacl-c.impl.macros :refer (defdom)]))
   (:refer-clojure :exclude (meta map time use set symbol)))
 
 ;; TODO: some standard event handlers? constantly, value, checked.
 
-(defrecord ^:no-doc Element [type attrs events ref children] base/E)
-
-(defn ^:no-doc element? [e]
-  (instance? Element e))
+(r/define-record-type ^:no-doc Element
+  (make-element type attrs events ref children)
+  element?
+  [type element-type
+   attrs element-attrs
+   events element-events
+   ref element-ref
+   children element-children]
+  base/E)
 
 (defn ^:no-doc set-ref [e ref]
   (assoc e :ref ref))
@@ -49,7 +56,7 @@
          (map? events)
          (every? ifn? (clojure.core/map second events))
          (every? #(or (nil? %) (base/item? %)) children)]}
-  (Element. type attrs events nil (flatten-children (remove nil? children))))
+  (make-element type attrs events nil (flatten-children (remove nil? children))))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

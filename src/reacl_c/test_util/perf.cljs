@@ -19,16 +19,16 @@
 (defn ^:no-doc resolve-1-shallow
   "Shallowly replaces all dynamic items with the items they resolve to for the given state."
   [item state]
-  {:post [#(not (instance? base/Dynamic %))
-          #(not (instance? base/WithRef %))
-          #(not (instance? base/WithAsyncReturn %))]}
+  {:post [#(not (base/dynamic? %))
+          #(not (base/with-ref? %))
+          #(not (base/with-async-return? %))]}
   (if (string? item)
     item
-    (condp instance? item
+    (condp apply [item]
       ;; the dynamics
-      base/Dynamic (apply (:f item) state (:args item))
-      base/WithRef (apply (:f item) dummy-ref (:args item))
-      base/WithAsyncReturn (apply (:f item) dummy-return! (:args item))
+      base/dynamic? (apply (:f item) state (:args item))
+      base/with-ref? (apply (:f item) dummy-ref (:args item))
+      base/with-async-return? (apply (:f item) dummy-return! (:args item))
 
       item)))
 
@@ -41,28 +41,31 @@
           wc (fn []
                (update item :children (fn [es]
                                         (mapv #(resolve-* % state resolve-dyn) es))))]
-      (condp instance? item
+      (condp apply [item]
         ;; the dynamics
-        base/Dynamic (resolve-dyn item state)
-        base/WithRef (resolve-dyn item state)
-        base/WithAsyncReturn (resolve-dyn item state)
+        base/dynamic? (resolve-dyn item state)
+        base/with-ref? (resolve-dyn item state)
+        base/with-async-return? (resolve-dyn item state)
 
         ;; the wrappers
-        base/Focus (update item :e #(resolve-* % (yank state (:lens item)) resolve-dyn))
-        base/LocalState (update item :e #(resolve-* % [state (:initial item)] resolve-dyn))
+        base/focus? (update item :e #(resolve-* % (yank state (:lens item)) resolve-dyn))
+        base/local-state? (update item :e #(resolve-* % [state (:initial item)] resolve-dyn))
         
-        base/HandleAction (w)
-        base/SetRef (w)
-        base/Keyed (w)
-        base/Named (w)
-        base/ErrorBoundary (w) ;; and the error fn?
-        base/HandleMessage (w)
+        base/handle-action? (w)
+        base/set-ref? (w)
+        base/keyed? (w)
+        base/named? (w)
+        base/error-boundary? (w) ;; and the error fn?
+        base/handle-message? (w)
+        base/handle-state-change? (w)
 
-        base/Fragment (wc)
-        dom/Element   (wc)
+        base/fragment? (wc)
+        dom/element?   (wc)
 
         ;; the leafs
-        base/Once item))))
+        base/once? item
+        ;; FIXME: anything else? lift-class? unknowns?
+        ))))
 
 (defn ^:no-doc resolve-1
   "Replaces one level of dynamicity from the given item, or just returns it if there is none."
@@ -84,57 +87,56 @@
   (let [[only-1 only-2 _] (data/diff s1 s2)]
     [only-1 only-2]))
 
-(defn- wrapper-type [t]
-  (condp = t
-    base/Dynamic 'dynamic
-    base/WithRef 'with-ref
-    base/WithAsyncReturn 'with-async-return
-    base/Focus 'focus
-    base/LocalState 'local-state
-    base/HandleAction 'handle-action
-    base/SetRef 'set-set
-    base/Keyed 'keyed
-    base/Named 'named
-    base/ErrorBoundary 'error-boundary
-    base/HandleMessage 'handle-message
-    base/Fragment 'fragment
-    dom/Element 'element
-    base/Once 'once
-    (str t)))
+(defn- wrapper-type [item]
+  (condp apply [item]
+    base/dynamic? 'dynamic
+    base/with-ref? 'with-ref
+    base/with-async-return? 'with-async-return
+    base/focus? 'focus
+    base/local-state? 'local-state
+    base/handle-action? 'handle-action
+    base/set-ref? 'set-set
+    base/keyed? 'keyed
+    base/named? 'named
+    base/error-boundary? 'error-boundary
+    base/handle-message? 'handle-message
+    base/handle-state-change? 'handle-state-change
+    base/fragment? 'fragment
+    dom/element? 'element
+    base/once? 'once
+    (str (type item))))
 
 (defn ^:no-doc find-first-difference [item1 item2 & [path]]
   ;; returns [path differences] path=[item ...] and differences {:name [left right]}
-  (let [t1 (type item1)
-        t2 (type item2)
-        path (or path [])
+  (let [path (or path [])
         w (fn [e1 e2 e-k res-k]
-            (let [path (conj path (wrapper-type (type e1)))]
+            (let [path (conj path (wrapper-type e1))]
               (if (= (e-k item1) (e-k item2))
                 (find-first-difference (:e item1) (:e item2) path)
                 [path {res-k [(e-k item1) (e-k item2)]}])))]
     (cond
       (= item1 item2) nil
       
-      (not= t1 t2) [path {:types [t1 t2]}]
+      (not= (type item1) (type item2)) [path {:types [(type item1) (type item2)]}]
 
       ;; dynamics
-      (or (= t1 base/Dynamic) (= t1 base/WithRef) (= t1 base/WithAsyncReturn))
+      (or (base/dynamic? item1) (base/with-ref? item1) (base/with-async-return? item1))
       (let [path (conj path 'dynamic)]
         (if (= (:f item1) (:f item2))
           [path {:arguments (seq-diff (:args item1) (:args item2))}]
           [path {:function [(:f item1) (:f item2)]}]))
 
       ;; wrappers
-      (or (= t1 base/HandleAction) (= t1 base/ErrorBoundary) (= t1 base/HandleStateChange) (= t1 base/HandleMessage))
+      (or (base/handle-action? item1) (base/error-boundary? item1) (base/handle-state-change? item1) (base/handle-message? item1))
       (w item1 item2 :f :function)
 
-      (= t1 base/SetRef)
+      (base/set-ref? item1)
       (w item1 item2 :ref :reference)
 
-      (= t1 base/Focus)
+      (base/focus? item1)
       (w item1 item2 :lens :lens)
       
-      (= t1 base/Named)
+      (base/named? item1)
       (let [id1 (:name-id item1)
             id2 (:name-id item2)]
         (assert (base/name-id? id1))
@@ -145,30 +147,30 @@
             [(conj path 'named) {:name-id [id1 id2]}]
             [(conj path 'named) {:name [(base/name-id-name id1) (base/name-id-name id2)]}])))
       
-      (= t1 base/Keyed)
+      (base/keyed? item1)
       (w item1 item2 :key :key)
 
       ;; containers
-      (or (= t1 base/Fragment) (= t1 dom/Element))
+      (or (base/fragment? item1) (dom/element? item1))
       (let [cs1 (:children item1)
             cs2 (:children item2)
             in-path path
-            path (conj path (if (= t1 dom/Element) (symbol (:type item1)) 'fragment))]
+            path (conj path (if (dom/element? item1) (symbol (:type item1)) 'fragment))]
         (cond
-          (and (= t1 dom/Element) (not= (:type item1) (:type item2)))
+          (and (dom/element? item1) (not= (:type item1) (:type item2)))
           [in-path {:tag [(:type item1) (:type item2)]}]
 
           (not= (clojure.core/count cs1) (clojure.core/count cs2))
           ;; could look for keys, if there is an additional in front or back, etc. here.
           [path {:child-count [(clojure.core/count cs1) (clojure.core/count cs2)]}]
 
-          (and (= t1 dom/Element) (not= (:attrs item1) (:attrs item2)))
+          (and (dom/element? item1) (not= (:attrs item1) (:attrs item2)))
           [path {:attributes (map-diff (:attrs item1) (:attrs item2))}]
 
-          (and (= t1 dom/Element) (not= (:events item1) (:events item2)))
+          (and (dom/element? item1) (not= (:events item1) (:events item2)))
           [path {:events (map-diff (:events item1) (:events item2))}]
 
-          (and (= t1 dom/Element) (not= (:ref item1) (:ref item2)))
+          (and (dom/element? item1) (not= (:ref item1) (:ref item2)))
           [path {:ref [(:ref item1) (:ref item2)]}] ;; the native/raw ref.
               
           :else
@@ -179,7 +181,7 @@
                   (map-indexed vector (map vector cs1 cs2)))))
 
       ;; leafs
-      (= t1 base/Once)
+      (base/once? item1)
       (if (not= (:f item1) (:f item2))
         [path {:once [(:f item1) (:f item2)]}]
         [path {:once-cleanup [(:cleanup-f item1) (:cleanup-f item2)]}])
@@ -252,7 +254,7 @@
   items. Returns [:bad _], [:good _] or [:ideal nil], with '_' being
   information about why this conclusion was drawn."
   [item state-seq]
-  #_(assert (not (empty? (rest (distinct state-seq)))) "To test test for :ideal performance, at least two different state values are needed.")
+  #_(assert (not (empty? (rest (distinct state-seq)))) "To test for :ideal performance, at least two different state values are needed.")
   (let [bad-example (atom nil)
         non-ideal-example (atom nil)
         

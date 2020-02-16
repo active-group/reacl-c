@@ -24,7 +24,7 @@
   "Returns a container item consisting of the given child items."
   [& children]
   {:pre [(every? #(or (nil? %) (base/item? %)) children)]}
-  (base/->Fragment (remove nil? children)))
+  (base/make-fragment (remove nil? children)))
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
@@ -35,7 +35,7 @@
   below via [[set-ref]]. You can use it as the target of
   a `(return :message [target msg])` for example."
   [f & args]
-  (base/->WithRef f args))
+  (base/make-with-ref f args))
 
 ;; TODO: add this? is this safer than with-ref... which is hard to use correctly. Or add (handle-message ref ...)
 #_(declare set-ref)
@@ -54,7 +54,7 @@
   ;; get that.
   (if (dom/element? item)
     (dom/set-ref item ref)
-    (base/->SetRef item ref)))
+    (base/make-set-ref item ref)))
 
 (defn deref
   "Returns an implementation specific value, usable as a target in
@@ -65,7 +65,7 @@
 
 (defn ^:no-doc dynamic [f & args]
   {:pre [(ifn? f)]}
-  (base/->Dynamic f args))
+  (base/make-dynamic f args))
 
 (def ^{:doc "The *identity lens* that does not modify the yanked of
 shoved values."} id-lens
@@ -91,7 +91,7 @@ shoved values."} id-lens
          (base/lens? lens)]}
   (if (= lens id-lens)
     item
-    (base/->Focus item lens)))
+    (base/make-focus item lens)))
 
 (defn embed-state
   "Embeds the state of the given item into a part of the state of the
@@ -119,7 +119,7 @@ be specified multiple times.
            actions (transient [])
            messages (transient [])]
       (if (empty? args)
-        (base/->Returned state (persistent! actions) (persistent! messages))
+        (base/make-returned state (persistent! actions) (persistent! messages))
         (let [arg (second args)
               nxt (nnext args)]
           (case (first args)
@@ -152,7 +152,7 @@ be specified multiple times.
   [f item]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/->HandleMessage f item))
+  (base/make-handle-message f item))
 
 (defn handle-action
   "Handles actions emitted by given item, by evaluating `(f state action)` for each
@@ -162,7 +162,7 @@ be specified multiple times.
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/->HandleAction item f))
+  (base/make-handle-action item f))
 
 (let [h (fn [f state a] (return :action (f a)))]
   (defn map-actions
@@ -204,7 +204,7 @@ be specified multiple times.
   name returns different values."
   [s]
   {:pre [(string? s)]}
-  (base/->NameId s))
+  (base/make-name-id s))
 
 (defn named
   "Returns an item that looks and works exactly like the given item,
@@ -215,7 +215,7 @@ be specified multiple times.
   [name-id item]
   {:pre [(base/item? item)
          (base/name-id? name-id)]}
-  (base/->Named name-id item))
+  (base/make-named name-id item))
 
 (defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
@@ -254,7 +254,7 @@ a change."}  merge-lens
   changed by the item independantly from the outer state."
   [initial item]
   {:pre [(base/item? item)]}
-  (base/->LocalState item initial))
+  (base/make-local-state item initial))
 
 (defn add-state
   "Adds new state that the given item can access, via a lens on the
@@ -300,7 +300,7 @@ a change."}  merge-lens
   item."
   [item key]
   {:pre [(base/item? item)]}
-  (base/->Keyed item key))
+  (base/make-keyed item key))
 
 #_(defn- lift-static-return [v]
   (if (base/returned? v)
@@ -321,7 +321,7 @@ a change."}  merge-lens
   [f & [cleanup-f]]
   {:pre [(ifn? f)
          (or (nil? cleanup-f) (ifn? cleanup-f))]}
-  (base/->Once f cleanup-f))
+  (base/make-once f cleanup-f))
 
 (defn cleanup
   "An item that evaluates `(f state)` when it is being removed from
@@ -338,7 +338,7 @@ a change."}  merge-lens
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/->HandleStateChange item f))
+  (base/make-handle-state-change item f))
 
 (let [h (fn [f args old new]
           (apply f old new args)
@@ -356,7 +356,7 @@ a change."}  merge-lens
 
 (defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
-  (base/->WithAsyncReturn f args))
+  (base/make-with-async-return f args))
 
 (let [send! (fn [return! target msg]
               (return! (return :message [target msg])))
@@ -375,7 +375,7 @@ a change."}  merge-lens
     (with-async-return g f args)))
 
 (defn ^:no-doc effect [f & args]
-  (base/->Effect f args))
+  (base/make-effect f args))
 
 (defrecord ^:no-doc SubscribedMessage [stop!])
 
@@ -438,7 +438,7 @@ a change."}  merge-lens
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/->ErrorBoundary item f))
+  (base/make-error-boundary item f))
 
 (let [set-error (fn [state error]
                   (return :state [state error]))
