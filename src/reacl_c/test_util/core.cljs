@@ -5,7 +5,8 @@
             [reacl-c.impl.reacl :as impl]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
-            [reacl-c.test-util.xpath :as xpath])
+            [reacl-c.test-util.xpath :as xpath]
+            [reacl2.test-util.xpath :as rxpath])
   (:refer-clojure :exclude [resolve find contains? count]))
 
 ;; Note: just reusing rcore/test-util is not a good fit, esp. because
@@ -85,10 +86,10 @@
 ;; TODO: helpers for when something cannot be found? (assert-exprs maybe?)
 
 (defn find [env item]
-  (xpath/select (to-component env) (xpath/comp xpath/all item)))
+  (rxpath/select (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
 
 (defn find-all [env item]
-  (xpath/select-all (to-component env) (xpath/comp xpath/all item)))
+  (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
 
 
 (defn mount!

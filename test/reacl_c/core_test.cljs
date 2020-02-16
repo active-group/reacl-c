@@ -3,7 +3,6 @@
             [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
-            [reacl-c.test-util.xpath :as xpath :include-macros true]
             [reacl-c.browser :as browser]
             [active.clojure.lens :as lens]
             [cljs.test :refer (is deftest testing) :include-macros true]))

@@ -8,9 +8,9 @@
 
 (deftest find-items-test
   (let [find (fn [pat item]
-                (let [env (tu/env item)]
-                  (tu/mount! env nil)
-                  (some? (tu/find env pat))))]
+               (let [env (tu/env item)]
+                 (tu/mount! env nil)
+                 (some? (tu/find env pat))))]
     (is (find c/empty (dom/div)))
     (is (find c/empty (c/fragment (dom/div))))
     ;; can't find something in nothing :-/
@@ -39,19 +39,19 @@
     ;; dom ignores others (= structural match)
     (is (find (dom/div) (c/dynamic (c/constantly (dom/div)))))
     (is (find (dom/div (dom/span)) (c/dynamic (c/constantly
-                                                (dom/div (c/dynamic (c/constantly
-                                                                     (dom/span))))))))
+                                               (dom/div (c/dynamic (c/constantly
+                                                                    (dom/span))))))))
     (is (find (dom/div (dom/span) (dom/span)) (dom/div (dom/span) (dom/span))))
     (is (not (find (dom/div (dom/span) (dom/span)) (dom/div (dom/span)))))
     (is (find (dom/div "foo") (dom/div (c/dynamic (c/constantly "foo")))))
 
     ;; regression
-    (is (find (dom/div (c/handle-message (c/constantly (c/return))
-                                         (dom/br))
-                       (dom/br))
-              (dom/div (c/handle-message (c/constantly (c/return))
-                                         (dom/br))
-                       (dom/br))))
+    (is (find (dom/div {:- "Q", :b- "û"}
+                       (dom/br (c/handle-message (c/constantly (c/return))
+                                                 (dom/br))))
+              (dom/div {:- "Q", :b- "û"}
+                       (dom/br (c/handle-message (c/constantly (c/return))
+                                                 (dom/br))))))
     ))
 
 (deftest mount-test
