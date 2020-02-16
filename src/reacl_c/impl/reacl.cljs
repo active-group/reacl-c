@@ -252,27 +252,43 @@
 (extend-type dom/Element
   IReacl
   (-xpath-pattern [{type :type attrs :attrs events :events ref :ref children :children}]
-    ;; Note: we always select the 'raw dom element', not on the class wrapper.
-    (xp/comp (xp/or (xp/type type)
-                    (xp/comp (xp/type (dom-class-for-type type)) xp/children))
-             (xp/and 
-              (apply xp/and
-                     (map (fn [[k v]]
-                            (case k
-                              (:class :className "class" "className") (xp/css-class? v)
-                              (:style "style") (xp/style? v)
-                              (xp/where (xp/comp (xp/attr k) (xp/is= v)))))
-                          attrs))
-              (apply xp/and
-                     (map (fn [[k v]]
-                            ;; enough to 'have' the event.
-                            (xp/where (xp/attr k)))
-                          events))
-              ;; ref is ignored.
-              (apply xp/and
-                     (map (fn [c]
-                            (xp/where (xp/comp xp/children (xpath-pattern c))))
-                          children)))))
+    (xp/comp
+     ;; match the tag, or the tag below the matching wrapper class.
+     (xp/or (xp/tag type)
+            (xp/comp (xp/class (dom-class-for-type type))
+                     xp/children))
+     ;; attributes match, with specials for class and style.
+     (xp/where
+      (apply xp/and
+             (map (fn [[k v]]
+                    (case k
+                      (:class :className "class" "className") (xp/css-class? v)
+                      (:style "style") (xp/style? v)
+                      (xp/where (xp/comp (xp/attr k) (xp/is= v)))))
+                  attrs)))
+     ;; has the events
+     (xp/where
+      (apply xp/and
+             (map (fn [[k v]]
+                    ;; enough to 'have' the event.
+                    (xp/where (xp/attr k)))
+                  events)))
+     ;; ref is ignored for now.
+             
+     ;; all children must match in any order (not possible to check the order, I think?)
+     ;; but the number of matching children must match either - that works around
+     ;; two similar children matching the same node
+     (xp/where
+      (if (empty? children)
+        xp/self
+        (xp/comp xp/children
+                 ;; we want to allow a dom or text child to match further down; 'skipping' any
+                 ;; of our wrapper classes in between.
+                 (let [child-match (apply xp/or (map xpath-pattern children))]
+                   (xp/or child-match
+                          (xp/comp (xp/first-where (xp/not xp/class?))
+                                   child-match)))
+                 (xp/count= (count children)))))))
   (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
     [(apply dom binding type attrs events ref children)]))
 
