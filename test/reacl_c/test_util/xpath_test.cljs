@@ -8,7 +8,8 @@
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :include-macros true :refer [defspec]]))
 
-(defspec item-xpath-self-test 200
+(defspec item-xpath-self-test {:seed 4711
+                               :num-tests 200}
   (let [same (fn [pat item]
                (let [env (tu/env item)]
                  (tu/mount! env nil)
