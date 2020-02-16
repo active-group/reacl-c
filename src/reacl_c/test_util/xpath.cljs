@@ -5,6 +5,8 @@
             [reacl-c.impl.reacl :as impl])
   (:refer-clojure :exclude [and or contains? nth nth-last comp first last range]))
 
+;; TODO: now that most of it can be covered with items; just keep named and item here?
+
 (def attr rp/attr)
 
 (def and rp/and)
@@ -22,7 +24,10 @@
 (def parent rp/parent)
 (def children rp/children)
 
+(def tag? rp/tag?)
+(def first-where rp/first-where)
 (def where rp/where)
+(def text= rp/text=)
 (def is? rp/is?)
 (def is= rp/is=)
 (def id= rp/id=)
@@ -69,7 +74,6 @@
   Also see [[>>]] for a convenience macro version of this."
 
   [& selectors]
-  ;; TODO: maybe insert a 'skip all wrappers' after every selector to hide them? (which makes this a pure 'visual xpath'?!)
   (apply rp/comp (map (fn [v]
                         (cond
                           (string? v) (named v)

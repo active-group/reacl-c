@@ -122,18 +122,21 @@
       (dom/div (str state a)))
     (is (base/item? (defn-dynamic-test-1 "foo")))
 
-    (try (defn-dynamic-test-1 42)
-         (is false)
-         (catch :default e
-           (is true)))
-
     (do (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) 42)
         (is true))
-    
-    (try (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) "42")
-         (is false)
-         (catch :default e
-           (is true))))
+
+    ;; throws on data not matching schema:
+    (tu/preventing-error-log
+     (fn []
+       (try (defn-dynamic-test-1 42)
+         
+            (is false)
+            (catch :default e
+              (is true)))
+       (try (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) "42")
+            (is false)
+            (catch :default e
+              (is true))))))
 
   (testing "it is named"
     (c/defn-dynamic defn-dynamic-test-2 "mydoc" state [a]
@@ -143,7 +146,7 @@
     (is (= "mydoc" (:doc (meta #'defn-dynamic-test-2))))
     )
 
-  (testing "checks arity"
+  (testing "checks arity on call"
     (c/defn-dynamic defn-dynamic-test-3 state [a]
       (dom/div (str state a)))
     (try (defn-dynamic-test-3)
