@@ -191,13 +191,15 @@
     
     (let [r (tu/unmount! env)
           eff (first (:actions r))]
-      (is (tu/unsubscribe-effect? eff))
-      (is (tu/unsubscribe-effect? eff sub))
-      (is (tu/unsubscribe-effect? eff sub2))
+      (is (some? eff))
+      (when (some? eff)
+        (is (tu/unsubscribe-effect? eff))
+        (is (tu/unsubscribe-effect? eff sub))
+        (is (tu/unsubscribe-effect? eff sub2))
 
-      (tu/execute-effect! (doto (tu/env c/empty)
-                            (tu/mount! nil))
-                          eff)
+        (tu/execute-effect! (doto (tu/env c/empty)
+                              (tu/mount! nil))
+                            eff))
       (is @stopped)))
   
   (do
@@ -222,16 +224,23 @@
           stopped? (atom false)]
       (is (some? eff))
 
-      (is (tu/subscribe-effect? eff sub))
+      (when (some? eff)
+        (is (tu/subscribe-effect? eff sub))
 
-      (tu/subscription-start! env eff (fn [] (reset! stopped? true)))
-      (is (= (c/return :action ::test)
-             (tu/subscription-result! env eff ::test)))
+        (tu/subscription-start! env eff (fn [] (reset! stopped? true)))
+        (is (= (c/return :action ::test)
+               (tu/subscription-result! env eff ::test)))
+        (is (not @stopped?))
+        
+        (let [r (tu/update! env false)
+              eff (first (:actions r))]
+          (is (some? eff))
+          (when (some? eff)
+            (is (tu/unsubscribe-effect? eff sub))
+            (tu/execute-effect! env eff)
 
-      (is (not @stopped?))
-      (let [r (tu/update! env false)]
-        (tu/execute-effect! env (first (:actions r))))
-      (is @stopped?))))
+            (is @stopped?)))
+        ))))
 
 (deftest emulate-subscription-test
   (let [sub (c/subscription (fn [& args]

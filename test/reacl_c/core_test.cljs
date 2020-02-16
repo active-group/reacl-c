@@ -62,31 +62,34 @@
                    (fn []
                      (reset! subscribed false)))
         sub (c/subscription sub-impl :x)
-        env (tu/env (c/dynamic #(if % sub "")))]
+        env (tu/env (c/dynamic (fn [v]
+                                 (if v sub ""))))]
     (tu/mount! env false)
     
     ;; sub on mount
     (let [r (tu/update! env true)
-          a (first (:actions r))]
+          a (first (base/returned-actions r))]
       (is (some? a))
-      (is (tu/subscribe-effect? a sub))
+      (when (some? a)
+        (is (tu/subscribe-effect? a sub))
+      
+        (is (not @subscribed))
 
-      (is (not @subscribed))
+        ;; execute subscribe effect.
+        (is (= (c/return)
+               (tu/execute-effect! env a)))
 
-      ;; execute subscribe effect.
-      (is (= (c/return)
-             (tu/execute-effect! env a)))
-
-      (is @subscribed))
-
+        (is @subscribed)))
     ;; unsub on unmount
     (let [r (tu/update! env false)
-          a (first (:actions r))]
-      (is (tu/unsubscribe-effect? a sub))
+          a (first (base/returned-actions r))]
+      (is (some? a))
+      (when (some? a)
+        (is (tu/unsubscribe-effect? a sub))
 
-      (is (= (c/return)
-             (tu/execute-effect! env a)))
-      (is (not @subscribed)))))
+        (is (= (c/return)
+               (tu/execute-effect! env a)))
+        (is (not @subscribed))))))
 
 (deftest defn-named-test
   (testing "schematized args and state"
