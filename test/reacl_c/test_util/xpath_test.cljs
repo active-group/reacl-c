@@ -1,4 +1,4 @@
-(ns reacl-c.test.test-util.xpath-test
+(ns reacl-c.test-util.xpath-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.test-util.core :as tu]
             [reacl-c.test-util.xpath :as xpath]

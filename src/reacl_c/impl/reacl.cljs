@@ -29,9 +29,10 @@
   )
 
 (defn xpath-pattern [e]
-  (if (string? e)
-    (xp/comp (xp/is= e))
-    (-xpath-pattern e)))
+  (cond
+    (string? e) (xp/comp (xp/is= e))
+    (satisfies? IReacl e) (-xpath-pattern e)
+    :else (assert false (str "No reacl implementation for: " (pr-str e)))))
 
 (defn- class-args-pattern [class args]
   (xp/comp (xp/type class)
@@ -296,8 +297,15 @@
 (extend-type base/Fragment
   IReacl
   (-xpath-pattern [{children :children}]
-    ;; a frament are 'invisible', eg. matching a fragment is the same as matching (all/some) children.
-    (apply xp/and (map xpath-pattern children)))
+    ;; as fragments disappear in the renderes node tree, it's hard to accurately select for them;
+    ;; this selects any parent, that has all the specified children (but it may have more).
+    (if (empty? children)
+      xp/parent
+      (xp/comp xp/parent
+               (apply xp/and
+                      (map (fn [c]
+                             (xp/where (xp/comp xp/children (xpath-pattern c))))
+                           children)))))
   (-instantiate-reacl [{children :children} binding]
     (mapv (partial instantiate binding)
           children)))

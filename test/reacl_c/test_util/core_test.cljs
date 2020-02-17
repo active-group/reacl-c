@@ -1,4 +1,4 @@
-(ns reacl-c.test.test-util.core-test
+(ns reacl-c.test-util.core-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
@@ -17,8 +17,14 @@
     ;;(is (find c/empty c/empty))
     ;;(is (find c/empty (c/fragment c/empty)))
 
+    ;; unfortunately not possible either (xpath needs a component at toplevel currently):
+    ;;(is (find c/empty "foo"))
+    (is (find (dom/div c/empty) (dom/div "foo")))
+
     (is (find (c/fragment (dom/div)) (dom/div)))
     (is (find (c/fragment (dom/div)) (c/fragment (dom/div))))
+    (is (find (c/fragment (dom/div) (dom/span)) (c/fragment (dom/div) (dom/span))))
+    (is (find (dom/div (c/fragment (dom/div) (dom/span))) (dom/div (c/fragment (dom/div) (dom/span)))))
 
     ;; partial dom matches:
     (is (find (dom/div) (dom/div {:id "x"})))
