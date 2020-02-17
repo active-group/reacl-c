@@ -11,18 +11,6 @@
     (apply js/console.warn args)
     (apply println args)))
 
-(def ^:no-doc check-performance? (atom false))
-
-(defn- performance-check! [f & args]
-  (when @check-performance?
-    (let [e1 (apply f args)
-          e2 (apply f args)]
-      (when-not (= e1 e2)
-        ;; throw or warn? throw gives the better positional information; but stops at first.
-        ;; TODO: can make a data-diff to better visualize the differences?
-        ;; TODO: warn only. Or remove, now that we have test-util performance test.
-        (throw (ex-info "Non-optimal: dynamic item should return equal items for equal state and arguments." {:item-1 e1 :item-2 e2}))))))
-
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
   (-xpath-pattern [this] "An xpath that selects something like this item.") ;; Note: multiple semantics of this possible; for now a very lose match.
@@ -337,7 +325,6 @@
 
   render
   (let [rr (WrapRef. r)]
-    (apply performance-check! (partial f rr) args)
     (-> (instantiate (rcore/bind this) (apply f rr args))
         (rcore/refer child))))
 
@@ -374,9 +361,8 @@
     (pass-message child msg))
   
   render
-  (do (apply performance-check! (partial f state) args)
-      (-> (instantiate (rcore/bind this) (apply f state args))
-          (rcore/refer child))))
+  (-> (instantiate (rcore/bind this) (apply f state args))
+      (rcore/refer child)))
 
 (extend-type base/Dynamic
   IReacl
@@ -483,7 +469,6 @@
   render
   ;; Note: for some unknown reason, sending messages directs to (get-dom child) does not work; it's not assigned when dereferenced in 'async-msg!'.
   (let []
-    (apply performance-check! send! args)
     (-> (instantiate (rcore/bind this) (apply f send! args))
         (rcore/refer child)))
 
