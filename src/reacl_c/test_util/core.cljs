@@ -3,6 +3,8 @@
             [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.impl.reacl :as impl]
+            [reacl-c.test-util.item-generators :as item-gen]
+            [clojure.test.check.generators :as gen]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
             [reacl-c.test-util.xpath :as xpath]
@@ -91,6 +93,21 @@
 (defn find-all [env item]
   (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
 
+(defn describe-failed-find [env item]
+  ;; this is still to be considered 'experimental'; hard to given a "good" tip
+  
+  (assert (nil? (find env item)))
+  ;; TODO: if 'smaller-than' works correctly, then the limit of 1000 should not be necessary.
+  ;; FIXME: how to set seed for sample-seq? might need to make our own via 'generate'.
+  (loop [n 0
+         smaller-list (take 1000 (gen/sample-seq (item-gen/smaller-than item)))]
+    (if (or (empty? smaller-list) (= core/empty (first smaller-list)))
+      nil ;; "Could not find out why."
+      (if (find env (first smaller-list))
+        ;; TODO: an item pretty print would be nice.
+        ;; TODO: or use find-first-different between the first that can be found?
+        (str "I could find the following item though: " (pr-str (first smaller-list)))
+        (recur (inc n) (rest smaller-list))))))
 
 (defn mount!
   "Mounts the item of the given test environment with the given

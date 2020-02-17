@@ -58,7 +58,21 @@
               (dom/div {:- "Q", :b- "û"}
                        (dom/br (c/handle-message (c/constantly (c/return))
                                                  (dom/br))))))
+    (is (find (dom/div (dom/span)) (dom/div (dom/span {:id "y"}))))
     ))
+
+(deftest describe-failed-find-test
+  (let [f (fn [pat item]
+            (let [env (tu/env item)]
+              (tu/mount! env nil)
+              (let [r (tu/describe-failed-find env pat)]
+                ;; (when r (println r))
+                r)))]
+    (is (some? (f (dom/div (dom/span)) (dom/div (dom/br)))))
+
+    (is (some? (f (dom/div (dom/span {:id "x"})) (dom/div (dom/span {:id "y"})))))
+    )
+  )
 
 (deftest mount-test
   (is (= (c/return)

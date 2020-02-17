@@ -2,7 +2,8 @@
   (:require [clojure.test.check.generators :as gen]
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
-            [reacl-c.base :as base])
+            [reacl-c.base :as base]
+            [clojure.set :as set])
   (:refer-clojure :exclude [ref]))
 
 (def non-empty-string (gen/fmap #(str "_" %) gen/string))
@@ -167,12 +168,13 @@
   ;; can get quite heavy with longer lists...
   (gen/bind (gen/choose 1 (count lst))
             (fn [cnt]
-              (let [indices (filter #(= (count %) cnt)
-                                    (permutations (map-indexed (fn [idx _] idx)
-                                                               lst)))]
+              (let [all-indices (set (range (count lst)))
+                    indices (filter #(= (count %) cnt)
+                                    (permutations all-indices))]
                 (gen/elements (map (fn [is]
-                                     (map #(nth lst %) is))
-                                   indices))))))
+                                     (let [keep-is (set/difference all-indices is)]
+                                       (map #(nth lst %) keep-is)))
+                                   (map set indices)))))))
 
 (defn- smaller-map [mp]
   (assert (not-empty mp))
@@ -183,6 +185,16 @@
 (def ^:private f-empty (c/constantly c/empty))
 (def ^:private void (gen/elements [c/empty])) ;; should be 'nothing' really; but empty generator not possible?
 (def ^:private empty-item (gen/elements [c/empty]))
+
+(defn- change-score [changes]
+  (apply + (map (fn [c]
+                  ;; meaning: first change smth in children, then remove events, then attributes, then whole children.
+                  (case c
+                    :cc 1
+                    :c 4
+                    :a 3
+                    :e 2))
+                changes)))
 
 (defn smaller-than [item]
   (let [wr (fn [item]
@@ -206,11 +218,14 @@
                            attrs (:attrs item)
                            events (:events item)
 
-                           changes (map set
-                                        (permutations (cond->> nil
-                                                        (not-empty children) (cons :c)
-                                                        (not-empty attrs) (cons :a)
-                                                        (not-empty events) (cons :e))))]
+                           changes_ (map set
+                                         (permutations (cond->> nil
+                                                         (not-empty children) (concat (list :c :cc))
+                                                         (not-empty attrs) (cons :a)
+                                                         (not-empty events) (cons :e))))
+                           ;; move around the potential changes - doing 'smaller' changes first.
+                           ;; Note: might be superfluous, as 'one-of' does not try in order - TODO: is there an alternative?
+                           changes (sort-by change-score changes_)]
                        (if (empty? changes)
                          void
                          ;; generate any non-empty combination of children, event and attr changes:
@@ -221,8 +236,11 @@
                                    (:c change) (as-> $
                                                    (gen/fmap (fn [[item v]]
                                                                (assoc item :children v))
-                                                             (gen/tuple $ (gen/one-of [(list-of-smaller-items children)
-                                                                                       (smaller-list children)]))))
+                                                             (gen/tuple $ (smaller-list children))))
+                                   (:cc change) (as-> $
+                                                    (gen/fmap (fn [[item v]]
+                                                                (assoc item :children v))
+                                                              (gen/tuple $ (list-of-smaller-items children))))
                                    (:a change) (as-> $
                                                    (gen/fmap (fn [[item v]]
                                                                (assoc item :attrs v))
