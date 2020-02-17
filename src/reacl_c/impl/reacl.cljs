@@ -246,8 +246,8 @@
   (apply (dom-class-for-type type) binding events ref children))
 
 (defn- dom [binding type attrs events ref & children]
-  ;; TODO: is it even worth it to 'optimize' ?
-  (if (and (empty? events) (not (some base/item? children))) ;; TODO: any child is ok, isn't it? (strings at least)
+  ;; optimize for no events (makes quite a difference!)
+  (if (empty? events)
     (apply native-dom binding type attrs ref children)
     (apply dom-class binding type attrs events ref children)))
 
