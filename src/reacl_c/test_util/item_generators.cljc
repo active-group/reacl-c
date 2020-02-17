@@ -1,7 +1,8 @@
 (ns reacl-c.test-util.item-generators
   (:require [clojure.test.check.generators :as gen]
             [reacl-c.core :as c :include-macros true]
-            [reacl-c.dom :as dom])
+            [reacl-c.dom :as dom]
+            [reacl-c.base :as base])
   (:refer-clojure :exclude [ref]))
 
 (def non-empty-string (gen/fmap #(str "_" %) gen/string))
@@ -143,3 +144,106 @@
                             (c/set-ref item r))))
             node-item))
 
+;;;;;;;;;;;;;;;;;;;;
+
+(declare smaller-than)
+
+(defn- permutations [lst]
+  (if (empty? lst)
+    []
+    (let [[v & more] lst
+          r (permutations more)]
+      (concat (list (list v))
+              (map #(cons v %) r)
+              r))))
+
+(defn- list-of-smaller-items [items]
+  (assert (not-empty items))
+  (apply gen/tuple (map smaller-than items)))
+
+(defn- smaller-list [lst]
+  (assert (not-empty lst))
+  ;; remove a random number of any list items.
+  ;; can get quite heavy with longer lists...
+  (gen/bind (gen/choose 1 (count lst))
+            (fn [cnt]
+              (let [indices (filter #(= (count %) cnt)
+                                    (permutations (map-indexed (fn [idx _] idx)
+                                                               lst)))]
+                (gen/elements (map (fn [is]
+                                     (map #(nth lst %) is))
+                                   indices))))))
+
+(defn- smaller-map [mp]
+  (assert (not-empty mp))
+  (gen/fmap (fn [items]
+              (into {} items))
+            (smaller-list (seq mp))))
+
+(def ^:private f-empty (c/constantly c/empty))
+(def ^:private void (gen/elements [c/empty])) ;; should be 'nothing' really; but empty generator not possible?
+(def ^:private empty-item (gen/elements [c/empty]))
+
+(defn smaller-than [item]
+  (let [wr (fn [item]
+             (if (= c/empty (:e item))
+               empty-item
+               (gen/fmap #(assoc item :e %)
+                         (smaller-than (:e item)))))]
+    (if (string? item)
+      empty-item
+      (condp apply [item]
+        base/dynamic? (if (= (:f item) f-empty)
+                        empty-item
+                        (gen/elements [(c/dynamic f-empty)]))
+        base/fragment? (let [children (remove #(= c/empty %) (:children item))]
+                         (if (empty? (:children item))
+                           void
+                           (gen/fmap #(apply c/fragment %)
+                                     (gen/one-of [(list-of-smaller-items children)
+                                                  (smaller-list children)]))))
+        dom/element? (let [children (remove #(= c/empty %) (:children item))
+                           attrs (:attrs item)
+                           events (:events item)
+
+                           changes (map set
+                                        (permutations (cond->> nil
+                                                        (not-empty children) (cons :c)
+                                                        (not-empty attrs) (cons :a)
+                                                        (not-empty events) (cons :e))))]
+                       (if (empty? changes)
+                         void
+                         ;; generate any non-empty combination of children, event and attr changes:
+                         (gen/one-of
+                          (map (fn [change]
+                                 (assert (not-empty change))
+                                 (cond-> (gen/return item)
+                                   (:c change) (as-> $
+                                                   (gen/fmap (fn [[item v]]
+                                                               (assoc item :children v))
+                                                             (gen/tuple $ (gen/one-of [(list-of-smaller-items children)
+                                                                                       (smaller-list children)]))))
+                                   (:a change) (as-> $
+                                                   (gen/fmap (fn [[item v]]
+                                                               (assoc item :attrs v))
+                                                             (gen/tuple $ (smaller-map attrs))))
+                                   (:e change) (as-> $
+                                                   (gen/fmap (fn [[item v]]
+                                                               (assoc item :events v))
+                                                             (gen/tuple $ (smaller-map events))))))
+                               changes))))
+      
+        base/with-ref? empty-item
+        base/with-async-return? empty-item
+        base/focus? (wr item)
+        base/local-state? (wr item)
+        base/handle-action? (wr item)
+        base/set-ref? (wr item)
+        base/keyed? (wr item)
+        base/named? (wr item)
+        base/error-boundary? (wr item)
+        base/handle-message? (wr item)
+        base/once? empty-item
+        
+        ;; anything unknown:
+        empty-item))))
