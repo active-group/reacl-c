@@ -90,8 +90,14 @@
 (defn find [env item]
   (rxpath/select (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
 
+(defn find-named [env thing]
+  (rxpath/select (to-component env) (rxpath/comp rxpath/all (xpath/named thing))))
+
 (defn find-all [env item]
   (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
+
+(defn find-all-named [env thing]
+  (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/named thing))))
 
 (defn describe-failed-find [env item]
   ;; this is still to be considered 'experimental'; hard to given a "good" tip
