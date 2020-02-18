@@ -52,12 +52,11 @@
     (is (find (dom/div "foo") (dom/div (c/dynamic (c/constantly "foo")))))
 
     ;; regression
-    (is (find (dom/div {:- "Q", :b- "û"}
-                       (dom/br (c/handle-message (c/constantly (c/return))
-                                                 (dom/br))))
-              (dom/div {:- "Q", :b- "û"}
-                       (dom/br (c/handle-message (c/constantly (c/return))
-                                                 (dom/br))))))
+    ;; FIXME:?
+    #_(is (find (dom/div (c/with-ref (fn [r] c/empty))
+                       (c/keyed (dom/span) "_"))
+              (dom/div (c/with-ref (fn [r] c/empty))
+                       (c/keyed (dom/span) "_"))))
     (is (find (dom/div (dom/span)) (dom/div (dom/span {:id "y"}))))
     ))
 
