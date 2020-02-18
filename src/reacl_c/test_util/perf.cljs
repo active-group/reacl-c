@@ -230,6 +230,7 @@
   (loop [state-seq state-seq
          prev-state nil
          minimal? true]
+    ;; TODO: add one more level = every child that is not impl/is-dynamic? is wrapped in c/static.
     (if (not (seq state-seq))
       (if minimal? :ideal :good)
       (let [s1 (first state-seq)]
