@@ -7,6 +7,28 @@
             [active.clojure.lens :as lens]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
+#_(deftest static-performance
+  (let [env (tu/env (dom/div {:id "a"}
+                             (apply dom/div (repeat 20 (dom/span)))
+                             (c/fragment (apply dom/span (repeat 15 "x")))))
+        tupd (fn [n]
+               (let [st (js/window.performance.now)]
+                 (doseq [i (range n)]
+                   (tu/update! env i))
+                 (- (js/window.performance.now) st)))]
+    (tu/mount! env 0)
+    (is (= nil
+           [(tupd 100) (tupd 1000) (tupd 10000)]))
+    ;; with opt: [147.63500000117347 962.6399999833666 7743.50499996217]
+    ;; no opt:   [241.18999997153878 1239.70500001451 8591.40999999363]
+    ;; at least it does not get worse :-/
+
+    ;; opt: (not (= nil [136.2799999769777 924.7550000436604 8942.974999954458]))
+    ;; no opt: (not (= nil [127.08000000566244 1228.9699999964796 11590.480000013486]))
+    
+    )
+  )
+
 (deftest item-equality-test
   ;; all item should be referentially equal
   (testing "div"
@@ -173,6 +195,30 @@
     (is (= (defn-dynamic-test-5 "x") (defn-dynamic-test-5 "x")))
 
     (is (= (defn-dynamic-test-5 "x" "y") (defn-dynamic-test-5 "x" "y")))))
+
+(deftest static-test
+  (let [env (tu/env (c/static #(c/dynamic (fn [st] (dom/div (str st))))))]
+    (tu/mount! env "foo")
+    (is (nil? (tu/find env (dom/div "foo"))))
+    (tu/update! env "bar")
+    (is (nil? (tu/find env (dom/div "bar")))))
+
+  (c/defn-static static-test-1 [a]
+    (dom/div (str a)))
+  (let [env (tu/env (c/dynamic (fn [st] (static-test-1 st))))]
+    (tu/mount! env "foo")
+    (is (some? (tu/find env (dom/div "foo"))))
+    (tu/update! env "bar")
+    (is (some? (tu/find env (dom/div "bar")))))
+
+  (let [env (tu/env (c/static #(c/once (fn [_] (c/return :state "foo")))))]
+    (tu/preventing-error-log
+     (fn []
+       (try (tu/mount! env :x)
+            (is false)
+            (catch :default e
+              (is true)))))))
+
 
 (deftest with-async-messages-test
   (let [env (tu/env (c/with-ref (fn [ref]

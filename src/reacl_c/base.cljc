@@ -41,6 +41,13 @@
    args dynamic-args]
   E)
 
+(r/define-record-type Static
+  (make-static f args)
+  static?
+  [f static-f
+   args static-args]
+  E)
+
 (r/define-record-type WithRef
   (make-with-ref f args)
   with-ref?

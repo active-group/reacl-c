@@ -44,6 +44,7 @@
       (condp apply [item]
         ;; the dynamics
         base/dynamic? (resolve-dyn item state)
+        base/static? (resolve-dyn item nil)
         base/with-ref? (resolve-dyn item state)
         base/with-async-return? (resolve-dyn item state)
 
@@ -90,6 +91,7 @@
 (defn- wrapper-type [item]
   (condp apply [item]
     base/dynamic? 'dynamic
+    base/static? 'static
     base/with-ref? 'with-ref
     base/with-async-return? 'with-async-return
     base/focus? 'focus
@@ -120,8 +122,8 @@
       (not= (type item1) (type item2)) [path {:types [(type item1) (type item2)]}]
 
       ;; dynamics
-      (or (base/dynamic? item1) (base/with-ref? item1) (base/with-async-return? item1))
-      (let [path (conj path 'dynamic)]
+      (or (base/static? item1) (base/dynamic? item1) (base/with-ref? item1) (base/with-async-return? item1))
+      (let [path (conj path (wrapper-type item1))]
         (if (= (:f item1) (:f item2))
           [path {:arguments (seq-diff (:args item1) (:args item2))}]
           [path {:function [(:f item1) (:f item2)]}]))

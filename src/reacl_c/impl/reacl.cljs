@@ -191,6 +191,32 @@
   (-instantiate-reacl [{e :e name-id :name-id} binding]
     [((named name-id) binding e)]))
 
+(def ^:private static-binding
+  (rcore/use-reaction nil
+                      (rcore/reaction :parent
+                                      (fn [state]
+                                        (throw (ex-info (str "Static items must not change their state. The item tried to set it to: " (pr-str state))
+                                                        {:value state}))))))
+
+(rcore/defclass static this _ [f args]
+  refs [child]
+  
+  handle-message
+  (fn [msg]
+    (pass-message child msg))
+
+  render
+  (-> (instantiate static-binding (apply f args))
+      (rcore/refer child)))
+
+(extend-type base/Static
+  IReacl
+  (-xpath-pattern [{f :f args :args}]
+    (class-args-pattern static (list* f args)))
+  (-is-dynamic? [{e :e}] false)
+  (-instantiate-reacl [{f :f args :args} binding]
+    [(apply static static-binding f args)]))
+
 (defrecord ^:private EventMessage [ev])
 
 (defn- find-event-handler [ev events]

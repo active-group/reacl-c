@@ -44,6 +44,11 @@
               (c/dynamic (c/constantly it)))
             item-gen))
 
+(defn static [item-gen]
+  (gen/fmap (fn [it]
+              (c/static (c/constantly it)))
+            item-gen))
+
 (defn keyed [key-gen item-gen]
   (gen/fmap (fn [[s it]]
               (c/keyed it s))
@@ -104,6 +109,7 @@
   (gen/one-of
    [(dom item-gen)
     (dynamic item-gen)
+    (static item-gen)
     (fragment item-gen)
     (keyed non-empty-string node-item) ;; Note: keyed string or fragment is prob. not meaningful?
     (handle-message item-gen) ;; function?

@@ -44,11 +44,14 @@
               (-> (f ref)
                   (set-ref ref)))))
 
+;; TODO: add a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
+
 (defn set-ref
   "Returns an item identical to the given item, but with the given
   reference assigned. Replaces the reference previously assigned to
   it. See [[with-ref]] for a description of references."
   [item ref]
+  {:pre [(base/item? item)]}
   ;; Note: when setting a ref on a dom item, we don't want the
   ;; class/component, but the 'raw' dom element. Pass the ref down to
   ;; get that.
@@ -92,6 +95,14 @@ shoved values."} id-lens
   (if (= lens id-lens)
     item
     (base/make-focus item lens)))
+
+(defn static
+  "Returns an item that is always like `(f & args)`, independant of
+  state changes. The item returned by `f` must not access state nor
+  change it."
+  [f & args]
+  {:pre [(ifn? f)]}
+  (base/make-static f args))
 
 (defn embed-state
   "Embeds the state of the given item into a part of the state of the
@@ -289,10 +300,10 @@ a change."}  merge-lens
   ([[outer inner] new-inner] [outer new-inner]))
 
 (defn isolate-state
-  "Hides the state of the given item completely, resulting in an
+  "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
   [initial-state item]
-  (add-state initial-state isolate-lens item))
+  (static (f/constantly (add-state initial-state isolate-lens item))))
 
 (defn keyed
   "Adds an arbitrary identifier to the given item, which will be used
@@ -620,6 +631,16 @@ a change."}  merge-lens
   [name state & body]
   (let [[statev & body] (apply maybe-schema-arg state body)]
     `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
+
+(defmacro defn-static
+  [name args & body]
+  (let [[docstring? args & body] (apply maybe-docstring args body)]
+    `(defn-named+ [(f/comp static f/partial)] nil ~name ~@(when docstring? [docstring?]) ~args
+       ~@body)))
+
+(defmacro def-static
+  [name item]
+  `(def-named ~name (static (f/constantly item))))
 
 (defn- subscription-from-defn [fn f & args]
   ;; Wanted to add some meta data for testing; but unfortunately (vary-meta f ..) is never = (vary-meta f ...)
