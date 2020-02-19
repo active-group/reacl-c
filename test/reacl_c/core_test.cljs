@@ -101,7 +101,15 @@
         (is (= (c/return)
                (tu/execute-effect! env a)))
 
-        (is @subscribed)))
+        (is @subscribed)
+
+        ;; emits actions
+        (is (= (c/return :action ::act)
+               (tu/subscription-result! env a ::act)))
+        (is (= (c/return :action ::act-2)
+               (tu/subscription-result! env a ::act-2)))))
+    
+    
     ;; unsub on unmount
     (let [r (tu/update! env false)
           a (first (base/returned-actions r))]
