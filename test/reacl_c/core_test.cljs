@@ -291,4 +291,43 @@
            (tu/send-message! (tu/get-component env) :msg))))
   )
 
+(deftest once-test
+  ;; state dependant.
+  (let [env (tu/env (c/once (c/partial c/return :action)
+                            (c/partial c/return :action)))]
+    (is (= (c/return :action ::up)
+           (tu/mount!! env ::up)))
+
+    (is (= (c/return)
+           (tu/update!! env ::up)))
+
+    (is (= (c/return :action ::new)
+           (tu/update!! env ::new)))
+
+    (tu/update!! env ::down)
+    (is (= (c/return :action ::down)
+           (tu/unmount!! env))))
+
+  ;; state independant
+  (let [env (tu/env (c/once (c/constantly (c/return :action ::up))
+                            (c/constantly (c/return :action ::down))))]
+    (is (= (c/return :action ::up)
+           (tu/mount!! env true))) 
+
+    (is (= (c/return)
+           (tu/update!! env true)))
+
+    (is (= (c/return)
+           (tu/update!! env false))) 
+
+    (is (= (c/return :action ::down)
+           (tu/unmount!! env)))))
+
+(deftest effect-test
+  (c/defn-effect effect-test-1 [foo]
+    (c/return))
+
+  (is (= (effect-test-1 :foo)
+         (effect-test-1 :foo))))
+
 ;; TODO: test every higher level feature in core.
