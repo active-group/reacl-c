@@ -165,6 +165,18 @@ be specified multiple times.
          (ifn? f)]}
   (base/make-handle-message f item))
 
+(let [h (fn [ref handle-msg f args]
+          (fragment (-> (handle-message handle-msg empty)
+                        (set-ref ref))
+                    (apply f ref args)))]
+  (defn with-message-target
+    "Returns an item like ´(f target & args)`, where `target` is a
+  reference that can be used as a message target, which are then
+  handled by a call to `(handle-msg state msg)`, which must return
+  a [[return]] value."
+    [handle-msg f & args]
+    (with-ref h handle-msg f args)))
+
 (defn handle-action
   "Handles actions emitted by given item, by evaluating `(f state action)` for each
   of them. That must return the result of calling [[return]] with
