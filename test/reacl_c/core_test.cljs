@@ -323,6 +323,25 @@
     (is (= (c/return :action ::down)
            (tu/unmount!! env)))))
 
+(deftest with-ref
+  ;; important for with-ref, must be the same ref for a unique item, even if the state changes.
+  (let [last-ref (atom nil)
+        env (tu/env (c/with-ref (fn [ref]
+                                  (reset! last-ref ref)
+                                  c/empty)))]
+    (let [_ (tu/mount!! env true)
+          r1 @last-ref
+
+          _ (tu/update!! env false)
+          r3 @last-ref
+
+          _ (tu/update!! env false)
+          r2 @last-ref]
+
+      (is (= r1 r2) "ref is same on same state")
+
+      (is (= r1 r3) "ref is same on different states"))))
+
 (deftest effect-test
   (c/defn-effect effect-test-1 [foo]
     (c/return))
