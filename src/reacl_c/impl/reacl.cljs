@@ -90,17 +90,16 @@
     (rcore/return :message [comp msg])))
 
 (declare transform-return)
-(defn- handle-effect-return [toplevel eff ret]
-  (assert (base/returned? ret) "Effects must return a (return ..) value.")
-  (if (not= base/keep-state (:state ret))
-    (throw (ex-info "Effects must not return a new state." {:effect eff :value ret}))
-    (transform-return (base/merge-returned
-                       (base/make-returned base/keep-state [] (:messages ret))
-                       (if-let [actions (not-empty (:actions ret))]
-                         ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
-                         (base/make-returned base/keep-state [] (mapv #(vector toplevel (ActionMessage. %))
-                                                                      actions))
-                         (base/make-returned base/keep-state [] []))))))
+(defn- handle-effect-return [toplevel eff [_ ret]]
+  ;; Note: effect results are ignored here; user must use core/handle-effect-result to use it
+  (assert (base/returned? ret))
+  (assert (= base/keep-state (:state ret)))
+  (let [actions (not-empty (:actions ret))]
+    ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
+    (apply rcore/merge-returned
+           (transform-return (base/make-returned base/keep-state [] (:messages ret)))
+           (mapv #(rcore/return :message [toplevel (ActionMessage. %)])
+                 actions))))
 
 (rcore/defclass ^:private toplevel this state [e]
   refs [child]
@@ -116,7 +115,7 @@
       (instance? ActionMessage msg)
       (let [action (:action msg)]
         (if (base/effect? action)
-          (handle-effect-return this action (apply (:f action) (:args action)))
+          (handle-effect-return this action (base/run-effect! action))
           (do (warn "Unhandled action:" action)
               (rcore/return)))) 
 

@@ -204,11 +204,15 @@
   (inject-return! comp (core/return :state state)))
 
 (defn execute-effect!
-  "Executed the given effect in the given test environment."
+  "Executed the given effect in the given test environment, and return
+  toplevel changes as a 'return' value."
   [env eff]
   (assert (base/effect? eff) eff)
   (inject-return! (get-root-component env)
-                  (apply (:f eff) (:args eff))))
+                  (let [[value ret] (base/run-effect! eff)]
+                    ret)))
+
+(def execute-effects-emulator execute-effect!) ;; ...bit of a silly name 'emulate by doing the real thing'.
 
 (defn effect? [a & [eff-defn]]
   (and (base/effect? a)

@@ -18,7 +18,9 @@
 ;; they are instead represented as [type args], and the implementing
 ;; Reacl class is added via extend-type in 'impl/reacl'.
 
-;; TODO: need for getDerivedStateFromProps, getSnapshotBeforeUpdate ?
+;; TODO: need for getSnapshotBeforeUpdate ?
+
+;; TODO: add a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
 
 (defn fragment
   "Returns a container item consisting of the given child items."
@@ -29,22 +31,12 @@
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
 (defn with-ref
-  "Creates an item for which `(f ref & args)` is called when it is
-  rendered, which should return an item, and where `ref` is a fresh
-  *reference*. A reference should be assigned to one of the items
-  below via [[set-ref]]. You can use it as the target of
-  a `(return :message [target msg])` for example."
+  "Creates an item identical to the one returned from `(f ref &
+  args)`, where `ref` is a fresh *reference*. A reference should be
+  assigned to one of the items below via [[set-ref]]. You can use it
+  as the target of a `(return :message [target msg])` for example."
   [f & args]
   (base/make-with-ref f args))
-
-;; TODO: add this? is this safer than with-ref... which is hard to use correctly. Or add (handle-message ref ...)
-#_(declare set-ref)
-#_(defn with-self-ref [f]
-  (with-ref (fn [ref]
-              (-> (f ref)
-                  (set-ref ref)))))
-
-;; TODO: add a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
 
 (defn set-ref
   "Returns an item identical to the given item, but with the given
@@ -397,8 +389,34 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     (with-async-return g f args)))
 
-(defn ^:no-doc effect [f & args]
+(defn effect
+  "Return an effect action, which, when run, calls the given function
+  with the given arguments. The result of that function is ignored,
+  unless you use [[handle-effect-result]]."
+  [f & args]
   (base/make-effect f args))
+
+(let [effect-with-result!
+      (fn [eff host]
+        ;; the base effect may return :state, or a value other than
+        ;; 'return' as it's synchronous result.
+        ;; send that as a message to the 'handle-effect-result' host.
+        ;; (also a kind of backdoor, in case someone really want's to
+        ;; return a returned? value as the result of an effect)
+        (let [[value ret] (base/run-effect! eff)]
+            (base/merge-returned (return :message [host value])
+                                 ret)))]
+  (defn- effect-with-handler [eff host]
+    ;; TODO: need to respect these special effects in test-utils/emulator etc?!
+    (effect effect-with-result! eff host)))
+
+(let [wr (fn [ref eff]
+           (once (f/constantly (return :action (effect-with-handler eff ref)))))]
+  (defn handle-effect-result [f eff]
+    {:pre [(base/effect? eff)
+           (ifn? f)]}
+    (with-message-target f
+      wr eff)))
 
 (defrecord ^:no-doc SubscribedMessage [stop!])
 
@@ -697,8 +715,7 @@ Note that `deliver!` must never be called directly in the body of
 
 ```
 (defn-effect my-effect [arg]
-  (change-the-world! args)
-  (return)
+  (change-the-world! args))
 ```
 
 Calling it returns an effect action, which can be returned by an item
@@ -706,5 +723,5 @@ Calling it returns an effect action, which can be returned by an item
   effects on some external entity are safe.
  "
   [name args & body]
-  ;; TODO: allow nil to be returned?
+  ;; TODO: allow a schema on the return value
   `(defn+ [effect-from-defn ~name] identity [effect] [] ~name ~args ~@body))

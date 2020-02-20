@@ -349,4 +349,16 @@
   (is (= (effect-test-1 :foo)
          (effect-test-1 :foo))))
 
-;; TODO: test every higher level feature in core.
+(deftest handle-effect-result-test
+  (let [count (atom 0)
+        eff (c/effect (fn []
+                        (swap! count inc)))
+        env (tu/env (c/handle-effect-result (fn [state uuid]
+                                              (c/return :state uuid))
+                                            eff)
+                    {:emulator tu/execute-effects-emulator})]
+    (is (= (c/return :state 1)
+           (tu/mount!! env nil)))
+    
+    (is (= (c/return)
+           (tu/update!! env nil)))))

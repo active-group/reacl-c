@@ -142,6 +142,8 @@
    actions returned-actions
    messages returned-messages])
 
+(def empty-return (make-returned keep-state [] []))
+
 (defn merge-returned [r1 & rs]
   (loop [r1 r1
          rs rs]
@@ -161,3 +163,16 @@
   effect?
   [f effect-f
    args effect-args])
+
+(defn run-effect!
+  "Returns a tuple [value ret]. If an effect returnn a [[return]]
+  value, then 'value' is the returned state, and 'ret' everything else.
+  For any other value, 'ret' is empty."
+  [eff]
+  {:pre [(effect? eff)]}
+  (let [result (apply (:f eff) (:args eff))]
+    (if (returned? result)
+      (if (not= keep-state (:state result))
+        [(:state result) (update result :state keep-state)]
+        [nil result])
+      [result empty-return])))
