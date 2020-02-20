@@ -47,15 +47,15 @@
     (mapcat flatten-fragment (:children item))
     (list item)))
 
-(defn- flatten-children [children]
+(defn- flatten-children [children] ;; TODO: is this worth it? resp. the optimal way?
   (mapcat flatten-fragment children))
 
 (defn- dom-element* [type attrs events & children]
   {:pre [(string? type)
          (map? attrs)
          (map? events)
-         (every? ifn? (clojure.core/map second events))
-         (every? #(or (nil? %) (base/item? %)) children)]}
+         (every? ifn? (vals events))
+         (base/assert-item-list type children)]}
   (make-element type attrs events nil (flatten-children (remove nil? children))))
 
 (defn ^:no-doc dom-element [type & args]

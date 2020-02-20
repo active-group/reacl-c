@@ -25,7 +25,7 @@
 (defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
-  {:pre [(every? #(or (nil? %) (base/item? %)) children)]}
+  {:pre [(base/assert-item-list "fragment" children)]}
   (base/make-fragment (remove nil? children)))
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
