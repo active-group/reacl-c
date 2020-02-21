@@ -16,6 +16,14 @@
   (-xpath-pattern [this] "An xpath that selects something like this item.") ;; Note: multiple semantics of this possible; for now a very lose match.
   (-is-dynamic? [this] "If the item depends on the state that it is bound to.")) ;; TODO: is this implementation dependant? Could move it to "E" then.
 
+(defrecord WrapRef [reacl-ref]
+  base/Ref
+  (-deref-ref [this] (rcore/get-dom reacl-ref)))
+
+(defn- reacl-ref [wr]
+  (assert (instance? WrapRef wr) "Expected a ref from the reacl implementation.")
+  (:reacl-ref wr))
+
 (defn xpath-pattern [e]
   (cond
     (string? e) (xp/comp (xp/is= e))
@@ -144,7 +152,7 @@
          (concat (map (fn [a] (rcore/return :action a))
                       (:actions r))
                  (map (fn [[target msg]]
-                        (let [c (rcore/get-dom (:reacl-ref target))]
+                        (let [c (base/deref-message-target target)]
                           (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
                           (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
                           (rcore/return :message [c msg])))
@@ -253,7 +261,7 @@
 (defn- native-dom [binding type attrs self-ref & children]
   (apply rdom/element type
          (cond-> attrs
-           self-ref (assoc :ref (:reacl-ref self-ref)))
+           self-ref (assoc :ref (reacl-ref self-ref)))
          (map (partial instantiate binding) children)))
 
 (def dom-class-for-type
@@ -358,10 +366,6 @@
   (-instantiate-reacl [{e :e key :key} binding]
     [(keyed binding e key)]))
 
-(defrecord WrapRef [reacl-ref]
-  base/Ref
-  (-deref-ref [this] (rcore/get-dom reacl-ref)))
-
 (rcore/defclass ^:private with-ref this state [f & args]
   refs [child r]
 
@@ -385,11 +389,11 @@
 (rcore/defclass ^:privte set-ref this state [e ref]
   handle-message
   (fn [msg]
-    (pass-message (:reacl-ref ref) msg))
+    (pass-message (reacl-ref ref) msg))
 
   render
   (-> (instantiate (rcore/bind this) e)
-      (rcore/refer (:reacl-ref ref))))
+      (rcore/refer (reacl-ref ref))))
 
 (extend-type base/SetRef
   IReacl

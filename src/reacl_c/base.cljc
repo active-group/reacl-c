@@ -150,6 +150,17 @@
    cleanup-f once-cleanup-f]
   E)
 
+
+(defn message-target? [v]
+  (or (ref? v)
+      (set-ref? v)))
+
+(defn deref-message-target [target]
+  (-deref-ref (if (set-ref? target)
+                (set-ref-ref target)
+                target)))
+
+
 (defrecord KeepState [])
 (def keep-state (KeepState.))
 

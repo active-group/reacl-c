@@ -362,3 +362,22 @@
     
     (is (= (c/return)
            (tu/update!! env nil)))))
+
+(deftest ref-let-test
+  (let [env (tu/env (c/ref-let [it-1 (c/handle-message (fn [state msg]
+                                                         (c/return :state [:it-1 msg]))
+                                                       c/empty)
+                                it-2 (c/handle-message (fn [state msg]
+                                                         (c/return :state [:it-2 msg]))
+                                                       c/empty)]
+                               (c/handle-message
+                                (fn [state msg]
+                                  (if (odd? msg)
+                                    (c/return :message [it-1 msg])
+                                    (c/return :message [it-2 msg])))
+                                (dom/div it-1 it-2))))]
+    (tu/mount! env nil)
+    (is (= (c/return :state [:it-1 1])
+           (tu/send-message! env 1)))
+    (is (= (c/return :state [:it-2 2])
+           (tu/send-message! env 2)))))

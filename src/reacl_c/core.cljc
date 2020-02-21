@@ -38,6 +38,25 @@
   [f & args]
   (base/make-with-ref f args))
 
+(declare with-refs)
+(let [h0 (fn [_ f args] (apply f nil args))
+      h1 (fn [r f args] (apply f (list r) args))
+      hn_cont (fn [rs r0 f args]
+                (apply f (cons r0 rs) args))
+      hn (fn [r0 n f args]
+           (with-refs (dec n)
+             hn_cont r0 f args))]
+  (defn with-refs
+    "An items that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
+    [n f & args]
+    {:pre [(>= n 0)
+           (ifn? f)]}
+    (cond
+      (= 0 n) (with-ref h0 f args)
+      (= 1 n) (with-ref h1 f args)
+      :else
+      (with-ref hn n f args))))
+
 (defn set-ref
   "Returns an item identical to the given item, but with the given
   reference assigned. Replaces the reference previously assigned to
@@ -50,6 +69,22 @@
   (if (dom/element? item)
     (dom/set-ref item ref)
     (base/make-set-ref item ref)))
+
+(let [c (fn [refs items f args]
+          (apply f (map set-ref items refs) args))]
+  (defn ref-let* [items f & args]
+    (with-refs (count items)
+      c items f args)))
+
+(defmacro ref-let [bindings & body]
+  ;; TODO: add to docs: for highest performance, use ref-let*
+  (assert (even? (count bindings)))
+  (let [[names items] (let [l (partition-all 2 bindings)]
+                        [(map first l) (map second l)])]
+    `(ref-let* (list ~@items)
+               ;; must create a fresh function here :-/
+               (fn [[~@names]]
+                 ~@body))))
 
 (defn deref
   "Returns an implementation specific value, usable as a target in
@@ -132,7 +167,7 @@ be specified multiple times.
             (:action) (recur nxt state (conj! actions arg) messages)
             (:message) (let [[target msg] arg]
                          (assert (some? target) "Missing target for message.")
-                         (assert (base/ref? target) "Target must be a reference created by with-ref.")
+                         (assert (base/message-target? target) "Target must be a reference created by with-ref or an item created by set-ref.")
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
