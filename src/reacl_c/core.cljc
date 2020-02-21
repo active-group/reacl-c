@@ -4,7 +4,7 @@
             [clojure.set :as set]
             [schema.core :as s]
             [active.clojure.functions :as f])
-  (:refer-clojure :exclude [deref partial constantly empty]))
+  (:refer-clojure :exclude [deref partial constantly empty comp]))
 
 ;; Rationale:
 ;; The basic building block is en Item (base/E), which is roughly
@@ -224,6 +224,7 @@ be specified multiple times.
 
 (def partial f/partial)
 (def constantly f/constantly)
+(def comp f/comp)
 
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
