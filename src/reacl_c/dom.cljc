@@ -1,4 +1,5 @@
 (ns reacl-c.dom
+  "This namespace contains functions for all HTML and SVG tags, which all return dom items."
   (:require [reacl-c.base :as base]
             [clojure.string :as str]
             #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
