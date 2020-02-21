@@ -47,7 +47,7 @@
            (with-refs (dec n)
              hn_cont r0 f args))]
   (defn with-refs
-    "An items that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
+    "Returns an item that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
     [n f & args]
     {:pre [(>= n 0)
            (ifn? f)]}
@@ -72,11 +72,30 @@
 
 (let [c (fn [refs items f args]
           (apply f (map set-ref items refs) args))]
-  (defn ref-let* [items f & args]
+  (defn ref-let*
+    "Returns an item, that calls f with a list and the given arguments,
+  where the list consists of the given items, but modified in a way
+  that makes them usable as message targets."
+    [items f & args]
     (with-refs (count items)
       c items f args)))
 
-(defmacro ref-let [bindings & body]
+(defmacro ref-let
+  "A macro that defines some names to refer to the given items, which allows the names to be used as message target in the body.
+
+  For example, to create an item that redirects messages to one of its children based on some criteria, you can write:
+
+  ```
+  (ref-let [child-1 (my-item-1 ...)
+            child-2 (my-item-2 ...)]
+    (handle-message (fn [_ msg]
+                       (if (is-for-child-1? msg)
+                         (return :message [child-1 msg])
+                         (return :message [child-2 msg])))
+      (div child-1 child-2)))
+  ```
+"
+  [bindings & body]
   ;; TODO: add to docs: for highest performance, use ref-let*
   (assert (even? (count bindings)))
   (let [[names items] (let [l (partition-all 2 bindings)]
@@ -93,7 +112,11 @@
   [ref]
   (base/-deref-ref ref))
 
-(defn ^:no-doc dynamic [f & args]
+(defn dynamic
+  "Returns a dynamic item, which looks and behaves like the item
+  returned from `(f state & args)`, which is evaluated each time the
+  state changes."
+  [f & args]
   {:pre [(ifn? f)]}
   (base/make-dynamic f args))
 
@@ -143,7 +166,7 @@ shoved values."} id-lens
 
 - `:state`   means that the item changes its state to the given value
 - `:action`  means that the given action is emitted by the item
-- `:message` means that the given message is sent to the given target reference.
+- `:message` means that the given message is sent to the given target (a reference or a item with a reference assigned).
 
 If no `:state` option is used, the state of the item will not
 change. `:state` must occur at most once, `:message` and `:action` can
@@ -222,15 +245,26 @@ be specified multiple times.
     [item f]
     (handle-action item (f/partial h f))))
 
-(def partial f/partial)
-(def constantly f/constantly)
-(def comp f/comp)
+(def ^{:doc "Like [[clojure.core/partial]], but the returned function
+is equal (=), when the arguments are equal."
+       :arglists '([f & args])}
+  partial f/partial)
+
+(def ^{:doc "Like [[clojure.core/constantly]], but the returned function
+is equal (=), when the argument is equal."
+       :arglists '([v])}
+  constantly f/constantly)
+
+(def ^{:doc "Like [[clojure.core/comp]], but the returned function
+is equal (=), when the arguments are equal."
+       :arglists '([& fs])}
+  comp f/comp)
 
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
   (defn redirect-messages
-    "An item like the given one, but that handles all messages sent to
-  it by redirecting them to the item specified by the given
+    "Return an item like the given one, but that handles all messages
+  sent to it by redirecting them to the item specified by the given
   reference."
     [ref item]
     {:pre [(satisfies? base/Ref ref)
@@ -241,7 +275,7 @@ be specified multiple times.
           (return :message [ref (f msg)]))
       wr (fn [f item ref]
            (handle-message (f/partial h f ref) (set-ref item ref)))]
-  (defn ^:no-doc map-messages
+  (defn map-messages
     "Returns an item like the given one, that transforms all messages sent to
   it though `(f msg)`, before they are forwarded to `item`."
     [f item]
@@ -299,7 +333,7 @@ a change."}  merge-lens
       (id-merge s2 (select-keys* ns k2))]))))
 
 (defn local-state
-  "An item which looks like the given item, with state `outer`,
+  "Returns an item which looks like the given item, with state `outer`,
   where the given item must take a tuple state `[outer inner]`, and
   `initial` is an intial value for the inner state, which can then be
   changed by the item independantly from the outer state."
@@ -361,11 +395,12 @@ a change."}  merge-lens
     v))
 
 (defn once  ;; akin to a 'React effect'.
-  "An item that evaluates `(f state)` and emits the [[return]] value
-  that it must return. On subsequent state updates, `f` is called too,
-  but the returned [[return]] value is only emitted if it different
-  than last time. The optional `(cleanup-f state)` is evaluated, when
-  the item is removed from the item tree afterwards.
+  "Returns an item that evaluates `(f state)` and emits the [[return]]
+  value that it must return initially. On subsequent state updates,
+  `f` is called too, but the returned [[return]] value is only emitted
+  if it different than last time. In other words, the same [[return]]
+  value is emitted only once. The optional `(cleanup-f state)` is
+  evaluated, when the item is removed from the item tree afterwards.
 
   Note that if you return a modified state, you must be careful to not
   cause an endless loop of updates."
@@ -375,17 +410,18 @@ a change."}  merge-lens
   (base/make-once f cleanup-f))
 
 (defn cleanup
-  "An item that evaluates `(f state)` when it is being removed from
-  the item tree, and emits the [[return]] value that that must
+  "Returns an item that evaluates `(f state)` when it is being removed
+  from the item tree, and emits the [[return]] value that that must
   return."
   [f]
   (once (f/constantly (return)) f))
 
-(defn ^:no-doc handle-state-change
-  "An item like the given item, but when a state change is emitted by
-  `item`, then `(f prev-state new-state)` is evaluated, which must
-  return a [[return]] value. By careful with this, as item usually
-  expect that their changes to the state are eventually successful."
+(defn handle-state-change
+  "Returns an item like the given item, but when a state change is
+  emitted by `item`, then `(f prev-state new-state)` is evaluated,
+  which must return a [[return]] value. By careful with this, as item
+  usually expect that their changes to the state are eventually
+  successful."
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
@@ -405,10 +441,14 @@ a change."}  merge-lens
            (ifn? f)]}
     (handle-state-change item (f/partial h f args))))
 
+;; Note: low-level feature which is a bit dangerous to use (not check
+;; if item is mounted); user should use subscriptions.
 (defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
   (base/make-with-async-return f args))
 
+;; Note: low-level feature which is a bit dangerous to use (not check
+;; if item is mounted); user should use subscriptions.
 (let [send! (fn [return! target msg]
               (return! (return :message [target msg])))
       h (fn [return! f args]
@@ -417,6 +457,8 @@ a change."}  merge-lens
     {:pre [(ifn? f)]}
     (with-async-return h f args)))
 
+;; Note: low-level feature which is a bit dangerous to use (not check
+;; if item is mounted); user should use subscriptions.
 (let [h (fn [return! action]
           (return! (return :action action)))
       g (fn [return! f args]
@@ -503,6 +545,14 @@ a change."}  merge-lens
                             :stop! nil}
                            (dynamic (f/partial dyn deliver!))))]
   (defn subscription
+    "Returns an item that asynchronously emits actions according to
+  the given function `f`. For that `f` will be called with a
+  side-effectful `deliver!` function which takes the action to emit,
+  and `f` must return a `stop` function of no arguments. You may do
+  some kind of registration at an asynchronous library or native
+  browser api, and use `deliver!` to inform your application about the
+  results, once or multiple times. But when the `stop` function is
+  called, you must prevent any more calls to `deliver!`."
     [f & args]
     (with-async-actions (f/partial stu f args))))
 
@@ -547,7 +597,7 @@ a change."}  merge-lens
            ;; state passed up!
            (validate! new :up))]
   (defn validation-boundary
-    "Creates a state validation boundary around the given item,
+    "Returns an item that forms a state validation boundary around the given item,
   where `(validate! state :up)` is evaluated for side effects when a
   state change is flowing out of then item upwards, and `(validate!
   state :down)` is evaluated for side effects when a new state is
@@ -699,12 +749,19 @@ a change."}  merge-lens
     `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
 
 (defmacro defn-static
+  "Defines `name` to a function, returning a [[static]] item like the
+  item define by the function body. The static item is independant of
+  the outside state, and depends only on the argument values. Compared
+  to an ordinary function, this can greatly increase performance, as
+  the body is only evaluated when the arguments change."
   [name args & body]
   (let [[docstring? args & body] (apply maybe-docstring args body)]
     `(defn-named+ [(f/comp static f/partial)] nil ~name ~@(when docstring? [docstring?]) ~args
        ~@body)))
 
 (defmacro def-static
+  "Defines `name` to be a [[static]] item that is always like `item`,
+  independant of the state."
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
