@@ -20,6 +20,7 @@
   "Shallowly replaces all dynamic items with the items they resolve to for the given state."
   [item state]
   {:post [#(not (base/dynamic? %))
+          #(not (base/static? %))
           #(not (base/with-ref? %))
           #(not (base/with-async-return? %))]}
   (if (string? item)
@@ -27,6 +28,7 @@
     (condp apply [item]
       ;; the dynamics
       base/dynamic? (apply (:f item) state (:args item))
+      base/static? (apply (:f item) nil (:args item))
       base/with-ref? (apply (:f item) dummy-ref (:args item))
       base/with-async-return? (apply (:f item) dummy-return! (:args item))
 

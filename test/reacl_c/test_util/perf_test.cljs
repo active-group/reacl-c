@@ -3,7 +3,10 @@
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
             [reacl-c.test-util.perf :as perf :include-macros true]
-            [cljs.test :refer (is deftest testing) :include-macros true]))
+            [cljs.test :refer (is deftest testing) :include-macros true]
+            [reacl-c.test-util.item-generators :as item-gen]
+            [clojure.test.check.properties :as prop]
+            [clojure.test.check.clojure-test :include-macros true :refer [defspec]]))
 
 (deftest resolve-deep-test
   (is (= (dom/div) (perf/resolve-deep (dom/div) nil)))
@@ -101,3 +104,9 @@
     )
   
   )
+
+(defspec perf-test-does-not-fail {:seed 4712
+                                  :num-tests 200}
+  ;; mainly checks that everything is covered somehow, and it does not throw errors.
+  (prop/for-all [v item-gen/item]
+                (perf/performance v '(:foo :bar))))
