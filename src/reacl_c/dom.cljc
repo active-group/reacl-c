@@ -9,6 +9,7 @@
   (:refer-clojure :exclude (meta map time use set symbol)))
 
 ;; TODO: some standard event handlers? constantly, value, checked.
+;; TODO: add merge-attrs?
 
 (r/define-record-type ^:no-doc Element
   (make-element type attrs events ref children)

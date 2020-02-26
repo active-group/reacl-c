@@ -268,7 +268,7 @@
   ;; There should be a finite set of tag names, so using memoize should be ok.
   (memoize
    (fn [type]
-     (rcore/class ^:private (str "reacl-c.dom/" type) this state [attrs events ref & children]
+     (rcore/class (str "reacl-c.dom/" type) this state [attrs events ref & children]
                   ;; dom with action events and children.
                   local-state [handler (dom-event-handler this)]
   

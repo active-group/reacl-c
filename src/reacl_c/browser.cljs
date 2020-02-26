@@ -1,4 +1,4 @@
-(ns reacl-c.browser ;; TODO: rename 'reacl' or react?
+(ns reacl-c.browser ;; TODO: rename 'reacl' or react? or 'runner', 'toplevel'?
   (:require [reacl-c.impl.reacl :as impl]))
 
 (defn run
