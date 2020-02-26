@@ -106,10 +106,12 @@
                  ~@body))))
 
 (defn deref
-  "Returns an implementation specific value, usable as a target in
-  messages sending or to access the native dom
-  elements. See [[with-ref]] for a description of references."
+  "Returns an runner specific value, which might be a native dom
+  element backing an item at runtime for example. See [[with-ref]] for
+  a description of references."
   [ref]
+  ;; TODO: needs more to access to actually access the native dom; move this to 'browser namespace'?
+  ;; TODO: allow for set-ref items?
   (base/-deref-ref ref))
 
 (defn dynamic
@@ -500,7 +502,7 @@ a change."}  merge-lens
 
 (defrecord ^:no-doc SubscribedEmulatedResult [action])
 
-(defn- subscribe! [f args deliver! host]
+(defn ^:no-doc subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
     (assert (ifn? stop!) "Subscription must return a stop function.")
     (return :message [host (SubscribedMessage. stop!)])))
@@ -765,13 +767,6 @@ a change."}  merge-lens
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
-(defn- subscription-from-defn [fn f & args]
-  ;; Wanted to add some meta data for testing; but unfortunately (vary-meta f ..) is never = (vary-meta f ...)
-  #_(apply subscription (vary-meta f
-                                 assoc ::subscription-defn fn)
-           args)
-  (apply subscription f args))
-
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
   that needs an imperative way to 'inject' actions into an
@@ -798,9 +793,10 @@ Note that `deliver!` must never be called directly in the body of
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
-    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
+    `(defn-named+ [subscription ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
-(defn- effect-from-defn [fn eff]
+(defn ^:no-doc effect-from-defn [fn eff]
+  ;; Note: must be public, because used in macro expansion of defn-effec.
   (vary-meta eff assoc ::effect-defn fn))
 
 (defmacro defn-effect

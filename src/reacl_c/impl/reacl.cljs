@@ -366,7 +366,7 @@
   (-instantiate-reacl [{e :e key :key} binding]
     [(keyed binding e key)]))
 
-(rcore/defclass ^:private with-ref this state [f & args]
+(rcore/defclass ^:no-doc with-ref this state [f & args]
   refs [child r]
 
   handle-message
@@ -472,9 +472,11 @@
 
 (defrecord ^:private NewIsoState [state])
 
+(def rcore-keep-state (rcore/returned-app-state (rcore/return))) ;; prevents a (wrong) warning in newer cljs.
+
 (defn- id-state [st1 st2]
   (if (= st1 st2)
-    rcore/keep-state
+    rcore-keep-state
     st2))
 
 (rcore/defclass ^:private local-state this astate [e initial]
