@@ -160,6 +160,11 @@
 
 
 (rcore/defclass ^:private handle-message this state [e f]
+  should-component-update?
+  (fn [new-state _ new-e new-f]
+    (or (not= e new-e)
+        (not= state new-state)))
+  
   handle-message
   (fn [msg]
     (transform-return (f state msg)))
@@ -177,8 +182,12 @@
 
 (defn- gen-named [s]
   (rcore/class s this state [e]
+
                refs [child]
-               handle-message (fn [msg] (pass-message child msg))
+
+               handle-message
+               (fn [msg] (pass-message child msg))
+
                render (-> (instantiate (rcore/bind this) e)
                           (rcore/refer child))))
 
@@ -206,6 +215,11 @@
                                                         {:value state}))))))
 
 (rcore/defclass static this _ [f args]
+  should-component-update?
+  (fn [_ _ new-f new-args]
+    (or (not= f new-f)
+        (not= args new-args)))
+
   refs [child]
   
   handle-message
@@ -272,8 +286,9 @@
                   ;; dom with action events and children.
                   local-state [handler (dom-event-handler this)]
   
-                  handle-message (fn [msg]
-                                   (dom-message-to-action state msg events))
+                  handle-message
+                  (fn [msg]
+                    (dom-message-to-action state msg events))
   
                   render
                   (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref
@@ -457,6 +472,11 @@
       :else
       (pass-message child msg)))
   
+  should-component-update?
+  (fn [new-state _ new-e _]
+    (or (not= e new-e)
+        (not= state new-state)))
+
   render
   (-> (instantiate (rcore/bind this) e)
       (rcore/refer child)
@@ -577,6 +597,11 @@
 
       (throw (ex-info "Cannot send a message to once items." {:value msg}))))
   
+  should-component-update?
+  (fn [new-state _ _ _]
+    ;; although this has constant rendering, we need a 'did-update' event.
+    (not= state new-state))
+
   component-did-update
   (fn [prev-app-state prev-local-state prev-ret prev-cleanup-ret]
     ;; Note: Reacl does not guarantee that the state is accurate in this method (yet); need to go through a message.
@@ -605,6 +630,11 @@
 (rcore/defclass ^:private handle-state-change this state [e f]
   refs [child]
   
+  should-component-update?
+  (fn [new-state _ new-e _]
+    (or (not= e new-e)
+        (not= state new-state)))
+
   render
   (-> (instantiate (rcore/use-reaction state (rcore/reaction this ->MonitorMessage)) e)
       (rcore/refer child))
@@ -632,6 +662,11 @@
   
   handle-message (fn [msg] (pass-message child msg))
   
+  should-component-update?
+  (fn [new-state _ new-e _]
+    (or (not= e new-e)
+        (not= state new-state)))
+
   render
   (-> (instantiate (rcore/bind this) e)
       (rcore/refer child))
