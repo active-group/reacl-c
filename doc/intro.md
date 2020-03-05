@@ -226,11 +226,11 @@ passes all actions from the inner item upwards and forwards all
 messages sent to it down.
 
 The possible values for the first argument to `focus` are not
-restricted to keywords. If you pass an integer value, then the
-returned item focuses on the n-th item of a vector. And you can also
-pass a function of two arities. The single arity is used to extract
-the inner state from the outer state, and the two-argument arity is
-used to embed a new inner state in the current outer state:
+restricted to keywords. If you pass an integer value, then the item
+focuses on the n-th item of a vector. And you can also pass any
+function of two arities: The single arity is used to extract the inner
+state from the outer state, and the two-argument arity is used to
+embed a new inner state in the current outer state:
 
 ```clojure
 (fn
@@ -238,9 +238,9 @@ used to embed a new inner state in the current outer state:
   ([outer-state new-inner-state] ...new-outer-state))
 ```
 
-This conforms to the functional concept of a *lens*. All functions
-like this can be used, as well as keywords and integers with the
-aforementioned meaning. Reacl-c includes a few lenses that are
+This conforms to the functional programming concept of a *lens*. All
+functions like this can be used, as well as keywords and integers with
+the aforementioned meaning. Reacl-c includes a few lenses that are
 frequently used: `c/first-lens` on the first part of a tuple,
 `c/second-lens` on the second part, the identity lens `c/id-lens`, and
 a `c/merge-lens` that merges two associative collections into one in a
@@ -257,20 +257,19 @@ primitive way to do that, is the `local-state` function:
 (c/local-state 42 (c/dynamic pr-str))
 ```
 
-If the state of the returned item is `"foo"` for example, then the
+If the state of the resulting item is `"foo"` for example, then the
 state of the inner dynamic item will be `["foo" 42]` initially. When
 the inner item changes the state, the first part will be propagated
 upwards as a state change, and the second part of the tuple will be
 stored at this point in the item tree, and will be passed down again
 afterwards.
 
-Note that this depends on the position of the returned
-item in the tree. If you 'move' that item to a different position, it
-might 'restart' with the initial state again. Actually, as most
-primitive items in Reacl-c are referentially transparent values, using
-the the created item multiple times is possible, and at each place it
-will start with `42` intially, but then store updated states
-independantly from each other.
+Note that this depends on the position of the item in the tree. If you
+'move' that item to a different position, it might 'restart' with the
+initial state again. Actually, as most primitive items in Reacl-c are
+referentially transparent values, using the the created item multiple
+times is possible, and at each place it will start with `42` intially,
+but then store updated states independantly from each other.
 
 One way to allow an item to 'move' in a limited way, is adding a *key*
 on it:
@@ -330,7 +329,7 @@ explanation of `c/return`. Note that `handle-action` returns a new
 item; the action handler is not 'attached' to the given item in any
 way. New state is passed unchanged to the inner item, and any state
 changes made by it are passed upwards, and messages sent to the
-returned item are forwarded to the inner item.
+resulting item are forwarded to the inner item.
 
 There is also `c/map-actions`, that can be used to simply transform
 actions on their way up in the tree.
@@ -347,7 +346,7 @@ To create an item that accepts messages, the function
   some-other-item)
 ```
 
-Just like always, the returned item looks like `some-other-item`, has
+Just like always, the resulting item looks like `some-other-item`, has
 the same state as it, and passes all actions emitted by it upwards.
 
 The other task regarding messages, is of course sending messages to
