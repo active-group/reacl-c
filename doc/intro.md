@@ -469,7 +469,7 @@ which can not be captured by `c/handle-action`, but are implicitly
 handled on the toplevel, by *executing* them. Effects can be created
 by `c/effect`, but more conveniently by the `c/defn-effect` macro:
 
-```
+```clojure
 (c/defn-effect reload! [force?]
   (.reload (.-location js/window) force?))
 ```
@@ -484,12 +484,12 @@ some other event by returning the effect as an action. For example:
 
 Or, for effects that have a result, for example generating random numbers:
 
-```
+```clojure
 (c/defn-effect rand-int [n]
   (clojure.core/rand-int n))
 ```
 
-the function function `c/handle-effect-result` can be used:
+the function `c/handle-effect-result` can be used:
 
 ```clojure
 (c/handle-effect-result
