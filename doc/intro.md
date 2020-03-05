@@ -63,7 +63,7 @@ for the given item:
 ```clojure
 (browser/run (js/document.getElementById "app")
              my-item
-			 my-initial-state)
+             my-initial-state)
 ```
 
 With the basic concepts explained, we can now go through all the
@@ -82,7 +82,7 @@ It has no visual appearance, can take any state, never changes the
 state, never emits any actions and sending a message to it always
 raises an error.
 
-The empty item is actually nothing else than a /fragment/ item with no
+The empty item is actually nothing else than a *fragment* item with no
 children. But fragment items can be constructed from arbitrarily many
 items:
 
@@ -141,10 +141,10 @@ attached to an element via attributes that start with `:on`, like
 (dom/button {:onclick (fn [state event] ...)} "Click me")
 ```
 
-A event handler function takes the current state of the item and the
+An event handler function takes the current state of the item and the
 DOM Event object as arguments. It can then do three things: Pass a
 state change upwards, emit an action, or send a message to some other
-item. Do specify that, the event handler function must return a value
+item. To specify that, the event handler function must return a value
 created by `c/return`. For example:
 
 ```clojure
@@ -166,24 +166,28 @@ document.
 
 The `c/return` values will also be used to specify the reaction to
 many other discrete events, like when handling actions for
-example. They are a central concept of Reacl-c.
+example. These return values are a central concept of Reacl-c.
 
 ## Items that add behavior
 
-...TODO intro
+With the items described so far, your application will be very static,
+always look the same, and the user cannot not really interact with
+it. This chapter introduces the various ways to create items that
+change their appearance over time, the ways to change state and how to
+trigger or react to discrete events in the application.
 
 ### Working with state
 
 With the items described so far, your application will be quite static
-and always look the same. Change over time is introduced by /dynamic/
+and always look the same. Change over time is introduced by *dynamic*
 items:
 
 ```clojure
 (c/dynamic
   (fn [state]
     (if (> state 0)
-	  "positive"
-	  "not positive")))
+      "positive"
+      "not positive")))
 ```
 
 So `dynamic` creates a dynamic item. Initially and whenever the state
@@ -214,11 +218,11 @@ where the state is a map of things, we can use `focus`:
 
 This creates an item with the same visual appearance as the item
 passed as the second argument, but the state can be any associative
-collection with a key `:name` in it. When the `greeting` item would
-cause a state change to a new string, the focused item will embed the
-new string in its current state via `assoc` in this case, and pass the
-resulting new map as a state change upwards. Of course the focused
-item also passes up all actions from the inner item and forwards all
+collection with a key `:name` in it. When the `greeting` item causes a
+state change to a new string, the focus item will embed the new string
+in its current state via `assoc` in this case, and pass the resulting
+new map as a state change upwards. Of course the focused item also
+passes all actions from the inner item upwards and forwards all
 messages sent to it down.
 
 The possible values for the first argument to `focus` are not
@@ -234,7 +238,7 @@ used to embed a new inner state in the current outer state:
   ([outer-state new-inner-state] ...new-outer-state))
 ```
 
-This conforms to the functional concept of a /lens/. All functions
+This conforms to the functional concept of a *lens*. All functions
 like this can be used, as well as keywords and integers with the
 aforementioned meaning. Reacl-c includes a few lenses that are
 frequently used: `c/first-lens` on the first part of a tuple,
@@ -258,17 +262,35 @@ state of the inner dynamic item will be `["foo" 42]` initially. When
 the inner item changes the state, the first part will be propagated
 upwards as a state change, and the second part of the tuple will be
 stored at this point in the item tree, and will be passed down again
-afterwards. Note that this depends one a somewhat fixed position of
-the returned item in the tree. If you 'move' that item to a different
-position, it might 'restart' with the initial state again.
-(TODO: mention 'keyed' here?)
+afterwards.
 
-There are a few convenience functions in Reacl-c that also apply some
-lens on the `[outer inner]` tuple (`c/add-state`, `c/hide-state`), or
-completely remove the outer state (`c/isolate-state`).
+Note that this depends on the position of the returned
+item in the tree. If you 'move' that item to a different position, it
+might 'restart' with the initial state again. Actually, as most
+primitive items in Reacl-c are referentially transparent values, using
+the the created item multiple times is possible, and at each place it
+will start with `42` intially, but then store updated states
+independantly from each other.
 
-Finally, /static items/ can be created. Static items ignore the state
-they receive from above, and to prevent mistakes, it's an error if
+One way to allow an item to 'move' in a limited way, is adding a *key*
+on it:
+
+```clojure
+(c/keyed some-item "some-key")
+```
+
+Within a list of child items (in a fragment or DOM item), a keyed item
+may change its position over time and still keep the same local state
+and will not be reset to the initial state. The keys within the same
+child list must of course be unique for that.
+
+There are a few convenience functions in Reacl-c that additionally
+apply some lens on the `[outer inner]` tuple (`c/add-state`,
+`c/hide-state`) via `c/focus`, or completely remove the outer state
+(`c/isolate-state`).
+
+Finally, *static items* can be created. Static items ignore the state
+they receive from above, and, to prevent mistakes, it's an error if
 they try to change the state:
 
 ```clojure
@@ -281,18 +303,153 @@ they try to change the state:
 They are similar to the items created by `c/isolate-state` with an
 initial local state of `nil`, but because of the indirection via the
 no-argument function, the inner item does not have to be constructed
-again for the same function. Therefor, static items are mainly way to
+again, given the same function. Static items are mainly a way to
 increase the performance of your application, by 'cutting off' larger
-item branches from any updated state. Note that it is important that
-you pass the *same* function to `static` each time. In Clojure, an
-anonymous function is a different object each time then `fn` form is
+item branches from any state update. Note that it is important that
+you pass the *same* function to `static` each time. In Clojure,
+anonymous functions are different objects each time then `fn` form is
 evaluated. So when working on performance, the use of the
 `c/defn-static` or the `c/def-static` macros is strongly encouraged.
 
 ### Working with actions
 
+Actions emitted by an item, should be handled somewhere up in the item
+tree. The `c/handle-action` creates an item that does this:
+
+```clojure
+(c/handle-action
+  some-other-item
+  (fn [state action]
+    (c/return ...)))
+```
+
+Any action emitted by `some-other-item` is not passed upwards, but is
+passed to the given function, which must return a `c/return` value to
+specify what to do as a reaction to the action. See above for an
+explanation of `c/return`. Note that `handle-action` returns a new
+item; the action handler is not 'attached' to the given item in any
+way. New state is passed unchanged to the inner item, and any state
+changes made by it are passed upwards, and messages sent to the
+returned item are forwarded to the inner item.
+
+There is also `c/map-actions`, that can be used to simply transform
+actions on their way up in the tree.
+
 ### Working with messages
 
+To create an item that accepts messages, the function
+`c/handle-message` can be used:
+
+```clojure
+(c/handle-message
+  (fn [state message]
+    (c/return ...))
+  some-other-item)
+```
+
+Just like always, the returned item looks like `some-other-item`, has
+the same state as it, and passes all actions emitted by it upwards.
+
+The other task regarding messages, is of course sending messages to
+items, either in reaction to an action or to a message received, for
+example. The key concept to this are *references*. Messages can be
+targeted indirectly to a reference, which resolve to a concrete item
+at a place in the item tree, or to an item that a reference was
+assigned to. There are low-level utilities to do that (`c/with-ref`
+and `c/set-ref`), but the most convenient way for the common use
+cases is the `c/ref-let` macro:
+
+```clojure
+(c/ref-let [child some-other-item]
+  (c/handle-message
+    (fn [state msg]
+	  (c/return :message [child msg]))
+    (dom/div child)))
+```
+
+This example defines an item, whose visual appearance is that of
+`some-other-item`, wrapped in a `dom/div`, and messages sent to the
+item are forwarded unchanged to `some-other-item`. Note that you must
+use `child` at both places in this code - it is also just an item, but
+it contains the reference information that is needed to identify the
+target for the message. As usual, `ref-let` passes any state down and
+up unchanged, as well as any action upwards. Messages sent to the
+`ref-let` item are forwarded to the item defined in the body.
+
+Note that an item with a reference assigned (`child` in this case),
+can only be used once in the body of `ref-let`.
+
+Also note that the item created by the `ref-let` macro is not
+referentially transparent, i.e. evaluating the same code twice will
+not be be equal as of Clojure's `=` function. When optimizing an
+application for performance, you can use the functional equivalent
+`c/ref-let*` to create referntially transparent items.
+
+Sometimes, items may fail at runtime, for example dynamic items that
+make wrong assumptions on the state they get, or are being used on the
+wrong state of course. There is one primitive way to handle such
+errors, `c/error-boundary`, and a slightly more convenient way, the
+items created by the `try-catch` function:
+
+```clojure
+(def try-item (dynamic (fn [state] (/ 42 state))))
+(def catch-item (dynamic (fn [[state error]] ...)))
+
+(c/try-catch try-item catch-item)
+```
+
+The item returned by `c/try-catch` will initially look and behave like
+the item given as the first argument - `try-item`. After that causes a
+runtime exception, the `catch-item` will be shown instead. The state
+of the `catch-item` will be a tuple of the outer state and the
+exception value. The `catch-item` may then, automatically or after a
+user interaction, change the second part of the tuple state to
+`nil`. That causes the error to be cleared, and the `try-catch` item
+shows the `try-item` again. Sometimes, you may also want to reset the
+left part of the tuple, the main state, to something that might
+prevent the error from happening.
+
+Note that these utilities will not catch errors in message, action or
+event handlers, but those during the creation or update of the item
+tree after a state change.
+
+### The livetime of an item
+
+Although items are usually just a referentially transparent
+description of a visual appearance and a behaviour (i.e. items have no
+identity), when they are used at a specific place in the item tree, a
+certain livetime can be associated with them, starting when they are
+first used in that position, via changes of the state they get from above
+over time, the points in time at which they handle messages and
+action, to the point in time they are no longer part of the item tree
+again.
+
+We already mentioned above a few cases where the livetime of an item
+plays a role, e.g. for `local-state` items. But occasionally, one
+also want's to make use of that and write items that can react to
+those transitions in the livecycle of an item.
+
+The first such items are those created by the `c/once` function:
+
+```clojure
+(c/once (fn [state] (c/return :action "I'm in use"))
+        (fn [state] (c/return :action "I'm not in use anymore")))
+```
+
+The `once` function returns an item, which calls the first function
+when used initially at some place in the item tree, and the second one
+(which is optional) when it is not used there anymore. The first
+function is actually also called on each state update, but the retured
+`return` value is then only 'executed' when it is different from the
+last time it was executed. So with `once` items you can do something
+at the first and last points of an items livetime at some place in the
+item tree, as well as the points in time when the state is
+changed. Note that you can easily combine these items with others in a
+fragment item, which is equivalent to /their/ livetime:
+
+```clojure
+(c/fragment (c/once ...) some-other-item)
+```
 
 ## The outside world
 
@@ -301,5 +458,4 @@ evaluated. So when working on performance, the use of the
 ### Subscriptions
 
 ### External control
-
 
