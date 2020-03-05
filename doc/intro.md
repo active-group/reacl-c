@@ -452,9 +452,116 @@ fragment item, which is then equivalent to *their* livetime:
 
 ## The outside world
 
+There are hardly any applications that do not interact with the
+outside world and be useful at the same time. So most of time, you
+will want to modify the browser's session store, retrieve or push data
+to a server, or modify the browser history. In this chapter we go
+through the utilities that Reacl-c offers to do this in a safe,
+functional and fully testable way.
+
 ### Effects
+
+Another concept of Reacl-c is that of *effects*. You should
+encapsulate all side effects of your application in effects - be it
+the communication with a server, creating random number or just
+looking up the current time. Effects are a special kind of action,
+which can not be captured by `c/handle-action`, but are implicitly
+handled on the toplevel, by *executing* them. Effects can be created
+by `c/effect`, but more conveniently by the `c/defn-effect` macro:
+
+```
+(c/defn-effect reload! [force?]
+  (.reload (.-location js/window) force?))
+```
+
+With this definition, an item may trigger a reload as a reaction to
+some other event by returning the effect as an action. For example:
+
+```clojure
+(dom/buttom {:onclick (fn [state ev]
+                        (c/return :action (reload! true)))})
+```
+
+Or, for effects that have a result, for example generating random numbers:
+
+```
+(c/defn-effect rand-int [n]
+  (clojure.core/rand-int n))
+```
+
+the function function `c/handle-effect-result` can be used:
+
+```clojure
+(c/handle-effect-result
+  (fn [state v]
+    (assoc state :next-id v))
+  (rand-int 1000))
+```
+
+Note that `c/handle-effect-result` returns an item, which triggers the
+given effect each time it is placed in the item tree somewhere.
 
 ### Subscriptions
 
+Subscriptions are a high-level feature included in Reacl-c, which make
+it easy to register at a global source of asynchronous discrete events
+and create items that handle them. Such sources can be Ajax requests
+to a HTTP server, which will usually create only one asynchronous
+result, or an interval timer which can make inifinitely many:
+
+```clojure
+(c/defn-subscription interval-timer deliver! [ms]
+  (let [id (js/window.setInterval (fn []
+                                    (deliver! :tick))
+                                  ms)]
+    (fn [] (js/window.clearInterval id))))
+```
+
+With this definition, you can create an item that emits `:tick` as an
+action every 100 milliseconds:
+
+```clojure
+(c/handle-action (interval-timer 100)
+  (fn [state tick]
+    (c/return ...)))
+```
+
+You can of course create multiple subscription items from the same
+subscription definition. In this case, they will all have their own
+timer running though.
+
+Note that the subscription definition must return a *stop function*,
+which is called when an item creted from it is removed from the item
+tree. The subscription definition must make sure that the `deliver!`
+function is not called again, after the stop function has been called.
+
+There are also primitive items that can be used to attach asynchronous
+sources of events or data (`c/with-async-return` and variants of it),
+but they are more difficult to use, as you must take care that they
+stop emitting events when the receiving item is removed from the item
+tree.
+
 ### External control
 
+When using Reacl-c in an outer framework, it is sometimes necessary to
+communicate with a 'running item'. The `run` function from the
+`reacl-c.browser` namespace mentioned in the beginning of this
+document, actually returns an *application* handle:
+
+```clojure
+(def my-app
+  (browser/run (js/document.getElementById "app")
+               my-item
+               my-initial-state)
+```
+
+If `my-item` handles messages sent to it, you can do so with `c/send-message!`:
+
+```clojure
+(c/send-message! my-app :a-message)
+```
+
+That will always return `nil`. For receiving results or handling
+unsolicited events from an application, you could use effects setting
+an atom from the message, or use a `handle-action` and an effect to
+push actions into a `core.async` channel for example.
