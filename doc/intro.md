@@ -494,7 +494,7 @@ the function `c/handle-effect-result` can be used:
 ```clojure
 (c/handle-effect-result
   (fn [state v]
-    (assoc state :next-id v))
+    (c/return :state (assoc state :next-id v)))
   (rand-int 1000))
 ```
 
