@@ -767,6 +767,9 @@ a change."}  merge-lens
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
+(defn- subscription-from-defn [fn f & args]
+  (apply subscription f args))
+
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,
   that needs an imperative way to 'inject' actions into an
@@ -793,7 +796,7 @@ Note that `deliver!` must never be called directly in the body of
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
-    `(defn-named+ [subscription ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
+    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
 (defn ^:no-doc effect-from-defn [fn eff]
   ;; Note: must be public, because used in macro expansion of defn-effec.
