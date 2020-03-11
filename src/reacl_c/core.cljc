@@ -59,8 +59,8 @@
 
 (defn set-ref
   "Returns an item identical to the given item, but with the given
-  reference assigned. Replaces the reference previously assigned to
-  it. See [[with-ref]] for a description of references."
+  reference assigned. Note that the returned item cannot be used more
+  than once. See [[with-ref]] for a description of references."
   [item ref]
   {:pre [(base/item? item)]}
   ;; Note: when setting a ref on a dom item, we don't want the
