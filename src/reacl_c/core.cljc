@@ -379,7 +379,7 @@ a change."}  merge-lens
   "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
   [initial-state item]
-  (static (f/constantly (add-state initial-state isolate-lens item))))
+  (static (f/partial add-state initial-state isolate-lens item)))
 
 (defn keyed
   "Adds an arbitrary identifier to the given item, which will be used
