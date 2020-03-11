@@ -121,6 +121,17 @@
                (tu/execute-effect! env a)))
         (is (not @subscribed))))))
 
+(deftest defn-subscription-test
+  (let [x (atom nil)]
+    (c/defn-subscription defn-subscription-test-1 deliver! [arg]
+      (reset! x arg)
+      (fn [] nil))
+
+    (-> (tu/env (defn-subscription-test-1 :arg)
+                {:emulator tu/execute-effects-emulator})
+        (tu/mount! nil))
+    (is (= :arg @x))))
+
 (deftest defn-named-test
   (testing "schematized args and state"
     (c/defn-named ^:always-validate defn-named-test-1 [a :- schema.core/Str]
