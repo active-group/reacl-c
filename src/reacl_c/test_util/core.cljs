@@ -133,24 +133,18 @@
   [env]
   (->ret (r-tu/unmount! env)))
 
-(def ^:dynamic *max-update-loops* 100)
-
 (defn push!
+  "Apply the state change in the given 'return' value, if there is
+  any, and merge the return value resulting from that - pushing the
+  update cycle one turn."
   [env ret]
-  (if (not= base/keep-state (:state ret))
-    (base/merge-returned ret (update! env (:state ret)))
-    ret))
+  (->ret (r-tu/push! env (impl/transform-return ret))))
 
 (defn push!!
+  "Recursively apply the state change in the given 'return' value,
+  until the state does not change anymore."
   [env ret]
-  (loop [r ret
-         state base/keep-state
-         n 1]
-    (when (> n *max-update-loops*)
-      (throw (ex-info "Item keeps on updating. Check any [[once]] items, which should eventually reach a fixed state." {:intermediate-state state})))
-    (if (not= state (:state r))
-      (recur (push! env r) (:state r) (inc n))
-      r)))
+  (->ret (r-tu/push!! env (impl/transform-return ret))))
 
 (defn update!!
   "Updates the state of the item of the given test environment, and
@@ -159,13 +153,20 @@
   at all. Throws if there are more than *max-update-loops* recursions,
   which are a sign for bug in the item."
   [env state]
-  (push!! env (update! env state)))
+  (->> (update! env state)
+       (push!! env)))
 
-(defn mount!! [env state]
-  (push!! env (mount! env state)))
+(defn mount!!
+  "Like [[mount!]], but also recursively update the item to new states that are returned."
+  [env state]
+  (->> (mount! env state)
+       (push!! env)))
 
-(defn unmount!! [env]
-  (push!! env (unmount! env)))
+(defn unmount!!
+  "Like [[unmount!]], but also recursively update the item to new states that are returned."
+  [env]
+  (->> (unmount! env)
+       (push!! env)))
 
 (defn send-message!
   "Sends a message to the given component or the toplevel component of
@@ -176,14 +177,32 @@
   ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
   (->ret (r-tu/send-message! comp msg)))
 
+(defn send-message!!
+  "Like [[send-message!]], but also recursively update the item to new states that are returned."
+  [comp msg]
+  {:per [(some? comp)]}
+  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
+  (->ret (r-tu/send-message!! comp msg)))
+
 (defn- dom-node? [comp]
   (string? (.-type comp)))
 
-(defn invoke-callback! [comp callback event]
+(defn invoke-callback!
+  "Invokes the function assiciated with the given `callback` of the
+  given test component of a dom element (e.g. `:onclick`), with the
+  given event object, and returns a changed app-state and actions from
+  the toplevel item, in the form of a `reacl/return` value."
+  [comp callback event]
   (assert (dom-node? comp) (str "Must be a dom node to invoke callbacks: " (pr-str comp)))
   (->ret (r-tu/invoke-callback! comp callback event)))
 
-(defn inject-return! [comp ret]
+(defn invoke-callback!!
+  "Like [[invoke-callback!]], but also recursively update the item to new states that are returned."
+  [comp callback event]
+  (assert (dom-node? comp) (str "Must be a dom node to invoke callbacks: " (pr-str comp)))
+  (->ret (r-tu/invoke-callback!! comp callback event)))
+
+(defn- inject-return_ [comp ret f]
   (let [comp (if (dom-node? comp)
                ;; When a dom item was selected, we have the raw dom node here;
                ;; to injecting a return, there must be a wrapper class
@@ -195,13 +214,46 @@
                  (when-not (and (.-type p) (impl/dom-class-for-type (.-type comp)))
                    (assert false "The given node is a dom node without any event handlers attached. It's not possible to inject something there.")))
                comp)]
-    (->ret (r-tu/inject-return! comp (impl/transform-return ret)))))
+    (->ret (f comp (impl/transform-return ret)))))
 
-(defn inject-action! [comp action]
+(defn inject-return!
+  "Does the things that would happen if the given component returned
+  the given 'return' value in reaction to some discrete event, and
+  returns what would be emitted (state and/or actions) from the tested
+  item, in the form of a 'return' value."
+  [comp ret]
+  (inject-return_ comp ret r-tu/inject-return!))
+
+(defn inject-return!!
+  "Like [[inject-return!]], but also recursively update the item to new states that are returned."
+  [comp ret]
+  (inject-return_ comp ret r-tu/inject-return!!))
+
+(defn inject-action!
+  "Does the things that would happen if the given component emitted
+  the given action, and returns what would be emitted (state and/or
+  actions) from the tested item, in the form of a 'return' value."
+  [comp action]
   (inject-return! comp (core/return :action action)))
 
-(defn inject-state-change! [comp state]
+(defn inject-action!!
+  "Like [[inject-action!]], but also recursively update the item to new states that are returned."
+  [comp action]
+  (inject-return!! comp (core/return :action action)))
+
+(defn inject-state-change!
+  "Does the things that would happen if the given component emitted
+  the given new state, and returns what would be emitted (state and/or
+  actions) from the tested item, in the form of a 'return' value."
+  [comp state]
   (inject-return! comp (core/return :state state)))
+
+(defn inject-state-change!!
+  "Like [[inject-state-change!]], but also recursively update the item to new states that are returned."
+  [comp state]
+  (inject-return!! comp (core/return :state state)))
+
+;; TODO: inspect state of an 'inner component'?
 
 (defn execute-effect!
   "Executed the given effect in the given test environment, and return
@@ -214,17 +266,24 @@
 
 (def execute-effects-emulator execute-effect!) ;; ...bit of a silly name 'emulate by doing the real thing'.
 
-(defn effect? [a & [eff-defn]]
+(defn effect?
+  "Returns true if the given action is an effect action, and
+  optionally if it was created by the given effect function."
+  [a & [eff-defn]]
   (and (base/effect? a)
        (or (nil? eff-defn)
            (= (base/effect-f a) eff-defn)
            (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
 
-(defn effect-f [eff]
+(defn effect-f
+  "Returns the function implementing the effect behind the given effect action."
+  [eff]
   (assert (effect? eff))
   (:f eff))
 
-(defn effect-args [eff]
+(defn effect-args
+  "Returns the arguments for the function returned by [[effect-f]]."
+  [eff]
   (assert (effect? eff))
   (:args eff))
 

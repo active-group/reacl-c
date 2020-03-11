@@ -381,3 +381,24 @@
            (tu/send-message! env 1)))
     (is (= (c/return :state [:it-2 2])
            (tu/send-message! env 2)))))
+
+(deftest handle-action-test
+  (let [foobar (c/name-id "foobar")
+        item (c/named foobar (dom/div))
+        add-action (fn [state a]
+                     (base/merge-returned (c/return :state (conj state a))
+                                          (c/return)))
+        env (tu/env (c/handle-action item
+                                     add-action))]
+    
+    (tu/mount! env [])
+    (is (some? (tu/find env item)))
+    
+    (is (= (c/return :state [:a])
+           (tu/inject-action! (tu/find env item)
+                              :a)))
+
+    (tu/update! env [:a])
+    (is (= (c/return :state [:a :b])
+           (tu/inject-action! (tu/find env item)
+                              :b)))))
