@@ -39,10 +39,20 @@
 (defn- event? [k]
   (str/starts-with? (name k) "on"))
 
-(defn- split-events [attrs]
-  ;; OPT
-  [(into {} (remove #(event? (first %)) attrs))
-   (into {} (filter #(event? (first %)) attrs))])
+(let [none [{} {}]]
+  (defn- split-events [attrs]
+    ;; optimized on having no or few events; which is the usual case.
+    (cond
+      (not (some event? (keys attrs))) [attrs {}]
+      :else
+      (let [[attrs events]
+            (reduce-kv (fn [[attrs events] k v]
+                         (if (event? k)
+                           [(dissoc! attrs k) (assoc! events k v)]
+                           [attrs events]))
+                       [(transient attrs) (transient {})]
+                       attrs)]
+        [(persistent! attrs) (persistent! events)]))))
 
 (defn- dom-element* [type attrs events & children]
   {:pre [(string? type)
