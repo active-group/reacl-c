@@ -3,6 +3,7 @@
             [reacl-c.dom :as dom]
             [clojure.set :as set]
             [schema.core :as s]
+            [active.clojure.lens :as lens]
             [active.clojure.functions :as f])
   (:refer-clojure :exclude [deref partial constantly empty comp]))
 
@@ -124,29 +125,14 @@
   {:pre [(ifn? f)]}
   (base/make-dynamic f args))
 
-(def ^{:doc "The *identity lens* that does not modify the yanked of
-shoved values."} id-lens
-  (fn ([v] v)
-    ([_ v] v)))
-
-(def ^{:doc "A lens over the first item of a vector."} first-lens
-  (fn
-    ([[a _]] a)
-    ([[_ b] a] [a b])))
-
-(def ^{:doc "A lens over the second item of a vector."} second-lens
-  (fn
-    ([[_ b]] b)
-    ([[a _] b] [a b])))
-
 (defn focus
   "Returns an item that focuses the outer state, to the part of it
   that `item` shall see, via the given *lens*. Otherwise behaves and
   looks the same."
   [lens item]
   {:pre [(base/item? item)
-         (base/lens? lens)]}
-  (if (= lens id-lens)
+         #_(base/lens? lens)]}
+  (if (= lens lens/id)
     item
     (base/make-focus item lens)))
 
@@ -308,19 +294,6 @@ be specified multiple times.
                  [k (get m k nil)])
                keys)))
 
-(def ^{:doc "A lens over a tuple of maps or records, that yields a
-merged map of both. If both maps or records have fields of the same
-name, only the value of the second part of the tuple is used and updated on
-a change."}  merge-lens
-(fn
-  ([[s1 s2]] (merge s1 s2))
-  ([[s1 s2] ns]
-   ;; Note: if s1/s2 are records, then this restores that:
-   ;; id-merge makes the result be identical? if all updated keys are =
-   (let [k2 (set (keys s2))]
-     [(id-merge s1 (select-keys ns (set/difference (set (keys ns)) k2)))
-      (id-merge s2 (select-keys* ns k2))]))))
-
 (defn local-state
   "Returns an item which looks like the given item, with state `outer`,
   where the given item must take a tuple state `[outer inner]`, and
@@ -347,7 +320,7 @@ a change."}  merge-lens
   ;; Note: yes, it's actually the same as 'add-state' ;-)
   (add-state initial lens item))
 
-(defn add-merged-state
+(defn add-merged-state ;; TODO: remove?!
   "Adds new map or record fields that the given item sees as it's
   state, by merging the the given initial record or hash-map with the
   state of the resulting item. The given item can then update any
@@ -356,17 +329,13 @@ a change."}  merge-lens
   the outer state. If there are duplicate fields, the inner state
   'wins'."
   [initial item]
-  (add-state initial merge-lens item))
-
-(defn- isolate-lens
-  ([[outer inner]] inner)
-  ([[outer inner] new-inner] [outer new-inner]))
+  (add-state initial lens/merge item))
 
 (defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
   [initial-state item]
-  (static (f/partial add-state initial-state isolate-lens item)))
+  (static (f/partial add-state initial-state lens/second item)))
 
 (defn keyed
   "Adds an arbitrary identifier to the given item, which will be used
@@ -561,7 +530,7 @@ a change."}  merge-lens
       dyn (fn [[state error] try-e catch-e]
             (if (some? error)
               catch-e
-              (-> (focus first-lens try-e)
+              (-> (focus lens/first try-e)
                   (error-boundary (f/partial set-error state)))))]
   (defn try-catch
     "Returns an item that looks an works the same as the item
@@ -576,7 +545,7 @@ a change."}  merge-lens
     {:pre [(base/item? try-item)
            (base/item? catch-item)]}
     (-> (dynamic dyn try-item catch-item)
-        (hide-state nil id-lens))))
+        (hide-state nil lens/id))))
 
 (let [df (fn [e validate! state]
            ;; state passed down!

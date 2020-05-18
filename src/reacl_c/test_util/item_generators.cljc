@@ -1,6 +1,7 @@
 (ns reacl-c.test-util.item-generators
   (:require [clojure.test.check.generators :as gen]
             [active.clojure.functions :as f]
+            [active.clojure.lens :as lens]
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
@@ -75,7 +76,7 @@
             item-gen))
 
 (defn focus [item-gen]  ;; TODO lens?
-  (gen/fmap #(c/focus c/id-lens %)
+  (gen/fmap #(c/focus lens/id %)
             item-gen))
 
 (defn local-state [item-gen] ;; TODO initial-state?

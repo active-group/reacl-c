@@ -57,27 +57,6 @@
     (is (= (c/handle-state-change (dom/div) :f) (c/handle-state-change (dom/div) :f))))
   )
 
-(deftest merge-lens-test
-  ;; independant fields
-  (is (= (lens/yank [{:a 42} {:b 13}] c/merge-lens)
-         {:a 42 :b 13}))
-  (is (= (lens/shove [{:a 42} {:b 13}] c/merge-lens {:a 110 :b 130})
-         [{:a 110} {:b 130}]))
-
-  ;; shadow outer
-  (is (= (lens/yank [{:a 42} {:a 11 :b 13}] c/merge-lens)
-         {:a 11 :b 13}))
-  (is (= (lens/shove [{:a 42} {:a 11 :b 13}] c/merge-lens {:a 110 :b 130})
-         [{:a 42} {:a 110 :b 130}]))
-
-  ;; new fields go into outer
-  (is (= (lens/shove [{} {:a 11}] c/merge-lens {:a 110 :b 130})
-         [{:b 130} {:a 110}]))
-
-  ;; missing values become nil (= inner keys are stable; would be hard to follow lens laws otherwise)
-  (is (= (lens/shove [{} {:a 11 :b 17}] c/merge-lens {:b 110})
-         [{} {:a nil :b 110}])))
-
 (deftest subscription-test
   (let [subscribed (atom false)
         sub-impl (fn [deliver! x]

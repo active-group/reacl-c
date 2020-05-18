@@ -25,9 +25,6 @@
                 (str "Expected an item or string, but this is neither: " (pr-str c)))
         false)))
 
-(defn lens? [v]
-  (or (ifn? v) (keyword? v) (integer? v)))
-
 (defprotocol Ref
   (-deref-ref [this]))
 (defn ref? [v]
