@@ -270,16 +270,18 @@
   (fn [ev]
     (rcore/send-message! target (EventMessage. ev))))
 
-(defn- merge-dom-attrs [target attrs events handler]
-  (let [r-events (into {} (map (fn [[k v]]
-                                 [k handler])
-                               events))]
-    (merge attrs r-events)))
+(defn- merge-dom-attrs [attrs events handler self-ref]
+  ;; Note: events are non-empty here.
+  (-> (reduce (fn [attrs k]
+                (assoc! attrs k handler))
+              (cond-> (transient attrs)
+                self-ref (assoc! :ref (reacl-ref self-ref)))
+              events)
+      (persistent!)))
 
-(defn- native-dom [binding type attrs self-ref & children]
+(defn- native-dom [binding type attrs & children]
   (apply rdom/element type
-         (cond-> attrs
-           self-ref (assoc :ref (reacl-ref self-ref)))
+         attrs
          (map (partial instantiate binding) children)))
 
 (def dom-class-for-type
@@ -293,9 +295,10 @@
                   handle-message
                   (fn [msg]
                     (dom-message-to-action state msg events))
-  
+
+                  ;; Note that we could exclude updates when only event-handler functions have changed (if it's worth it to check?)
                   render
-                  (apply native-dom (rcore/bind this) type (merge-dom-attrs this attrs events handler) ref
+                  (apply native-dom (rcore/bind this) type (merge-dom-attrs attrs (keys events) handler ref)
                          children)))))
 
 (defn- dom-class [binding type events ref & children]
@@ -304,7 +307,8 @@
 (defn- dom [binding type attrs events ref & children]
   ;; optimize for no events (makes quite a difference!)
   (if (empty? events)
-    (apply native-dom binding type attrs ref children)
+    (apply native-dom binding type (cond-> attrs
+                                     ref (assoc :ref (reacl-ref ref))) children)
     (apply dom-class binding type attrs events ref children)))
 
 (defn- flatten-fragment [item]
