@@ -75,29 +75,43 @@
 (defn- get-root-component [env]
   (r-tu/get-component env))
 
-(defn get-component [env]
+(defn get-components [env]
   ;; we always wrap the "env" class around the main component.
   (let [env-comp (get-root-component env)]
-    (first (array-seq (.-children env-comp)))))
+    (array-seq (.-children env-comp))))
 
-(defn- to-component [env]
+(defn get-component [env]
+  (let [cs (get-components env)]
+    (cond
+      (empty? cs) (do (assert false "empty env") nil)
+      (empty? (rest cs)) (first cs)
+      :else
+      (do (assert false "no unique toplevel component - is it a fragment?")
+          nil))))
+
+(defn- search-root [env]
   (if (r-tu/env? env)
-    (get-component env)
-    env))
+    ;; Note: the root can have multiple children (if a fragment is used at toplevel)
+    [(get-root-component env) rxpath/children]
+    [env rxpath/self]))
 
 ;; TODO: helpers for when something cannot be found? (assert-exprs maybe?)
 
 (defn find [env item]
-  (rxpath/select (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
+  (let [[c base] (search-root env)]
+    (rxpath/select c (rxpath/comp base rxpath/all (xpath/item item)))))
 
 (defn find-named [env thing]
-  (rxpath/select (to-component env) (rxpath/comp rxpath/all (xpath/named thing))))
+  (let [[c base] (search-root env)]
+    (rxpath/select c (rxpath/comp base rxpath/all (xpath/named thing)))))
 
 (defn find-all [env item]
-  (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/item item))))
+  (let [[c base] (search-root env)]
+    (rxpath/select-all c (rxpath/comp base rxpath/all (xpath/item item)))))
 
 (defn find-all-named [env thing]
-  (rxpath/select-all (to-component env) (rxpath/comp rxpath/all (xpath/named thing))))
+  (let [[c base] (search-root env)]
+    (rxpath/select-all c (rxpath/comp base rxpath/all (xpath/named thing)))))
 
 (defn describe-failed-find [env item]
   ;; this is still to be considered 'experimental'; hard to given a "good" tip

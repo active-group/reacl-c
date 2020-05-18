@@ -13,8 +13,7 @@
   (let [same (fn [pat item]
                (let [env (tu/env item)]
                  (tu/mount! env nil)
-                 (some? (rxpath/select (tu/get-component env)
-                                       (xpath/item pat)))))]
+                 (some? (tu/find env pat))))]
     (prop/for-all [v item-gen/node-item]
                   (same v v))))
 
