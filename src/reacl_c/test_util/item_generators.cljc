@@ -1,5 +1,6 @@
 (ns reacl-c.test-util.item-generators
   (:require [clojure.test.check.generators :as gen]
+            [active.clojure.functions :as f]
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
@@ -41,12 +42,12 @@
 
 (defn dynamic [item-gen]  ;; TODO: fn?
   (gen/fmap (fn [it]
-              (c/dynamic (c/constantly it)))
+              (c/dynamic (f/constantly it)))
             item-gen))
 
 (defn static [item-gen]
   (gen/fmap (fn [it]
-              (c/static (c/constantly it)))
+              (c/static (f/constantly it)))
             item-gen))
 
 (defn keyed [key-gen item-gen]
@@ -56,7 +57,7 @@
 
 (defn handle-message [item-gen]  ;; TODO: fn?
   (gen/fmap (fn [it]
-              (c/handle-message (c/constantly (c/return))
+              (c/handle-message (f/constantly (c/return))
                                 it))
             item-gen))
 
@@ -66,11 +67,11 @@
 
 (def once
   (gen/fmap #(apply c/once %)
-            (gen/tuple (gen/elements [(c/constantly (c/return))])
-                       (gen/elements [nil (c/constantly (c/return))]))))
+            (gen/tuple (gen/elements [(f/constantly (c/return))])
+                       (gen/elements [nil (f/constantly (c/return))]))))
 
 (defn with-async-return [item-gen]  ;; TODO: fn?
-  (gen/fmap #(c/with-async-return (c/constantly %))
+  (gen/fmap #(c/with-async-return (f/constantly %))
             item-gen))
 
 (defn focus [item-gen]  ;; TODO lens?
@@ -82,16 +83,16 @@
             item-gen))
 
 (defn handle-action [item-gen]  ;; TODO: fn?
-  (gen/fmap #(c/handle-action % (c/constantly (c/return)))
+  (gen/fmap #(c/handle-action % (f/constantly (c/return)))
             item-gen))
 
 (defn handle-state-change [item-gen] ;; TODO: fn?
-  (gen/fmap #(c/handle-state-change % (c/constantly (c/return)))
+  (gen/fmap #(c/handle-state-change % (f/constantly (c/return)))
             item-gen))
 
 (defn error-boundary [item-gen] ;; TODO: fn?
   (gen/fmap (fn [i1]
-              (c/error-boundary i1 (c/constantly (c/return))))
+              (c/error-boundary i1 (f/constantly (c/return))))
             item-gen))
 
 (declare with-ref)
@@ -188,7 +189,7 @@
               (into {} items))
             (smaller-list (seq mp))))
 
-(def ^:private f-empty (c/constantly c/empty))
+(def ^:private f-empty (f/constantly c/empty))
 (def ^:private void (gen/elements [c/empty])) ;; should be 'nothing' really; but empty generator not possible?
 (def ^:private empty-item (gen/elements [c/empty]))
 

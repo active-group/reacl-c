@@ -1,7 +1,8 @@
 (ns ^:no-doc examples.todo
-  (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.browser :as browser]
-            [reacl-c.dom :as dom]))
+    (:require [reacl-c.core :as c :include-macros true]
+              [active.clojure.functions :as f]
+              [reacl-c.browser :as browser]
+              [reacl-c.dom :as dom]))
 
 (defn checked-state [e]
   (c/return :state (.. e -target -checked)))
@@ -28,7 +29,7 @@
             :action act))
 
 (c/defn-dynamic add-item text [submit]
-  (dom/form {:onsubmit (c/partial add-item-submit (submit text))}
+  (dom/form {:onsubmit (f/partial add-item-submit (submit text))}
             textbox
             (dom/button {:type "submit"} "Add")))
 
@@ -39,7 +40,7 @@
   (c/return :action action))
 
 (defn button [label action]
-  (dom/button {:onclick (c/partial button-action action)}
+  (dom/button {:onclick (f/partial button-action action)}
               label))
 
 (c/defn-dynamic item todo [delete]
@@ -78,7 +79,7 @@
                   (c/focus :todos (item-list ->DeleteItem))
                   (dom/br)
                   (add-item-form ->AddItem))
-      (c/handle-action (c/partial list-actions state))))
+      (c/handle-action (f/partial list-actions state))))
 
 (browser/run (.getElementById js/document "app-todo")
   main

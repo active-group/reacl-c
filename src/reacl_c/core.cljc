@@ -249,21 +249,6 @@ be specified multiple times.
     [item f]
     (handle-action item (f/partial h f))))
 
-(def ^{:doc "Like [[clojure.core/partial]], but the returned function
-is equal (=), when the arguments are equal."
-       :arglists '([f & args])}
-  partial f/partial)
-
-(def ^{:doc "Like [[clojure.core/constantly]], but the returned function
-is equal (=), when the argument is equal."
-       :arglists '([v])}
-  constantly f/constantly)
-
-(def ^{:doc "Like [[clojure.core/comp]], but the returned function
-is equal (=), when the arguments are equal."
-       :arglists '([& fs])}
-  comp f/comp)
-
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
   (defn redirect-messages

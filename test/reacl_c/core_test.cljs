@@ -5,6 +5,7 @@
             [reacl-c.test-util.core :as tu]
             [reacl-c.browser :as browser]
             [active.clojure.lens :as lens]
+            [active.clojure.functions :as f]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
 #_(deftest static-performance
@@ -49,7 +50,7 @@
   (testing "keyed"
     (is (= (c/keyed (dom/div) :a) (c/keyed (dom/div) :a))))
   (testing "once"
-    (is (= (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))) (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))))))
+    (is (= (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))) (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
@@ -247,7 +248,7 @@
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
-                                               (-> (c/once (c/constantly (c/return :action ::test)))
+                                               (-> (c/once (f/constantly (c/return :action ::test)))
                                                    (c/handle-action (fn [_ _]
                                                                       (send! ref :msg)
                                                                       (c/return))))))))))]
@@ -262,7 +263,7 @@
                                                                        (c/return :state msg))
                                                                      (dom/div))
                                                    (c/set-ref ref))
-                                               (c/once (c/constantly (c/return :message [ref :msg])))))))))]
+                                               (c/once (f/constantly (c/return :message [ref :msg])))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
 
@@ -304,8 +305,8 @@
 
 (deftest once-test
   ;; state dependant.
-  (let [env (tu/env (c/once (c/partial c/return :action)
-                            (c/partial c/return :action)))]
+  (let [env (tu/env (c/once (f/partial c/return :action)
+                            (f/partial c/return :action)))]
     (is (= (c/return :action ::up)
            (tu/mount!! env ::up)))
 
@@ -320,8 +321,8 @@
            (tu/unmount!! env))))
 
   ;; state independant
-  (let [env (tu/env (c/once (c/constantly (c/return :action ::up))
-                            (c/constantly (c/return :action ::down))))]
+  (let [env (tu/env (c/once (f/constantly (c/return :action ::up))
+                            (f/constantly (c/return :action ::down))))]
     (is (= (c/return :action ::up)
            (tu/mount!! env true))) 
 

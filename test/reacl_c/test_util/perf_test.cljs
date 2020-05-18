@@ -3,6 +3,7 @@
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
             [reacl-c.test-util.perf :as perf :include-macros true]
+            [active.clojure.functions :as f]
             [cljs.test :refer (is deftest testing) :include-macros true]
             [reacl-c.test-util.item-generators :as item-gen]
             [clojure.test.check.properties :as prop]
@@ -24,9 +25,9 @@
   (is (= [:good [{:state-1 :a
                   :state-2 :b
                   :resolved (dom/div)}]]
-         (perf/performance (c/dynamic (c/partial #(dom/div))) (list :a :b))))
+         (perf/performance (c/dynamic (f/partial #(dom/div))) (list :a :b))))
   (is (= [:ideal nil]
-         (perf/performance (c/dynamic (c/partial #(dom/div (str %)))) (list :a :b))))
+         (perf/performance (c/dynamic (f/partial #(dom/div (str %)))) (list :a :b))))
 
   (is (= [:ideal nil]
          (perf/performance (c/fragment (c/focus :x (c/dynamic #(dom/div %)))
@@ -49,7 +50,7 @@
   (is (= [:good [{:state-1 :a
                   :state-2 :b
                   :resolved (dom/div)}]]
-         (perf/performance (c/dynamic (c/partial #(dom/div))) (list :a :b)))))
+         (perf/performance (c/dynamic (f/partial #(dom/div))) (list :a :b)))))
 
 #_(deftest performance-macro-test
   (let [f #(dom/div)]
@@ -91,13 +92,13 @@
 
     (is (= [['keyed] {:key ["foo" "bar"]}]  (f (c/keyed (dom/div) "foo") (c/keyed (dom/span) "bar"))))
 
-    (is (= nil (f (c/once (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return :action :a))))))
-    (is (= nil (f (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))) (c/once (c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))))))
+    (is (= nil (f (c/once (f/constantly (c/return :action :a))) (c/once (f/constantly (c/return :action :a))))))
+    (is (= nil (f (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))) (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
 
-    (is (= [[] {:once [(c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))]}] 
-           (f (c/once (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return :action :b))))))
-    (is (= [[] {:once-cleanup [(c/constantly (c/return :action :a)) (c/constantly (c/return :action :b))]}] 
-           (f (c/once (c/constantly (c/return)) (c/constantly (c/return :action :a))) (c/once (c/constantly (c/return)) (c/constantly (c/return :action :b))))))
+    (is (= [[] {:once [(f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))]}] 
+           (f (c/once (f/constantly (c/return :action :a))) (c/once (f/constantly (c/return :action :b))))))
+    (is (= [[] {:once-cleanup [(f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))]}] 
+           (f (c/once (f/constantly (c/return)) (f/constantly (c/return :action :a))) (c/once (f/constantly (c/return)) (f/constantly (c/return :action :b))))))
 
     (is (= [['focus] {:lens [:a :b]}] (f (c/focus :a (dom/div)) (c/focus :b (dom/div)))))
     (is (= [['focus 'div] {:attributes [{:a 10} {:a 42}]}] (f (c/focus :k1 (dom/div {:a 10 :b 1})) (c/focus :k1 (dom/div {:a 42 :b 1})))))

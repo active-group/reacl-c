@@ -1,7 +1,8 @@
 (ns ^:no-doc examples.world
-  (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.browser :as browser]
-            [reacl-c.dom :as dom]))
+    (:require [reacl-c.core :as c :include-macros true]
+              [active.clojure.functions :as f]
+              [reacl-c.browser :as browser]
+              [reacl-c.dom :as dom]))
 
 (c/defn-subscription interval-timer deliver! [ms]
   {:pre [(integer? ms)]}
@@ -40,7 +41,7 @@
   (if show?
     (dom/div (dom/button {:onclick hide} "Hide")
              clock
-             (dom/button {:onclick (c/constantly (c/return :action (reload)))} "Reload"))
+             (dom/button {:onclick (f/constantly (c/return :action (reload)))} "Reload"))
     (dom/button {:onclick show} "Show")))
 
 (browser/run (.getElementById js/document "app-world")

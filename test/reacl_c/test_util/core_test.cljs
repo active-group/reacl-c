@@ -4,6 +4,7 @@
             [reacl-c.base :as base]
             [reacl-c.test-util.core :as tu]
             [reacl-c.impl.reacl :as impl]
+            [active.clojure.functions :as f]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
 (deftest find-items-test
@@ -40,16 +41,16 @@
     (is (find (dom/div) (c/handle-message :f (dom/div))))
 
     ;; dynamic
-    (is (find (c/dynamic (c/constantly (dom/div)) :a) (c/dynamic (c/constantly (dom/div)) :a)))
+    (is (find (c/dynamic (f/constantly (dom/div)) :a) (c/dynamic (f/constantly (dom/div)) :a)))
 
     ;; dom ignores others (= structural match)
-    (is (find (dom/div) (c/dynamic (c/constantly (dom/div)))))
-    (is (find (dom/div (dom/span)) (c/dynamic (c/constantly
-                                               (dom/div (c/dynamic (c/constantly
+    (is (find (dom/div) (c/dynamic (f/constantly (dom/div)))))
+    (is (find (dom/div (dom/span)) (c/dynamic (f/constantly
+                                               (dom/div (c/dynamic (f/constantly
                                                                     (dom/span))))))))
     (is (find (dom/div (dom/span) (dom/span)) (dom/div (dom/span) (dom/span))))
     (is (not (find (dom/div (dom/span) (dom/span)) (dom/div (dom/span)))))
-    (is (find (dom/div "foo") (dom/div (c/dynamic (c/constantly "foo")))))
+    (is (find (dom/div "foo") (dom/div (c/dynamic (f/constantly "foo")))))
 
     ;; regression
     ;; FIXME:?
@@ -78,7 +79,7 @@
          (-> (tu/env (dom/div))
              (tu/mount! :state))))
   (is (= (c/return :action ::act)
-         (-> (tu/env (c/once (c/constantly (c/return :action ::act))))
+         (-> (tu/env (c/once (f/constantly (c/return :action ::act))))
              (tu/mount! :state)))))
 
 (deftest update-test
@@ -108,7 +109,7 @@
 
 (deftest unmount-test
   (is (= (c/return :action ::act)
-         (let [e (tu/env (c/once (c/constantly (c/return)) (c/constantly (c/return :action ::act))))]
+         (let [e (tu/env (c/once (f/constantly (c/return)) (f/constantly (c/return :action ::act))))]
            (tu/mount! e :state)
            (tu/unmount! e)))))
 
