@@ -23,7 +23,7 @@
           #(not (base/static? %))
           #(not (base/with-ref? %))
           #(not (base/with-async-return? %))]}
-  (if (string? item)
+  (if (or (string? item) (nil? item))
     item
     (condp apply [item]
       ;; the dynamics
@@ -36,13 +36,13 @@
 
 (defn ^:no-doc resolve-*
   [item state resolve-dyn]
-  (if (string? item)
+  (if (or (string? item) (nil? item))
     item
     (let [w (fn []
               (update item :e #(resolve-* % state resolve-dyn)))
           wc (fn []
                (update item :children (fn [es]
-                                        (mapv #(resolve-* % state resolve-dyn) es))))]
+                                        (seq (mapv #(resolve-* % state resolve-dyn) es)))))]
       (condp apply [item]
         ;; the dynamics
         base/dynamic? (resolve-dyn item state)
@@ -62,7 +62,7 @@
         base/handle-message? (w)
         base/handle-state-change? (w)
 
-        base/fragment? (wc)
+        base/fragment? (wc) ;; Note: only non-empty fragments here!
         dom/element?   (wc)
 
         ;; the leafs
@@ -90,7 +90,7 @@
   (let [[only-1 only-2 _] (data/diff s1 s2)]
     [only-1 only-2]))
 
-(defn- wrapper-type [item]
+(defn- item-type [item]
   (condp apply [item]
     base/dynamic? 'dynamic
     base/static? 'static
@@ -114,18 +114,19 @@
   ;; returns [path differences] path=[item ...] and differences {:name [left right]}
   (let [path (or path [])
         w (fn [e1 e2 e-k res-k]
-            (let [path (conj path (wrapper-type e1))]
+            (let [path (conj path (item-type e1))]
               (if (= (e-k item1) (e-k item2))
                 (find-first-difference (:e item1) (:e item2) path)
                 [path {res-k [(e-k item1) (e-k item2)]}])))]
     (cond
       (= item1 item2) nil
       
-      (not= (type item1) (type item2)) [path {:types [(type item1) (type item2)]}]
+      (not= (item-type item1) (item-type item2))
+      [path {:types [(item-type item1) (item-type item2)]}]
 
       ;; dynamics
       (or (base/static? item1) (base/dynamic? item1) (base/with-ref? item1) (base/with-async-return? item1))
-      (let [path (conj path (wrapper-type item1))]
+      (let [path (conj path (item-type item1))]
         (if (= (:f item1) (:f item2))
           [path {:arguments (seq-diff (:args item1) (:args item2))}]
           [path {:function [(:f item1) (:f item2)]}]))
@@ -156,7 +157,7 @@
 
       ;; containers
       (or (base/fragment? item1) (dom/element? item1))
-      (let [cs1 (:children item1)
+      (let [cs1 (:children item1) ;; empty fragment = nil => no children
             cs2 (:children item2)
             in-path path
             path (conj path (if (dom/element? item1) (symbol (:type item1)) 'fragment))]
@@ -190,7 +191,7 @@
         [path {:once [(:f item1) (:f item2)]}]
         [path {:once-cleanup [(:cleanup-f item1) (:cleanup-f item2)]}])
       
-      :else ;; string?!
+      :else ;; string
       [path {:not= [item1 item2]}])))
 
 (defn ^:no-doc resolve-differences

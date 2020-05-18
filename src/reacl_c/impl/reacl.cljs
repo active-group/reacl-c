@@ -27,11 +27,13 @@
 (defn xpath-pattern [e]
   (cond
     (string? e) (xp/comp (xp/is= e))
+    (nil? e) xp/self ;; nothing can be found in anything
     (satisfies? IReacl e) (-xpath-pattern e)
     :else (assert false (str "No reacl implementation for: " (pr-str e)))))
 
 (defn- is-dynamic? [item]
-  (if (string? item)
+  (if (or (string? item)
+          (nil? item))
     false
     (-is-dynamic? item)))
 
@@ -80,6 +82,7 @@
                               (first cs)
                               (apply rdom/fragment cs)))
     (string? e) (rdom/fragment e)
+    (nil? e) (rdom/fragment)
     
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
@@ -88,6 +91,7 @@
   (cond
     (satisfies? IReacl e) (-instantiate-reacl e binding)
     (string? e) [e]
+    (nil? e) []
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])

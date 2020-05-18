@@ -29,7 +29,7 @@
   "Returns a container item consisting of the given child items."
   [& children]
   {:pre [(base/assert-item-list "fragment" children)]}
-  (base/make-fragment (remove nil? children)))
+  (base/make-fragment children))
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 

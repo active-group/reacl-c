@@ -5,7 +5,9 @@
 (defprotocol E)
 
 (defn item? [v]
-  (or (string? v) (satisfies? E v)))
+  (or (string? v)
+      (nil? v)
+      (satisfies? E v)))
 
 (defn- item-list-pred [v]
   ;; nil for easier 'conditional rendering'
@@ -44,10 +46,19 @@
   (.-name v))
 
 (r/define-record-type Fragment
-  (make-fragment children)
-  fragment?
+  (really-make-fragment children)
+  really-fragment?
   [children fragment-children]
   E)
+
+(defn make-fragment [children]
+  (if (empty? children)
+    nil
+    (really-make-fragment children)))
+
+(defn fragment? [v]
+  ;; nil is an empty fragment
+  (or (nil? v) (really-fragment? v)))
 
 (r/define-record-type Dynamic
   (make-dynamic f args)

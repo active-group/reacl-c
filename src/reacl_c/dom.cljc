@@ -50,8 +50,7 @@
          (map? events)
          (every? ifn? (vals events))
          (base/assert-item-list type children)]}
-  ;; TODO: just (base/make-fragment children) ?
-  (make-element type attrs events nil (remove nil? children)))
+  (make-element type attrs events nil children))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

@@ -31,7 +31,13 @@
   )
 
 (deftest item-equality-test
-  ;; all item should be referentially equal
+  ;; items should be referentially equal
+  (testing "fragment"
+    (is (= (c/fragment) (c/fragment)))
+    (is (= (c/fragment (dom/div)) (c/fragment (dom/div))))
+    ;; to simplify conditional rendering (via 'when'), nil is the same as an empty fragment
+    (is (= nil (c/fragment)))
+    (is (= nil c/empty)))
   (testing "div"
     (is (= (dom/div) (dom/div)))
     (is (= (dom/div "a") (dom/div "a")))
