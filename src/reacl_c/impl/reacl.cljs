@@ -309,9 +309,7 @@
     (list item)))
 
 (defn- flatten-children [children]
-  (->> (mapcat flatten-fragment children)
-       ;; remaining fragments should be empty, remove them
-       (remove base/fragment?)))
+  (mapcat flatten-fragment children))
 
 (extend-type dom/Element
   IReacl
@@ -348,11 +346,11 @@
           xp/self
           (xp/comp xp/children
                    ;; we want to allow a dom or text child to match further down; 'skipping' any
-                   ;; of our wrapper classes in between.
-                   (let [child-match (apply xp/or (map xpath-pattern children))]
-                     (xp/or child-match
-                            (xp/comp (xp/first-where (xp/not xp/class?))
-                                     child-match)))
+                   ;; of our wrapper classes in between. Note that multiple nodes may match the same child then.
+                   (xp/where (let [child-match (apply xp/or (map xpath-pattern children))]
+                               (xp/or child-match
+                                      (xp/comp (xp/first-where (xp/not xp/class?))
+                                               child-match))))
                    (xp/count= (count children))))))))
   (-is-dynamic? [{events :events children :children}]
     (or (not (empty? events)) (some is-dynamic? children)))
@@ -363,15 +361,18 @@
   IReacl
   (-xpath-pattern [{children :children}]
     ;; as fragments disappear in the renderes node tree, it's hard to accurately select for them;
-    ;; this selects any parent, that has all the specified non-fragment children (but it may have more).
+    ;; this selects any children of the parent, that has all the specified non-fragment children (but it may have more).
     (let [children (flatten-children children)]
       (if (empty? children)
-        xp/parent
-        (xp/comp xp/parent
-                 (apply xp/and
-                        (map (fn [c]
-                               (xp/where (xp/comp xp/children (xpath-pattern c))))
-                             children))))))
+        ;; empty can be found in everything
+        xp/self
+        (do #_(assert false "fragment nodes cannot be selected, or can they?")
+            (xp/comp xp/parent
+                     (apply xp/and
+                            (map (fn [c]
+                                   (xp/where (xp/comp xp/children (xpath-pattern c))))
+                                 children))
+                     )))))
   (-is-dynamic? [{children :children}]
     (some is-dynamic? children))
   (-instantiate-reacl [{children :children} binding]

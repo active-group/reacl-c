@@ -12,6 +12,7 @@
                (let [env (tu/env item)]
                  (tu/mount! env nil)
                  (some? (tu/find env pat))))]
+    ;; can't find nothing :-/
     (is (find c/empty (dom/div)))
     (is (find c/empty (c/fragment (dom/div))))
     ;; can't find something in nothing :-/
@@ -22,9 +23,17 @@
     ;;(is (find c/empty "foo"))
     (is (find (dom/div c/empty) (dom/div "foo")))
 
-    (is (find (c/fragment (dom/div)) (dom/div)))
-    (is (find (c/fragment (dom/div)) (c/fragment (dom/div))))
-    (is (find (c/fragment (dom/div) (dom/span)) (c/fragment (dom/div) (dom/span))))
+    (is (find (dom/div) (dom/div)))
+    (is (find (dom/div) (c/fragment (dom/div))))
+    (is (find (dom/div) (c/fragment (dom/div) (dom/span))))
+
+    (is (find (dom/span) (c/fragment (dom/div) (dom/span))))
+
+    ;; not easy to define which node a fragment should select for:
+    #_(is (find (c/fragment (dom/div)) (dom/div)))
+    #_(is (find (c/fragment (dom/div)) (c/fragment (dom/div))))
+    #_(is (find (c/fragment (dom/div) (dom/span)) (c/fragment (dom/div) (dom/span))))
+    
     (is (find (dom/div (c/fragment (dom/div) (dom/span))) (dom/div (c/fragment (dom/div) (dom/span)))))
 
     ;; partial dom matches:
@@ -59,6 +68,33 @@
               (dom/div (c/with-ref (fn [r] c/empty))
                        (c/keyed (dom/span) "_"))))
     (is (find (dom/div (dom/span)) (dom/div (dom/span {:id "y"}))))
+    ))
+
+(deftest find-items-test-2
+  (let [find (fn [pat item]
+               (let [env (tu/env item)]
+                 (tu/mount! env nil)
+                 (tu/find env pat)))
+        find-t (fn [pat item]
+                 (when-let [x (find pat item)]
+                   (.-type x)))
+        ]
+    ;; toplevel
+    (is (= "div" (find-t (dom/div) (dom/div))))
+    (is (= "div" (find-t (dom/div c/empty) (dom/div "foo"))))
+    (is (= "div" (find-t (dom/div) (c/fragment (dom/div)))))
+
+    ;; one level deep
+    (is (= "span" (find-t (dom/span) (dom/div (dom/span)))))
+
+    ;; partial matches
+    (is (= "div" (find-t (dom/div {:id "x"}) (dom/div {:id "x" :type "t"}))))
+
+    ;; structural matches (ignore invisible nodes)
+    (is (= "div" (find-t (dom/div) (c/dynamic (f/constantly (dom/div))))))
+
+    (is (= "reacl-c.impl.reacl/dynamic" (.-displayName (find-t (c/dynamic (f/constantly (dom/span)))
+                                                               (c/dynamic (f/constantly (dom/span)))))))
     ))
 
 (deftest describe-failed-find-test
