@@ -44,21 +44,14 @@
   [(into {} (remove #(event? (first %)) attrs))
    (into {} (filter #(event? (first %)) attrs))])
 
-(defn- flatten-fragment [item]
-  (if (base/fragment? item)
-    (mapcat flatten-fragment (:children item))
-    (list item)))
-
-(defn- flatten-children [children] ;; TODO: is this worth it? resp. the optimal way?
-  (mapcat flatten-fragment children))
-
 (defn- dom-element* [type attrs events & children]
   {:pre [(string? type)
          (map? attrs)
          (map? events)
          (every? ifn? (vals events))
          (base/assert-item-list type children)]}
-  (make-element type attrs events nil (flatten-children (remove nil? children))))
+  ;; TODO: just (base/make-fragment children) ?
+  (make-element type attrs events nil (remove nil? children)))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

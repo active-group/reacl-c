@@ -303,46 +303,57 @@
     (apply native-dom binding type attrs ref children)
     (apply dom-class binding type attrs events ref children)))
 
+(defn- flatten-fragment [item]
+  (if (base/fragment? item)
+    (mapcat flatten-fragment (:children item))
+    (list item)))
+
+(defn- flatten-children [children]
+  (->> (mapcat flatten-fragment children)
+       ;; remaining fragments should be empty, remove them
+       (remove base/fragment?)))
+
 (extend-type dom/Element
   IReacl
   (-xpath-pattern [{type :type attrs :attrs events :events ref :ref children :children}]
-    (xp/comp
-     ;; match the tag, or the tag below the matching wrapper class.
-     (xp/or (xp/tag type)
-            (xp/comp (xp/class (dom-class-for-type type))
-                     xp/children))
-     ;; attributes match, with specials for class and style.
-     (xp/where
-      (apply xp/and
-             (map (fn [[k v]]
-                    (case k
-                      (:class :className "class" "className") (xp/css-class? v)
-                      (:style "style") (xp/style? v)
-                      (xp/where (xp/comp (xp/attr k) (xp/is= v)))))
-                  attrs)))
-     ;; has the events
-     (xp/where
-      (apply xp/and
-             (map (fn [[k v]]
-                    ;; enough to 'have' the event.
-                    (xp/where (xp/attr k)))
-                  events)))
-     ;; ref is ignored for now.
+    (let [children (flatten-children children)]
+      (xp/comp
+       ;; match the tag, or the tag below the matching wrapper class.
+       (xp/or (xp/tag type)
+              (xp/comp (xp/class (dom-class-for-type type))
+                       xp/children))
+       ;; attributes match, with specials for class and style.
+       (xp/where
+        (apply xp/and
+               (map (fn [[k v]]
+                      (case k
+                        (:class :className "class" "className") (xp/css-class? v)
+                        (:style "style") (xp/style? v)
+                        (xp/where (xp/comp (xp/attr k) (xp/is= v)))))
+                    attrs)))
+       ;; has the events
+       (xp/where
+        (apply xp/and
+               (map (fn [[k v]]
+                      ;; enough to 'have' the event.
+                      (xp/where (xp/attr k)))
+                    events)))
+       ;; ref is ignored for now.
              
-     ;; all children must match in any order (not possible to check the order, I think?)
-     ;; but the number of matching children must match either - that works around
-     ;; two similar children matching the same node
-     (xp/where
-      (if (empty? children)
-        xp/self
-        (xp/comp xp/children
-                 ;; we want to allow a dom or text child to match further down; 'skipping' any
-                 ;; of our wrapper classes in between.
-                 (let [child-match (apply xp/or (map xpath-pattern children))]
-                   (xp/or child-match
-                          (xp/comp (xp/first-where (xp/not xp/class?))
-                                   child-match)))
-                 (xp/count= (count children)))))))
+       ;; all children must match in any order (not possible to check the order, I think?)
+       ;; but the number of matching children must match either - that works around
+       ;; two similar children matching the same node
+       (xp/where
+        (if (empty? children)
+          xp/self
+          (xp/comp xp/children
+                   ;; we want to allow a dom or text child to match further down; 'skipping' any
+                   ;; of our wrapper classes in between.
+                   (let [child-match (apply xp/or (map xpath-pattern children))]
+                     (xp/or child-match
+                            (xp/comp (xp/first-where (xp/not xp/class?))
+                                     child-match)))
+                   (xp/count= (count children))))))))
   (-is-dynamic? [{events :events children :children}]
     (or (not (empty? events)) (some is-dynamic? children)))
   (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
@@ -352,14 +363,15 @@
   IReacl
   (-xpath-pattern [{children :children}]
     ;; as fragments disappear in the renderes node tree, it's hard to accurately select for them;
-    ;; this selects any parent, that has all the specified children (but it may have more).
-    (if (empty? children)
-      xp/parent
-      (xp/comp xp/parent
-               (apply xp/and
-                      (map (fn [c]
-                             (xp/where (xp/comp xp/children (xpath-pattern c))))
-                           children)))))
+    ;; this selects any parent, that has all the specified non-fragment children (but it may have more).
+    (let [children (flatten-children children)]
+      (if (empty? children)
+        xp/parent
+        (xp/comp xp/parent
+                 (apply xp/and
+                        (map (fn [c]
+                               (xp/where (xp/comp xp/children (xpath-pattern c))))
+                             children))))))
   (-is-dynamic? [{children :children}]
     (some is-dynamic? children))
   (-instantiate-reacl [{children :children} binding]
