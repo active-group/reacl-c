@@ -18,9 +18,11 @@
 ;; they are instead represented as [type args], and the implementing
 ;; Reacl class is added via extend-type in 'impl/reacl'.
 
-;; TODO: need for getSnapshotBeforeUpdate ?
-
-;; TODO: add a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
+;; Additions to think about:
+;; - getSnapshotBeforeUpdate ?
+;; - a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
+;; - (derived-local-state init (fn [outer inner] => inner) item)  ? or same without outer?
+;; - simplify local-state + dynamic somehow?
 
 (defn fragment
   "Returns a container item consisting of the given child items."
