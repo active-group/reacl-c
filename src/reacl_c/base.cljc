@@ -151,11 +151,11 @@
    key keyed-key]
   E)
 
-(r/define-record-type Once
-  (make-once f cleanup-f)
-  once?
-  [f once-f
-   cleanup-f once-cleanup-f]
+(r/define-record-type Livecycle
+  (make-livecycle init finish)
+  livecycle?
+  [init livecycle-init
+   finish livecycle-finish]
   E)
 
 

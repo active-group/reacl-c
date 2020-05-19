@@ -66,10 +66,10 @@
   (gen/fmap #(apply c/fragment %)
             (gen/list item-gen)))
 
-(def once
-  (gen/fmap #(apply c/once %)
+(def livecycle
+  (gen/fmap #(apply c/livecycle %)
             (gen/tuple (gen/elements [(f/constantly (c/return))])
-                       (gen/elements [nil (f/constantly (c/return))]))))
+                       (gen/elements [(f/constantly (c/return))]))))
 
 (defn with-async-return [item-gen]  ;; TODO: fn?
   (gen/fmap #(c/with-async-return (f/constantly %))
@@ -133,7 +133,7 @@
 (def item
   (gen/recursive-gen container-item
                      (gen/one-of [non-empty-string ;; FIXME: empty string can't be found?
-                                  once])))
+                                  livecycle])))
 
 (defn node-container-item [item-gen]
   (dom (gen/one-of [(container-item item-gen)
@@ -269,7 +269,7 @@
         base/named? (wr item)
         base/error-boundary? (wr item)
         base/handle-message? (wr item)
-        base/once? empty-item
+        base/livecycle? empty-item
         
         ;; anything unknown:
         empty-item))))

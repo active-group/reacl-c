@@ -593,35 +593,26 @@
 (defrecord ^:private Unmount []) (def ^:private unmount-msg (Unmount.))
 (defrecord ^:private Update []) (def ^:private update-msg (Update.))
 
-(rcore/defclass ^:private once this state [f cleanup-f]
-  local-state [done nil]
-
+(rcore/defclass ^:private livecycle this state [init finish]
   handle-message
   (fn [msg]
     (condp = msg
       mount-msg
-      (let [ret (f state)]
-        (rcore/merge-returned (transform-return ret)
-                              (rcore/return :local-state ret)))
+      (transform-return (init state))
       
       update-msg
-      (let [ret (f state)]
-        (if (not= done ret)
-          (rcore/merge-returned (transform-return ret)
-                                (rcore/return :local-state ret))
-          (rcore/return)))
+      (transform-return (init state))
 
       unmount-msg
-      (if (some? cleanup-f)
-        (transform-return (cleanup-f state))
-        (rcore/return))
+      (transform-return (finish state))
 
-      (throw (ex-info "Cannot send a message to once items." {:value msg}))))
-  
+      (throw (ex-info "Cannot send a message to livecycle items." {:value msg}))))
+
   should-component-update?
-  (fn [new-state _ _ _]
-    ;; although this has constant rendering, we need a 'did-update' event.
-    (not= state new-state))
+  (fn [new-state _ new-init new-finish]
+    ;; we can ignore changes of the finish fn.
+    (or (not= state new-state)
+        (not= init new-init)))
 
   component-did-update
   (fn [prev-app-state prev-local-state prev-ret prev-cleanup-ret]
@@ -638,13 +629,13 @@
 
   render (rdom/fragment))
 
-(extend-type base/Once
+(extend-type base/Livecycle
   IReacl
-  (-xpath-pattern [{f :f cleanup-f :cleanup-f}]
-    (class-args-pattern once [f cleanup-f]))
+  (-xpath-pattern [{init :init finish :finish}]
+    (class-args-pattern livecycle [init finish]))
   (-is-dynamic? [_] true)
-  (-instantiate-reacl [{f :f cleanup-f :cleanup-f} binding]
-    [(once binding f cleanup-f)]))
+  (-instantiate-reacl [{init :init finish :finish} binding]
+    [(livecycle binding init finish)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 

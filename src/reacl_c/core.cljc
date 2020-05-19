@@ -352,8 +352,33 @@ be specified multiple times.
       (throw (ex-info "The 'return' value used here must not contain a state update. Use a function instead." {:value v})))
     v))
 
-(defn once  ;; akin to a 'React effect'.
-  "Returns an item that evaluates `(f state)` and emits the [[return]]
+(defn livecycle
+  "Returns an invisible item, that calls `init` each time the item is
+  used at a place in the component hierarchy, including every change
+  of state or the `init` function itself subsequently. The `finish`
+  function is called when the item is no longer used at that
+  place. Both functions must return a [[return]] value specifying what
+  to do."
+  [init finish]
+  (base/make-livecycle init finish))
+
+(let [add-inner (fn [returned outer inner]
+                  (let [s (base/returned-state returned)]
+                    (base/merge-returned returned
+                                         (return :state
+                                                 (if (= s base/keep-state)
+                                                   [outer inner]
+                                                   [s inner])))))
+      init (fn [f [state done]]
+             (let [v (f state)]
+               (if (not= v done)
+                 (add-inner v state v)
+                 (return))))
+      finish (fn [cleanup-f [state done]]
+               (add-inner (cleanup-f state) state nil))
+      no-cleanup (f/constantly (return))]
+  (defn once
+    "Returns an item that evaluates `(f state)` and emits the [[return]]
   value that it must return initially. On subsequent state updates,
   `f` is called too, but the returned [[return]] value is only emitted
   if it different than last time. In other words, the same [[return]]
@@ -362,17 +387,21 @@ be specified multiple times.
 
   Note that if you return a modified state, you must be careful to not
   cause an endless loop of updates."
-  [f & [cleanup-f]]
-  {:pre [(ifn? f)
-         (or (nil? cleanup-f) (ifn? cleanup-f))]}
-  (base/make-once f cleanup-f))
+    [f & [cleanup-f]]
+    {:pre [(ifn? f)
+           (or (nil? cleanup-f) (ifn? cleanup-f))]}
+    (local-state nil
+                 (livecycle (f/partial init f)
+                            (if cleanup-f
+                              (f/partial finish cleanup-f)
+                              no-cleanup)))))
 
 (defn cleanup
   "Returns an item that evaluates `(f state)` when it is being removed
   from the item tree, and emits the [[return]] value that that must
   return."
   [f]
-  (once (f/constantly (return)) f))
+  (livecycle (f/constantly (return)) f))
 
 (defn handle-state-change
   "Returns an item like the given item, but when a state change is
@@ -447,6 +476,7 @@ be specified multiple times.
     (effect effect-with-result! eff host)))
 
 (let [wr (fn [ref eff]
+           ;; TODO: there must be a simpler semantic for this than using once?!
            (once (f/constantly (return :action (effect-with-handler eff ref)))))]
   (defn handle-effect-result [f eff]
     {:pre [(base/effect? eff)
