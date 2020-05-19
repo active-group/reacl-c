@@ -476,9 +476,11 @@ be specified multiple times.
     (effect effect-with-result! eff host)))
 
 (let [wr (fn [ref eff]
-           ;; TODO: there must be a simpler semantic for this than using once?!
            (once (f/constantly (return :action (effect-with-handler eff ref)))))]
-  (defn handle-effect-result [f eff]
+  (defn handle-effect-result
+    "Runs the given effect once, feeding its result into `(f state
+  result)`, which must return a [[return]] value."
+    [f eff]
     {:pre [(base/effect? eff)
            (ifn? f)]}
     (with-message-target f
