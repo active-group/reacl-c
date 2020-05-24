@@ -217,6 +217,7 @@
   (->ret (r-tu/invoke-callback!! comp callback event)))
 
 (defn- inject-return_ [comp ret f]
+  {:pre [(some? comp)]}
   (let [comp (if (dom-node? comp)
                ;; When a dom item was selected, we have the raw dom node here;
                ;; to injecting a return, there must be a wrapper class
@@ -225,8 +226,9 @@
                ;; otherwise the return could be different (e.g. if it's a
                ;; handle-action, returning from there would be really different)
                (let [p (.-parent comp)]
-                 (when-not (and (.-type p) (impl/dom-class-for-type (.-type comp)))
-                   (assert false "The given node is a dom node without any event handlers attached. It's not possible to inject something there.")))
+                 (when-not (and p (.-type p) (impl/dom-class-for-type (.-type comp)))
+                   (assert false "The given node is a dom node without any event handlers attached. It's not possible to inject something there."))
+                 p)
                comp)]
     (->ret (f comp (impl/transform-return ret)))))
 
