@@ -347,9 +347,17 @@
   (assert (unsubscribe-effect? eff))
   (rest (second (effect-args eff))))
 
+(defn- find-ref [env ref]
+  ;; Note: deref host would return the 'reacl component' instead of the test renderer component
+  (let [comp (core/deref ref)]
+    (let [tcomp (.find (get-root-component env)
+                       (fn [ti]
+                         (= (.-instance ti) comp)))]
+      tcomp)))
+
 (defn subscription-start!
   "Begins a simulated execution of the subscription given by the given
-  effect that resulting from mounting
+  effect that resulted from mounting
   it (see [[subscribe-effect?]]). The optional given `stop-fn!` will
   be called when the [[unsubscribe-effect?]] returned on unmount is
   executed."
@@ -359,23 +367,20 @@
   (let [[f args deliver! host] (effect-args sub-eff)
         comp (core/deref host)]
     (assert (some? comp) "Subscription not mounted or already unmounted?")
-    ;; Note: deref host would return the 'reacl component' instead of the test renderer component; need to search for it:
-    (let [tcomp (.find (get-root-component env)
-                       (fn [ti]
-                         (= (.-instance ti) comp)))]
-      (let [r (send-message! tcomp (core/->SubscribedMessage (or stop-fn! (fn [] nil))))]
-        (assert (= (core/return) r)) ;; subscriptions don't expose anything.
-        nil))))
+    (let [tcomp (find-ref env host)
+          r (send-message! tcomp (core/->SubscribedMessage (or stop-fn! (fn [] nil))))]
+      (assert (= (core/return) r)) ;; subscriptions don't expose anything.
+      nil)))
 
-(defn subscription-start-return
-  [env sub-eff & [stop-fn!]]
+(defn ^:no-doc subscription-start-return
+  [sub-eff & [stop-fn!]]
   (assert (effect? sub-eff core/subscribe!))
   ;; = (effect subscribe! f args deliver! host)
   (let [[f args deliver! host] (effect-args sub-eff)]
     (core/return :message [host (core/->SubscribedMessage (or stop-fn! (fn [] nil)))])))
 
-(defn subscription-result-return
-  [env sub-eff action]
+(defn ^:no-doc subscription-result-return
+  [sub-eff action]
   (assert (effect? sub-eff core/subscribe!))
   ;; = (effect subscribe! f args deliver! host)
   (let [[f args deliver! host] (effect-args sub-eff)]
@@ -401,6 +406,7 @@
   "Create a subscription emulation environment for items like the
   given subscription."
   [sub]
+  {:pre [(base/item? sub)]} ;; must even be a subscription item... if that could be tested?
   (map->SubscriptionEmulatorEnv {:sub sub
                                  :running (atom nil)}))
 
@@ -431,12 +437,12 @@
     (fn [env eff]
       (cond
         (subscribe-effect? eff sub)
-        (do (subscription-start! env eff (fn [] (running! nil)))
-            (running! [env eff])
-            (core/return))
+        (do (running! [env eff])
+            (subscription-start-return eff (fn [] (running! nil))))
 
         (unsubscribe-effect? eff sub)
         (do (execute-effect! env eff)
+            (running! nil)
             (core/return))
 
         :else (core/return :action eff)))))
@@ -444,7 +450,7 @@
 
 (defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of
-  `thunk`, which occurs event when the error is handled in an error
+  `thunk`, which occurs even when the error is handled in an error
   boundary."
   [thunk]
   ;; React does some fancy things with the browsers error

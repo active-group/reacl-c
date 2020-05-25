@@ -324,3 +324,19 @@
     (tu/unmount! env)
     (is (not (tu/subscription-emulator-running? emu)))))
 
+(deftest emulate-nested-subscription-test
+  (let [sub (c/subscription (fn [& args]
+                              (assert false "should not be called")))
+
+        emu (tu/subscription-emulator-env sub)
+
+        set-state (fn [st a] (c/return :state (inc a)))
+        env (tu/env (c/focus :nest (-> (c/dynamic #(if % sub c/empty))
+                                       (c/handle-action set-state)))
+                    {:emulator (tu/subscription-emulator emu)})]
+
+    (tu/mount! env {:nest true})
+
+    (is (= (c/return :state {:nest 42})
+           (tu/subscription-emulator-inject! emu 41)))
+    ))
