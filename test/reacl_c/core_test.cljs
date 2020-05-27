@@ -399,3 +399,25 @@
     (is (= (c/return :state [:a :b])
            (tu/inject-action! (tu/find env item)
                               :b)))))
+
+(deftest try-catch-test
+  (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
+                                               (throw (ex-info "Test" {:value :foo}))
+                                               (dom/div "Ok")))
+                                 (c/dynamic (fn [[state error]]
+                                              (dom/div "Error" (pr-str error)
+                                                       (if (:reset? state)
+                                                         (c/once (f/constantly (c/return :state [{} nil])))
+                                                         c/empty))))))]
+    (tu/mount! env {})
+    (is (some? (tu/find env (dom/div "Ok"))))
+
+    (tu/preventing-error-log
+     (fn []
+       (tu/update! env {:throw? true})))
+    (is (some? (tu/find env (dom/div "Error"))))
+
+    (is (= (c/return :state {})
+           (tu/update! env {:throw? false :reset? true})))
+    (is (some? (tu/find env (dom/div "Ok"))))
+    ))
