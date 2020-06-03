@@ -396,6 +396,12 @@ be specified multiple times.
                               (f/partial finish cleanup-f)
                               no-cleanup)))))
 
+(defn init
+  "An invisible item that 'emits' the given [[return]] value once as
+  an initialization."
+  [ret]
+  (once (f/constantly ret)))
+
 (defn cleanup
   "Returns an item that evaluates `(f state)` when it is being removed
   from the item tree, and emits the [[return]] value that that must
@@ -476,7 +482,7 @@ be specified multiple times.
     (effect effect-with-result! eff host)))
 
 (let [wr (fn [ref eff]
-           (once (f/constantly (return :action (effect-with-handler eff ref)))))]
+           (init (return :action (effect-with-handler eff ref))))]
   (defn handle-effect-result
     "Runs the given effect once, feeding its result into `(f state
   result)`, which must return a [[return]] value."
@@ -523,7 +529,7 @@ be specified multiple times.
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (set-ref host))
-                       (once (f/constantly (return :action (subscribe-effect f deliver! args host))))))
+                       (init (return :action (subscribe-effect f deliver! args host)))))
       dyn (fn [deliver! {f :f args :args stop! :stop!}]
             (if (some? stop!)
               (cleanup (f/constantly (return :action (unsubscribe-effect stop! f args))))
