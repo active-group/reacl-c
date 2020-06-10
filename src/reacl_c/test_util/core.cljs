@@ -288,19 +288,19 @@
   [a & [eff-defn]]
   (and (base/effect? a)
        (or (nil? eff-defn)
-           (= (base/effect-f a) eff-defn)
+           (and (base/simple-effect? a) (= (base/effect-f a) eff-defn))
            (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
 
 (defn effect-f
   "Returns the function implementing the effect behind the given effect action."
   [eff]
-  (assert (effect? eff))
+  (assert (base/simple-effect? eff))
   (:f eff))
 
 (defn effect-args
   "Returns the arguments for the function returned by [[effect-f]]."
   [eff]
-  (assert (effect? eff))
+  (assert (base/simple-effect? eff))
   (:args eff))
 
 (defn subscribe-effect?

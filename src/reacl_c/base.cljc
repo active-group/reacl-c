@@ -200,19 +200,47 @@
 
 (r/define-record-type Effect
   (make-effect f args)
-  effect?
+  simple-effect?
   [f effect-f
    args effect-args])
+
+(r/define-record-type ComposedEffect
+  (make-composed-effect eff first-f rest-fs)
+  composed-effect?
+  [eff composed-effect-eff
+   first-f composed-effect-first-f
+   rest-fs composed-effect-rest-fs])
+
+(defn effect? [v]
+  (or (simple-effect? v)
+      (composed-effect? v)))
+
+(defn run-composed-effect! [eff run-recur!]
+  (reduce (fn [[value ret] next-f]
+            (let [next-eff (next-f value)
+                  [value2 ret2] (run-recur! next-eff)]
+              [value2 (merge-returned ret ret2)]))
+          (run-recur! (composed-effect-eff eff))
+          (cons (composed-effect-first-f eff)
+                (composed-effect-rest-fs eff))))
+
+(declare run-effect!)
 
 (defn run-effect!
   "Returns a tuple [value ret]. If an effect returnn a [[return]]
   value, then 'value' is the returned state, and 'ret' everything else.
   For any other value, 'ret' is empty."
   [eff]
+  ;; Note: the test-runner has a separate implementation of this (which uses an emulator of effects)
   {:pre [(effect? eff)]}
-  (let [result (apply (:f eff) (:args eff))]
-    (if (returned? result)
-      (if (not= keep-state (:state result))
-        [(:state result) (assoc result :state keep-state)]
-        [nil result])
-      [result empty-return])))
+  (if (composed-effect? eff)
+    ;; run composed effect
+    (run-composed-effect! eff run-effect!)
+    
+    ;; run simple effect
+    (let [result (apply (:f eff) (:args eff))]
+      (if (returned? result)
+        (if (not= keep-state (:state result))
+          [(:state result) (assoc result :state keep-state)]
+          [nil result])
+        [result empty-return]))))

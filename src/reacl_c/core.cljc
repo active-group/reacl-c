@@ -463,26 +463,31 @@ be specified multiple times.
 (defn effect
   "Return an effect action, which, when run, calls the given function
   with the given arguments. The result of that function is ignored,
-  unless you use [[handle-effect-result]]."
+  unless you use [[handle-effect-result]], or return a [[return]]
+  value with new actions or messages."
   [f & args]
   (base/make-effect f args))
 
-(let [effect-with-result!
-      (fn [eff host]
-        ;; the base effect may return :state, or a value other than
-        ;; 'return' as it's synchronous result.
-        ;; send that as a message to the 'handle-effect-result' host.
-        ;; (also a kind of backdoor, in case someone really want's to
-        ;; return a returned? value as the result of an effect)
-        (let [[value ret] (base/run-effect! eff)]
-            (base/merge-returned (return :message [host value])
-                                 ret)))]
-  (defn- effect-with-handler [eff host]
-    ;; TODO: need to respect these special effects in test-utils/emulator etc?!
-    (effect effect-with-result! eff host)))
+(def no-effect
+  "An effect action that does nothing."
+  (effect f/constantly nil))
+
+(defn compose-effects ;; TODO: rename effect-bind ?
+  "Sequentially compose two or more effects. The first argument must
+  be an effect action, and the following must be functions that are
+  called with the result of the previous one and must return a new
+  effect action."
+  [eff & f-effs]
+  ;; Note: this could be defined as a simple fn and effect, but in the test environment we want to see the details.
+  (if (empty? f-effs)
+    eff
+    (base/make-composed-effect eff (first f-effs) (rest f-effs))))
+
+(defn- send-effect-result [host result]
+  (return :message [host result]))
 
 (let [wr (fn [ref eff]
-           (init (return :action (effect-with-handler eff ref))))]
+           (init (return :action (compose-effects eff (f/partial effect send-effect-result ref)))))]
   (defn handle-effect-result
     "Runs the given effect once, feeding its result into `(f state
   result)`, which must return a [[return]] value."
