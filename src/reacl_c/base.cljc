@@ -213,6 +213,6 @@
   (let [result (apply (:f eff) (:args eff))]
     (if (returned? result)
       (if (not= keep-state (:state result))
-        [(:state result) (update result :state keep-state)]
+        [(:state result) (assoc result :state keep-state)]
         [nil result])
       [result empty-return])))
