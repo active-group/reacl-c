@@ -92,15 +92,15 @@
 
     (is (= [['keyed] {:key ["foo" "bar"]}]  (f (c/keyed (dom/div) "foo") (c/keyed (dom/span) "bar"))))
 
-    (is (= nil (f (c/livecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b)))
-                  (c/livecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
+    (is (= nil (f (c/lifecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b)))
+                  (c/lifecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
 
     (is (= [[] {:init [(f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))]}] 
-           (f (c/livecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b)))
-              (c/livecycle (f/constantly (c/return :action :b)) (f/constantly (c/return :action :b))))))
+           (f (c/lifecycle (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b)))
+              (c/lifecycle (f/constantly (c/return :action :b)) (f/constantly (c/return :action :b))))))
     (is (= [[] {:finish [(f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))]}] 
-           (f (c/livecycle (f/constantly (c/return)) (f/constantly (c/return :action :a)))
-              (c/livecycle (f/constantly (c/return)) (f/constantly (c/return :action :b))))))
+           (f (c/lifecycle (f/constantly (c/return)) (f/constantly (c/return :action :a)))
+              (c/lifecycle (f/constantly (c/return)) (f/constantly (c/return :action :b))))))
 
     (is (= [['focus] {:lens [:a :b]}] (f (c/focus :a (dom/div)) (c/focus :b (dom/div)))))
     (is (= [['focus 'div] {:attributes [{:a 10} {:a 42}]}] (f (c/focus :k1 (dom/div {:a 10 :b 1})) (c/focus :k1 (dom/div {:a 42 :b 1})))))

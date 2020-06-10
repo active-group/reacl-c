@@ -352,7 +352,7 @@ be specified multiple times.
       (throw (ex-info "The 'return' value used here must not contain a state update. Use a function instead." {:value v})))
     v))
 
-(defn livecycle
+(defn lifecycle
   "Returns an invisible item, that calls `init` each time the item is
   used at a place in the component hierarchy, including every change
   of state or the `init` function itself subsequently. The `finish`
@@ -360,7 +360,7 @@ be specified multiple times.
   place. Both functions must return a [[return]] value specifying what
   to do."
   [init finish]
-  (base/make-livecycle init finish))
+  (base/make-lifecycle init finish))
 
 (let [add-inner (fn [returned outer inner]
                   (let [s (base/returned-state returned)]
@@ -391,7 +391,7 @@ be specified multiple times.
     {:pre [(ifn? f)
            (or (nil? cleanup-f) (ifn? cleanup-f))]}
     (local-state nil
-                 (livecycle (f/partial init f)
+                 (lifecycle (f/partial init f)
                             (if cleanup-f
                               (f/partial finish cleanup-f)
                               no-cleanup)))))
@@ -407,7 +407,7 @@ be specified multiple times.
   from the item tree, and emits the [[return]] value that that must
   return."
   [f]
-  (livecycle (f/constantly (return)) f))
+  (lifecycle (f/constantly (return)) f))
 
 (defn handle-state-change
   "Returns an item like the given item, but when a state change is

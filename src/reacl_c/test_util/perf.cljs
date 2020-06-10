@@ -66,7 +66,7 @@
         dom/element?   (wc)
 
         ;; the leafs
-        base/livecycle? item
+        base/lifecycle? item
         ;; FIXME: anything else? lift-class? unknowns?
         ))))
 
@@ -107,7 +107,7 @@
     base/handle-state-change? 'handle-state-change
     base/fragment? 'fragment
     dom/element? 'element
-    base/livecycle? 'livecycle
+    base/lifecycle? 'lifecycle
     (str (type item))))
 
 (defn ^:no-doc find-first-difference [item1 item2 & [path]]
@@ -186,7 +186,7 @@
                   (map-indexed vector (map vector cs1 cs2)))))
 
       ;; leafs
-      (base/livecycle? item1)
+      (base/lifecycle? item1)
       (if (not= (:init item1) (:init item2))
         [path {:init [(:init item1) (:init item2)]}]
         [path {:finish [(:finish item1) (:finish item2)]}])

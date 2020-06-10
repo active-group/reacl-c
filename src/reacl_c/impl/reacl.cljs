@@ -593,7 +593,7 @@
 (defrecord ^:private Unmount []) (def ^:private unmount-msg (Unmount.))
 (defrecord ^:private Update []) (def ^:private update-msg (Update.))
 
-(rcore/defclass ^:private livecycle this state [init finish]
+(rcore/defclass ^:private lifecycle this state [init finish]
   handle-message
   (fn [msg]
     (condp = msg
@@ -606,7 +606,7 @@
       unmount-msg
       (transform-return (finish state))
 
-      (throw (ex-info "Cannot send a message to livecycle items." {:value msg}))))
+      (throw (ex-info "Cannot send a message to lifecycle items." {:value msg}))))
 
   should-component-update?
   (fn [new-state _ new-init new-finish]
@@ -632,10 +632,10 @@
 (extend-type base/Livecycle
   IReacl
   (-xpath-pattern [{init :init finish :finish}]
-    (class-args-pattern livecycle [init finish]))
+    (class-args-pattern lifecycle [init finish]))
   (-is-dynamic? [_] true)
   (-instantiate-reacl [{init :init finish :finish} binding]
-    [(livecycle binding init finish)]))
+    [(lifecycle binding init finish)]))
 
 (defrecord ^:private MonitorMessage [new-state])
 

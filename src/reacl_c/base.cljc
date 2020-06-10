@@ -152,10 +152,10 @@
   E)
 
 (r/define-record-type Livecycle
-  (make-livecycle init finish)
-  livecycle?
-  [init livecycle-init
-   finish livecycle-finish]
+  (make-lifecycle init finish)
+  lifecycle?
+  [init lifecycle-init
+   finish lifecycle-finish]
   E)
 
 

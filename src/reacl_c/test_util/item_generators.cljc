@@ -66,8 +66,8 @@
   (gen/fmap #(apply c/fragment %)
             (gen/list item-gen)))
 
-(def livecycle
-  (gen/fmap #(apply c/livecycle %)
+(def lifecycle
+  (gen/fmap #(apply c/lifecycle %)
             (gen/tuple (gen/elements [(f/constantly (c/return))])
                        (gen/elements [(f/constantly (c/return))]))))
 
@@ -133,7 +133,7 @@
 (def item
   (gen/recursive-gen container-item
                      (gen/one-of [non-empty-string ;; FIXME: empty string can't be found?
-                                  livecycle])))
+                                  lifecycle])))
 
 (defn node-container-item [item-gen]
   (dom (gen/one-of [(container-item item-gen)
@@ -269,7 +269,7 @@
         base/named? (wr item)
         base/error-boundary? (wr item)
         base/handle-message? (wr item)
-        base/livecycle? empty-item
+        base/lifecycle? empty-item
         
         ;; anything unknown:
         empty-item))))
