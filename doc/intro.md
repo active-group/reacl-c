@@ -412,21 +412,21 @@ Note that these utilities will not catch errors in message, action or
 event handlers, but only those during the creation or update of the item
 tree after a state change.
 
-### The livetime of an item
+### The lifetime of an item
 
 Although items are usually just a referentially transparent
 description of a visual appearance and a behaviour (i.e. items have no
 identity), when they are used at a specific place in the item tree, a
-certain livetime can be associated with them, starting when they are
+certain lifetime can be associated with them, starting when they are
 first used in that position, via changes of the state they get from
 above over time, the points in time at which they handle messages and
 action, to the point in time they are no longer used at that place in
 item tree again.
 
-Above, we already mentioned a few cases where the livetime of an item
+Above, we already mentioned a few cases where the lifetime of an item
 plays a role, e.g. for `local-state` items. But occasionally, one also
 want's to make use of that and write items that can react to those
-transitions in the livecycle of an item.
+transitions in the lifecycle of an item.
 
 The first such items are those created by the `c/once` function:
 
@@ -441,10 +441,10 @@ when used initially at some place in the item tree, and the second one
 function is actually also called on each state update, but the retured
 `return` value is then only 'executed' when it is different from the
 last time it was executed. So with `once` items you can do something
-at the first and last points of an items livetime at some place in the
+at the first and last points of an items lifetime at some place in the
 item tree, as well as the points in time when the state is
 changed. Note that you can easily combine these items with others in a
-fragment item, which is then equivalent to *their* livetime:
+fragment item, which is then equivalent to *their* lifetime:
 
 ```clojure
 (c/fragment (c/once ...) some-other-item)
