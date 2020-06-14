@@ -468,26 +468,51 @@ be specified multiple times.
   [f & args]
   (base/make-effect f args))
 
-(def no-effect
-  "An effect action that does nothing."
-  (effect f/constantly nil))
+(defn const-effect
+  "An effect that does nothing, with the given value as its result."
+  [v]
+  (effect identity v))
 
-(defn compose-effects ;; TODO: rename effect-bind ?
+(def no-effect
+  "An effect action that does nothing and returns nil."
+  (const-effect nil))
+
+(defn seq-effects
   "Sequentially compose two or more effects. The first argument must
   be an effect action, and the following must be functions that are
   called with the result of the previous one and must return a new
   effect action."
-  [eff & f-effs]
+  [eff & fs]
   ;; Note: this could be defined as a simple fn and effect, but in the test environment we want to see the details.
-  (if (empty? f-effs)
+  (if (empty? fs)
     eff
-    (base/make-composed-effect eff (first f-effs) (rest f-effs))))
+    (base/make-composed-effect eff (first fs) (rest fs))))
+
+(let [g (fn [f args v]
+          (apply f v args))]
+  (defn fmap-effect
+    "Returns an effect like `eff`, whose result is f applied to the
+  result of the given effect."
+    [eff f & args]
+    (seq-effects eff (f/comp const-effect (f/partial g f args)))))
+
+(let [first-eff (fn [eff]
+                  (fmap-effect eff list))
+      next-eff (fn [eff]
+                 (f/partial fmap-effect eff cons))]
+  (defn par-effects
+    "Compose effects, which are run in 'parallel' (i.e. in no particular
+  order), into one effect that results in a sequence of the results of
+  the individual effects."
+    [eff & effs]
+    ;; Note: not really parallelized yet, but will be run in one update cycle.
+    (apply seq-effects (first-eff eff) (map next-eff effs))))
 
 (defn- send-effect-result [host result]
   (return :message [host result]))
 
 (let [wr (fn [ref eff]
-           (init (return :action (compose-effects eff (f/partial effect send-effect-result ref)))))]
+           (init (return :action (seq-effects eff (f/partial effect send-effect-result ref)))))]
   (defn handle-effect-result
     "Runs the given effect once, feeding its result into `(f state
   result)`, which must return a [[return]] value."
