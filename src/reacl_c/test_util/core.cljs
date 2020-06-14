@@ -29,38 +29,45 @@
                      (rcore/returned-actions r)))))
 
 (defn combine-emulators
-  "Combine two or more effect emualtors into one, to be used with [[env]]."
+  "Combine two or more effect emualtors into one, to be used
+  with [[env]]. The first emulator function will see an effect first,
+  and can return nil if it does not want to replace it."
   [emu1 & more]
   (if (empty? more)
     emu1
     (let [emu2 (apply combine-emulators more)]
-      (fn [env eff]
-        (let [r (emu1 env eff)]
-          (reduce (fn [rr act]
-                    (base/merge-returned rr
-                                         (if (base/effect? act)
-                                           (emu2 env act)
-                                           (core/return :action act))))
-                  (assoc r :actions [])
-                  (:actions r)))))))
+      (fn [eff]
+        (or (emu1 eff) (emu2 eff))))))
+
+(defn- run-with-emulator [emu eff]
+  (let [repl (or (emu eff)
+                 eff)]
+    (if (base/composed-effect? repl)
+      (base/run-composed-effect! repl (partial run-with-emulator emu))
+      (base/run-effect! repl))))
+
+(defn- run-emulator [emu eff]
+  (let [[v ret] (run-with-emulator emu eff)]
+    ret))
 
 (defn env
   "Returns a new test environment to test the behavior of the given item.
   Options map may include
 
-  :emulator   a function (fn [env effect] (return ...)) that may handle
-              effect action reaching the toplevel."
+  :emulator   a function called for every effect that may return a
+              different effect that emulates it, or nil to keep that effect."
   [item & [options]]
   ;; Note: this tests items using their Reacl implementation, and
   ;; ultimately Reacts test-renderer.
-  (let [this (atom nil)
-        action-reducer (if-let [re (:emulator options)]
+  (let [this-env (atom nil)
+        action-reducer (let [re (or (:emulator options)
+                                    identity)]
                          (fn [_ a]
                            (if (base/effect? a)
-                             (impl/transform-return (re @this a))
-                             (rcore/return :action a)))
-                         (fn [_ a]
-                           (rcore/return :action a)))
+                             ;; emulate effect
+                             (impl/transform-return (run-emulator re a))
+                             ;; or return actions
+                             (rcore/return :action a))))
         class (rcore/class "env" this state []
                            refs [child]
                            handle-message (fn [msg]
@@ -68,9 +75,9 @@
                            render (-> (impl/instantiate (rcore/bind this) item)
                                       (rcore/refer child)
                                       (rcore/reduce-action action-reducer)))]
-    (reset! this (r-tu/env class (-> options
-                                     (dissoc :emulator))))
-    @this))
+    (reset! this-env (r-tu/env class (-> options
+                                         (dissoc :emulator))))
+    @this-env))
 
 (defn- get-root-component [env]
   (r-tu/get-component env))
@@ -128,6 +135,11 @@
         ;; TODO: or use find-first-different between the first that can be found?
         (str "I could find the following item though: " (pr-str (first smaller-list)))
         (recur (inc n) (rest smaller-list))))))
+
+(defn with-env-return [env f]
+  (->ret (r-tu/with-component-return (get-root-component env)
+           (fn [comp]
+             (f)))))
 
 (defn mount!
   "Mounts the item of the given test environment with the given
@@ -280,8 +292,6 @@
                   (let [[value ret] (base/run-effect! eff)]
                     ret)))
 
-(def execute-effects-emulator execute-effect!) ;; ...bit of a silly name 'emulate by doing the real thing'.
-
 (defn effect?
   "Returns true if the given action is an effect action, and
   optionally if it was created by the given effect function."
@@ -412,11 +422,11 @@
 
 (defn subscription-emulator-inject!
   "Make the emulated subscription emit the given action."
-  [subs-env action]
+  [env subs-env action]
   (let [{sub :sub running :running} subs-env]
     (when-not (some? @running)
       (throw "Subscription not running? Forgot to set the :emulator in env?"))
-    (if-let [[env eff] @running]
+    (if-let [eff @running]
       (subscription-result! env eff action)
       (throw (ex-info "Subscription not mounted?" {:sub sub})))))
 
@@ -434,18 +444,17 @@
   [subs-env]
   (let [{sub :sub running :running} subs-env
         running! (fn [v] (reset! running v) nil)]
-    (fn [env eff]
+    (fn [eff]
       (cond
         (subscribe-effect? eff sub)
-        (do (running! [env eff])
-            (subscription-start-return eff (fn [] (running! nil))))
+        (do (running! eff)
+            (core/const-effect (subscription-start-return eff (fn [] (running! nil)))))
 
-        (unsubscribe-effect? eff sub)
-        (do (execute-effect! env eff)
-            (running! nil)
-            (core/return))
+        #_(unsubscribe-effect? eff sub)
+        #_(do (running! nil)
+            core/no-effect)
 
-        :else (core/return :action eff)))))
+        :else eff))))
 
 
 (defn preventing-error-log

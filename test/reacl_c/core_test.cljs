@@ -64,48 +64,30 @@
   )
 
 (deftest subscription-test
-  (let [subscribed (atom false)
+  (let [subscribed (atom nil)
         sub-impl (fn [deliver! x]
-                   (reset! subscribed true)
+                   (reset! subscribed deliver!)
                    (fn []
-                     (reset! subscribed false)))
+                     (reset! subscribed nil)))
         sub (c/subscription sub-impl :x)
         env (tu/env (c/dynamic (fn [v]
                                  (if v sub ""))))]
     (tu/mount! env false)
+    (is (not @subscribed))
     
     ;; sub on mount
-    (let [r (tu/update! env true)
-          a (first (base/returned-actions r))]
-      (is (some? a))
-      (when (some? a)
-        (is (tu/subscribe-effect? a sub))
-      
-        (is (not @subscribed))
+    (tu/update! env true)
+    (is @subscribed)
 
-        ;; execute subscribe effect.
-        (is (= (c/return)
-               (tu/execute-effect! env a)))
-
-        (is @subscribed)
-
-        ;; emits actions
-        (is (= (c/return :action ::act)
-               (tu/subscription-result! env a ::act)))
-        (is (= (c/return :action ::act-2)
-               (tu/subscription-result! env a ::act-2)))))
-    
+    ;; test actions emitted.
+    (is (= (c/return :action ::act)
+           (tu/with-env-return env
+             (fn []
+               (@subscribed ::act)))))
     
     ;; unsub on unmount
-    (let [r (tu/update! env false)
-          a (first (base/returned-actions r))]
-      (is (some? a))
-      (when (some? a)
-        (is (tu/unsubscribe-effect? a sub))
-
-        (is (= (c/return)
-               (tu/execute-effect! env a)))
-        (is (not @subscribed))))))
+    (tu/update! env false)
+    (is (not @subscribed))))
 
 (deftest defn-subscription-test
   (let [x (atom nil)]
@@ -113,8 +95,7 @@
       (reset! x arg)
       (fn [] nil))
 
-    (-> (tu/env (defn-subscription-test-1 :arg)
-                {:emulator tu/execute-effects-emulator})
+    (-> (tu/env (defn-subscription-test-1 :arg))
         (tu/mount! nil))
     (is (= :arg @x))))
 
@@ -347,18 +328,29 @@
          (effect-test-1 :foo))))
 
 (deftest handle-effect-result-test
-  (let [count (atom 0)
-        eff (c/effect (fn []
-                        (swap! count inc)))
-        env (tu/env (c/handle-effect-result (fn [state uuid]
-                                              (c/return :state uuid))
-                                            eff)
-                    {:emulator tu/execute-effects-emulator})]
-    (is (= (c/return :state 1)
-           (tu/mount!! env nil)))
+  (testing "results can be received"
+    (let [count (atom 0)
+          eff (c/effect (fn []
+                          (swap! count inc)))
+          env (tu/env (c/handle-effect-result (fn [state uuid]
+                                                (c/return :state uuid))
+                                              eff))]
+      (is (= (c/return :state 1)
+             (tu/mount!! env nil)))
     
-    (is (= (c/return)
-           (tu/update!! env nil)))))
+      (is (= (c/return)
+             (tu/update!! env nil)))))
+
+  (testing "results can be emulated"
+    (let [eff (c/effect (fn []
+                          :foo))
+          env (tu/env (c/handle-effect-result (fn [state uuid]
+                                                (c/return :state uuid))
+                                              eff)
+                      {:emulator {eff (c/const-effect :bar)}})]
+      (is (= (c/return :state :bar)
+             (tu/mount!! env nil)))))
+  )
 
 (deftest ref-let-test
   (let [env (tu/env (c/ref-let [it-1 (c/handle-message (fn [state msg]
