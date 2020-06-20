@@ -341,13 +341,13 @@
       (is (= (c/return)
              (tu/update!! env nil)))))
 
-  (testing "results can be emulated"
+  (testing "effects can be mapped and handled"
     (let [eff (c/effect (fn []
                           :foo))
-          env (tu/env (c/handle-effect-result (fn [state uuid]
-                                                (c/return :state uuid))
-                                              eff)
-                      {:emulator {eff (c/const-effect :bar)}})]
+          env (tu/env (-> (c/handle-effect-result (fn [state uuid]
+                                                    (c/return :state uuid))
+                                                  eff)
+                          (c/map-effects {eff (c/const-effect :bar)})))]
       (is (= (c/return :state :bar)
              (tu/mount!! env nil)))))
   )

@@ -29,47 +29,22 @@
                        [:action a])
                      (rcore/returned-actions r)))))
 
-(defn combine-emulators
-  "Combine two or more effect emualtors into one, to be used
-  with [[env]]. The first emulator function will see an effect first,
-  and can return nil if it does not want to replace it."
-  [emu1 & more]
-  (if (empty? more)
-    emu1
-    (let [emu2 (apply combine-emulators more)]
-      (fn [eff]
-        (or (emu1 eff) (emu2 eff))))))
-
-(defn- run-with-emulator [emu eff]
-  (let [repl (or (emu eff)
-                 eff)]
-    (if (base/composed-effect? repl)
-      (base/run-composed-effect! repl (partial run-with-emulator emu))
-      (base/run-effect! repl))))
-
-(defn- run-emulator [emu eff]
-  (let [[v ret] (run-with-emulator emu eff)]
-    ret))
-
-;; TODO: remove emulator; maybe reuse effect exection from impl/toplevel.
 (defn env
-  "Returns a new test environment to test the behavior of the given item.
-  Options map may include
-
-  :emulator   a function called for every effect that may return a
-              different effect that emulates it, or nil to keep that effect."
+  "Returns a new test environment to test the behavior of the given item."
   [item & [options]]
   ;; Note: this tests items using their Reacl implementation, and
   ;; ultimately Reacts test-renderer.
   (let [this-env (atom nil)
-        action-reducer (let [re (or (:emulator options)
-                                    identity)]
-                         (fn [_ a]
-                           (if (base/effect? a)
-                             ;; emulate effect
-                             (impl/transform-return (run-emulator re a))
-                             ;; or return actions
-                             (rcore/return :action a))))
+        ;; Note: this basically replicates impl/toplevel - can't reuse
+        ;; that easily, because it would create another level (maybe
+        ;; with a change to get-components?)
+        action-reducer (fn [_ a]
+                         (if (base/effect? a)
+                           ;; execute effect, ignoring it's value
+                           (let [[v ret] (base/run-effect! a)]
+                             (impl/transform-return ret))
+                           ;; or return actions
+                           (rcore/return :action a)))
         class (rcore/class "env" this state []
                            refs [child]
                            handle-message (fn [msg]
@@ -77,8 +52,7 @@
                            render (-> (impl/instantiate (rcore/bind this) item)
                                       (rcore/refer child)
                                       (rcore/reduce-action action-reducer)))]
-    (reset! this-env (r-tu/env class (-> options
-                                         (dissoc :emulator))))
+    (reset! this-env (r-tu/env class options))
     @this-env))
 
 (defn- get-root-component [env]
