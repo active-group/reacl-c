@@ -8,7 +8,8 @@
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
             [reacl-c.test-util.xpath :as xpath]
-            [reacl2.test-util.xpath :as rxpath])
+            [reacl2.test-util.xpath :as rxpath]
+            [active.clojure.functions :as f])
   (:refer-clojure :exclude [resolve find contains? count]))
 
 ;; Note: just reusing rcore/test-util is not a good fit, esp. because
@@ -50,6 +51,7 @@
   (let [[v ret] (run-with-emulator emu eff)]
     ret))
 
+;; TODO: remove emulator; maybe reuse effect exection from impl/toplevel.
 (defn env
   "Returns a new test environment to test the behavior of the given item.
   Options map may include
@@ -301,8 +303,16 @@
            (and (base/simple-effect? a) (= (base/effect-f a) eff-defn))
            (= (:reacl-c.core/effect-defn (meta a)) eff-defn))))
 
+(defn simple-effect?
+  "Returns true for effects created by [[core/effect]]
+  or [[core/defn-effect]], but false for those created
+  from [[core/seq-effects]]."
+  [a & [eff-defn]]
+  (and (effect? a eff-defn)
+       (base/simple-effect? a)))
+
 (defn effect-f
-  "Returns the function implementing the effect behind the given effect action."
+  "Returns the function implementing the effect behind the given simple effect action. See [[simple-effect?]]."
   [eff]
   (assert (base/simple-effect? eff))
   (:f eff))
@@ -329,33 +339,62 @@
               (when-let [real-sub (and (base/named? subs) (:e subs))]
                 (= real-sub reconstr)))))))
 
+(defn subscribe-effect-fn
+  "The function passed to the subscription the given subscribe effect was generated from."
+  [eff]
+  (assert (subscribe-effect? eff))
+  (first (effect-args eff)))
+
 (defn subscribe-effect-args
   "The arguments passed to the subscription the given subscribe effect was generated from."
   [eff]
   (assert (subscribe-effect? eff))
   (second (effect-args eff)))
 
-(defn unsubscribe-effect?
-  "Tests if the given effect, is one that is emitted by a subscription
-  equal to the given one, on unmount. This can be useful in unit
-  tests."
-  ([eff]
-   (effect? eff core/unsubscribe!))
-  ([eff subs]
-   (and (effect? eff core/unsubscribe!)
-        (let [e-args (effect-args eff)
-              reconstr (apply core/subscription (second e-args))]
-          ;; the second arg is the subs-f and user args.
-          ;; creating a new subscription with same args, should be an = item then.
-          (or (= subs reconstr)
-              (when-let [real-sub (and (base/named? subs) (:e subs))]
-                (= real-sub reconstr)))))))
-
-(defn unsubscribe-effect-args
-  "The arguments passed to the subscription the given unsubscribe effect was generated from."
+(defn ^:no-doc subscribe-effect-host
   [eff]
-  (assert (unsubscribe-effect? eff))
-  (rest (second (effect-args eff))))
+  (assert (subscribe-effect? eff))
+  (let [[_ _ _ host] (effect-args eff)]
+    host))
+
+(let [h (fn [f state eff]
+          (cond
+            (subscribe-effect? eff)
+            (let [action (f eff)]
+              (if (or (nil? action)
+                      (= action eff))
+                (core/return :action eff)
+                (core/return :message [(subscribe-effect-host eff)
+                                       (core/->SubscribedEmulatedResult action)])))
+            :else (core/return :action eff)))]
+  (defn emulate-subscriptions
+    "Returns an item, that for all subscriptions done in `item`,
+  evaluates `(f subscription-effect)`. The
+  function [[subscription-effect?]] can be used to check which kind of
+  subscription effect it is. If it evaluates to `nil` or the same
+  effect that was passed in, it is just passed on. If it evaluates to
+  a different action, that action is emitted from the subscription
+  itself, i.e. emulating a (synchronous) result of the subscription."
+    [item f]
+    ;; Note: subscription-effects will/should never be in a compose-effect.
+    (core/handle-effect item
+                        (f/partial h f))))
+
+(let [disable-all-subs (fn [eff]
+                         (cond
+                           (subscribe-effect? eff) core/no-effect
+                           :else eff))
+      disable-subs (fn [subs eff]
+                     (cond
+                       (some #(subscribe-effect? eff %) subs) core/no-effect
+                       :else eff))]
+  (defn disable-subscriptions
+    "Returns an item like `item`, but where all subscriptions (or the
+  the given subscriptions) are not executed when emitted from `item`."
+    ([item]
+     (core/map-effects item disable-all-subs))
+    ([item subs]
+     (core/map-effects item (f/partial disable-subs subs)))))
 
 (defn- find-ref [env ref]
   ;; Note: deref host would return the 'reacl component' instead of the test renderer component
@@ -364,98 +403,6 @@
                        (fn [ti]
                          (= (.-instance ti) comp)))]
       tcomp)))
-
-(defn subscription-start!
-  "Begins a simulated execution of the subscription given by the given
-  effect that resulted from mounting
-  it (see [[subscribe-effect?]]). The optional given `stop-fn!` will
-  be called when the [[unsubscribe-effect?]] returned on unmount is
-  executed."
-  [env sub-eff & [stop-fn!]]
-  (assert (effect? sub-eff core/subscribe!))
-  ;; = (effect subscribe! f args deliver! host)
-  (let [[f args deliver! host] (effect-args sub-eff)
-        comp (core/deref host)]
-    (assert (some? comp) "Subscription not mounted or already unmounted?")
-    (let [tcomp (find-ref env host)
-          r (send-message! tcomp (core/->SubscribedMessage (or stop-fn! (fn [] nil))))]
-      (assert (= (core/return) r)) ;; subscriptions don't expose anything.
-      nil)))
-
-(defn ^:no-doc subscription-start-return
-  [sub-eff & [stop-fn!]]
-  (assert (effect? sub-eff core/subscribe!))
-  ;; = (effect subscribe! f args deliver! host)
-  (let [[f args deliver! host] (effect-args sub-eff)]
-    (core/return :message [host (core/->SubscribedMessage (or stop-fn! (fn [] nil)))])))
-
-(defn ^:no-doc subscription-result-return
-  [sub-eff action]
-  (assert (effect? sub-eff core/subscribe!))
-  ;; = (effect subscribe! f args deliver! host)
-  (let [[f args deliver! host] (effect-args sub-eff)]
-    ;; 'deliver!' only allowed in async context; this should do the same:
-    (core/return :message [host (core/->SubscribedEmulatedResult action)])))
-
-(defn subscription-result!
-  "For the effect that resulted from mounting a
-  subscription (see [[subscribe-effect?]]), inject the given action as
-  a result of the subscription item, and return what the tested
-  component in the given test environment returns."
-  [env sub-eff action]
-  (assert (effect? sub-eff core/subscribe!))
-  ;; = (effect subscribe! f args deliver! host)
-  (let [[f args deliver! host] (effect-args sub-eff)]
-    (->ret (r-tu/with-component-return (get-root-component env)
-             (fn [comp]
-               (deliver! action))))))
-
-(defrecord ^:private SubscriptionEmulatorEnv [sub running])
-
-(defn subscription-emulator-env
-  "Create a subscription emulation environment for items like the
-  given subscription."
-  [sub]
-  {:pre [(base/item? sub)]} ;; must even be a subscription item... if that could be tested?
-  (map->SubscriptionEmulatorEnv {:sub sub
-                                 :running (atom nil)}))
-
-(defn subscription-emulator-inject!
-  "Make the emulated subscription emit the given action."
-  [env subs-env action]
-  (let [{sub :sub running :running} subs-env]
-    (when-not (some? @running)
-      (throw "Subscription not running? Forgot to set the :emulator in env?"))
-    (if-let [eff @running]
-      (subscription-result! env eff action)
-      (throw (ex-info "Subscription not mounted?" {:sub sub})))))
-
-(defn subscription-emulator-running?
-  "Checks if the subscription emulation environment is attached as
-  the :emulator to a testing environment and a subscription is
-  mounted."
-  [subs-env]
-  (let [{running :running} subs-env]
-    (some? @running)))
-
-(defn subscription-emulator
-  "Returns the emulator function to be set as the :emulator option of
-  a testing environemnt."
-  [subs-env]
-  (let [{sub :sub running :running} subs-env
-        running! (fn [v] (reset! running v) nil)]
-    (fn [eff]
-      (cond
-        (subscribe-effect? eff sub)
-        (do (running! eff)
-            (core/const-effect (subscription-start-return eff (fn [] (running! nil)))))
-
-        #_(unsubscribe-effect? eff sub)
-        #_(do (running! nil)
-            core/no-effect)
-
-        :else eff))))
-
 
 (defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of

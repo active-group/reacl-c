@@ -223,122 +223,51 @@
       (is @called)
       (is (= 42 @called-with)))))
 
-;; TODO: remove those utils?
-#_(deftest subscription-utils-test
-  (let [started (atom false)
-        stopped (atom false)
-        sub-f (fn [deliver!]
-                (reset! started true)
-                (fn []
-                  (reset! stopped true)))
-        sub (c/subscription sub-f)
-        sub2 (c/subscription sub-f)
-        env (tu/env sub)]
-    (is (= sub sub2))
-    
-    (let [r (tu/mount! env nil)
-          eff (first (:actions r))]
-      (is (tu/subscribe-effect? eff))
-      (is (tu/subscribe-effect? eff sub))
-      (is (tu/subscribe-effect? eff sub2))
-
-      ;; Nothing would happen on unmmount, if effect not executed.
-      (tu/execute-effect! env eff)
-      (is @started))
-    
-    (let [r (tu/unmount! env)
-          eff (first (:actions r))]
-      (is (some? eff))
-      (when (some? eff)
-        (is (tu/unsubscribe-effect? eff))
-        (is (tu/unsubscribe-effect? eff sub))
-        (is (tu/unsubscribe-effect? eff sub2))
-
-        (tu/execute-effect! (doto (tu/env c/empty)
-                              (tu/mount! nil))
-                            eff))
-      (is @stopped)))
-  
-  (do
-    (c/defn-subscription sub-test-2 deliver! [a]
-      (fn []))
-
-    (is (= (sub-test-2 :foo) (sub-test-2 :foo)))
-    
-    (let [env (tu/env (c/dynamic #(if % (sub-test-2 :foo) c/empty)))]
-      (let [r (tu/mount! env true)
-            eff (first (:actions r))]
-        (is (some? eff))
-
-        (is (tu/subscribe-effect? eff (sub-test-2 :foo)))))))
-
-;; TODO: remove those utils?
-#_(deftest subscription-result-test
+(deftest test-subscriptions-test
+  ;; one can disable subscriptions, and inject actions instead.
   (let [sub (c/subscription (fn [& args]
                               (assert false "should not be called")))
-        env (tu/env (c/dynamic #(if % sub c/empty)))]
-    (let [r (tu/mount! env true)
-          eff (first (:actions r))
-          stopped? (atom false)]
-      (is (some? eff))
-
-      (when (some? eff)
-        (is (tu/subscribe-effect? eff sub))
-
-        (tu/subscription-start! env eff (fn [] (reset! stopped? true)))
-        (is (= (c/return :action ::test)
-               (tu/subscription-result! env eff ::test)))
-        (is (not @stopped?))
-        
-        (let [r (tu/update! env false)
-              eff (first (:actions r))]
-          (is (some? eff))
-          (when (some? eff)
-            (is (tu/unsubscribe-effect? eff sub))
-            (tu/execute-effect! env eff)
-
-            (is @stopped?)))
-        ))))
-
-(deftest emulate-subscription-test
-  (let [sub (c/subscription (fn [& args]
-                              (assert false "should not be called")))
-
-        emu (tu/subscription-emulator-env sub)
-        
-        env (tu/env (c/dynamic #(if % sub c/empty))
-                    {:emulator (tu/subscription-emulator emu)})]
-
-    (is (not (tu/subscription-emulator-running? emu)))
-
-    (tu/mount! env true)
-    (is (tu/subscription-emulator-running? emu))
-
-    (is (= (c/return :action ::test)
-           (tu/subscription-emulator-inject! env emu ::test)))
-    (is (= (c/return :action 42)
-           (tu/subscription-emulator-inject! env emu 42)))
-    
-    (tu/update! env false)
-    (is (not (tu/subscription-emulator-running? emu)))
-
-    (tu/mount! env true)
-    (tu/unmount! env)
-    (is (not (tu/subscription-emulator-running? emu)))))
-
-(deftest emulate-nested-subscription-test
-  (let [sub (c/subscription (fn [& args]
-                              (assert false "should not be called")))
-
-        emu (tu/subscription-emulator-env sub)
 
         set-state (fn [st a] (c/return :state (inc a)))
-        env (tu/env (c/focus :nest (-> (c/dynamic #(if % sub c/empty))
-                                       (c/handle-action set-state)))
-                    {:emulator (tu/subscription-emulator emu)})]
+        env (tu/env (-> (c/focus :nest (-> (c/dynamic #(if % sub c/empty))
+                                           (c/handle-action set-state)))
+                        (tu/disable-subscriptions [sub])))]
 
     (tu/mount! env {:nest true})
 
     (is (= (c/return :state {:nest 42})
-           (tu/subscription-emulator-inject! env emu 41)))
-    ))
+           (tu/inject-action! (tu/find env sub) 41)))))
+
+(deftest disable-subscriptions-test
+  ;; one can disable all or individual subscriptions.
+  (c/defn-subscription disable-subscriptions-test-2 deliver! [a]
+    (reset! a true)
+    (fn []
+      (reset! a false)))
+  
+  (let [sub-1 (c/subscription (fn [& args]
+                                (assert false "should not be called")))
+        
+        sub-2-running? (atom false)
+        sub-2 (disable-subscriptions-test-2 sub-2-running?)]
+
+    (let [env (tu/env (-> (c/fragment sub-1 sub-2)
+                          (tu/disable-subscriptions)))]
+      (tu/mount! env nil)
+      (is (not @sub-2-running?)))
+
+    (let [env (tu/env (-> (c/fragment sub-1 sub-2)
+                          (tu/disable-subscriptions [sub-1])))]
+      (reset! sub-2-running? false)
+      (tu/mount! env nil)
+      (is @sub-2-running?))))
+
+(deftest emulate-subscriptions
+  (let [sub-1 (c/subscription (fn [& args]
+                                (assert false "should not be called")))
+        env (tu/env (-> (c/fragment sub-1)
+                        (tu/emulate-subscriptions (fn [eff]
+                                                    (assert (tu/subscribe-effect? eff sub-1))
+                                                    ::result))))]
+    (is (= (c/return :action ::result)
+           (tu/mount! env nil)))))
