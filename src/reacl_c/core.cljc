@@ -239,9 +239,14 @@ be specified multiple times.
          (ifn? f)]}
   (base/make-handle-action item f base/effect?))
 
-(defn action-or-nil [f state a]
-  (let [aa (f a)]
-    (return :action (if (nil? aa) a aa))))
+(defn- keep-if-nil [f v]
+  (let [vv (f v)]
+    (if (nil? vv)
+      v
+      vv)))
+
+(defn- action-or-nil [f state a]
+  (return :action (keep-if-nil f a)))
 
 (defn map-actions
   "Returns an item that emits actions `(f action)`, for each
@@ -253,14 +258,30 @@ be specified multiple times.
   ;; OPT: if f is a map, we could create a predicate from the keys...?
   (handle-action item (f/partial action-or-nil f)))
 
+(defn- effect-mapper [f eff]
+  (keep-if-nil f
+               ;; if composed, recurse into the composition
+               (if (base/composed-effect? eff)
+                 ;; Note: in the most general way, this might not make sense (the
+                 ;; composition might expect a certain type of result from the
+                 ;; previous parts), but this logic has in mind to allow
+                 ;; `handle-effect-result` to use a composition, and the user to
+                 ;; replace something inside with a const-effect - and so emulating
+                 ;; something in a test.
+                 (base/map-composed-effect eff (f/partial effect-mapper f))
+                 eff)))
+
 (defn map-effects
   "Returns an item that emits actions `(f effect)`, for each effect
   action` emitted by `item`, and otherwise looks an behaves exacly the
   same. If `(f effect)` is nil, then the original effect action is
-  kept, allowing for `f` to be a map of the effects to replace."
+  kept, allowing for `f` to be a map of the effects to replace. This
+  also works for composed effects with [[seq-effects]]
+  or [[par-effects]], such that the effects used in there are mapped
+  too."
   [item f]
   {:pre [(ifn? f)]}
-  (handle-effect item (f/partial action-or-nil f)))
+  (handle-effect item (f/partial action-or-nil (f/partial effect-mapper f))))
 
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
@@ -510,6 +531,8 @@ be specified multiple times.
   called with the result of the previous one and must return a new
   effect action."
   [eff & fs]
+  {:pre [(base/effect? eff)
+         (every? ifn? fs)]}
   ;; Note: this could be defined as a simple fn and effect, but in the test environment we want to see the details.
   (if (empty? fs)
     eff
@@ -532,6 +555,8 @@ be specified multiple times.
   order), into one effect that results in a sequence of the results of
   the individual effects."
     [eff & effs]
+    {:pre [(base/effect? eff)
+           (every? base/effect? effs)]}
     ;; Note: not really parallelized yet, but will be run in one update cycle.
     (apply seq-effects (first-eff eff) (map next-eff effs))))
 

@@ -394,20 +394,36 @@
 
 (deftest map-effects-test
   (let [foobar (c/name-id "foobar")
-        item (c/named foobar (dom/div))
-        a (atom 0)
-        eff1 (c/effect (fn [] (reset! a 1)))
-        eff2 (c/effect (fn [] (reset! a 2)))
-        env (tu/env (c/map-effects item
-                                   {eff1 eff2}))]
-    
-    (tu/mount! env [])
-    (is (some? (tu/find env item)))
-    
-    (is (= (c/return)
-           (tu/inject-action! (tu/find env item)
-                              eff1)))
-    (is (= 2 @a))))
+        item (c/named foobar (dom/div))]
+
+    (testing "simple replacement"
+      (let [a (atom 0)
+            eff1 (c/effect (fn [] (reset! a 1)))
+            eff2 (c/effect (fn [] (reset! a 2)))
+            env (tu/env (c/map-effects item
+                                       {eff1 eff2}))]
+
+        (tu/mount! env [])
+        (is (= (c/return)
+               (tu/inject-action! (tu/find env item)
+                                  eff1)))
+        (is (= 2 @a))))
+
+    (testing "in compositions"
+      (let [a (atom 0)
+            b (atom 0)
+            eff1 (c/effect (fn [] (swap! a inc)))
+            eff2 (c/effect (fn [] (swap! b inc)))
+            
+            env (tu/env (c/map-effects item
+                                       {eff1 eff2}))]
+
+        (tu/mount! env [])
+        (tu/inject-action! (tu/find env item)
+                           (c/par-effects eff1 eff1))
+        (is (= 0 @a))
+        (is (= 2 @b))))    
+    ))
 
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)

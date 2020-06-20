@@ -1,6 +1,7 @@
 (ns ^:no-doc reacl-c.base
     (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
-              #?(:clj [active.clojure.record :as r])))
+              #?(:clj [active.clojure.record :as r])
+              [active.clojure.functions :as f]))
 
 (defprotocol E)
 
@@ -211,6 +212,11 @@
   [eff composed-effect-eff
    first-f composed-effect-first-f
    rest-fs composed-effect-rest-fs])
+
+(defn map-composed-effect [e f]
+  (make-composed-effect (f (composed-effect-eff e))
+                        (f/comp f (composed-effect-first-f e))
+                        (map #(f/comp f %) (composed-effect-rest-fs e))))
 
 (defn effect? [v]
   (or (simple-effect? v)
