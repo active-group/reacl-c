@@ -217,6 +217,9 @@ be specified multiple times.
     [handle-msg f & args]
     (with-ref h handle-msg f args)))
 
+(defn- no-effect? [action]
+  (not (base/effect? action)))
+
 (defn handle-action
   "Handles actions emitted by given item, by evaluating `(f state action)` for each
   of them. That must return the result of calling [[return]] with
@@ -225,15 +228,39 @@ be specified multiple times.
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/make-handle-action item f))
+  (base/make-handle-action item f no-effect?))
 
-(let [h (fn [f state a] (return :action (f a)))]
-  (defn map-actions
-    "Returns an item that emits actions `(f action)`, for each
-  `action` emitted by `item`, and otherwise looks an behaves exacly
-  the same."
-    [item f]
-    (handle-action item (f/partial h f))))
+(defn handle-effect
+  "Handles effect actions emitted by given item, by evaluating `(f
+  state action)` for each of them. That must return a [[return]]
+  value."
+  [item f]
+  {:pre [(base/item? item)
+         (ifn? f)]}
+  (base/make-handle-action item f base/effect?))
+
+(defn action-or-nil [f state a]
+  (let [aa (f a)]
+    (return :action (if (nil? aa) a aa))))
+
+(defn map-actions
+  "Returns an item that emits actions `(f action)`, for each
+  action emitted by `item`, and otherwise looks an behaves exacly
+  the same. If `(f action)` is nil, then the original action is kept,
+  allowing for `f` to be a map of the actions to replace."
+  [item f]
+  {:pre [(ifn? f)]}
+  ;; OPT: if f is a map, we could create a predicate from the keys...?
+  (handle-action item (f/partial action-or-nil f)))
+
+(defn map-effects
+  "Returns an item that emits actions `(f effect)`, for each effect
+  action` emitted by `item`, and otherwise looks an behaves exacly the
+  same. If `(f effect)` is nil, then the original effect action is
+  kept, allowing for `f` to be a map of the effects to replace."
+  [item f]
+  {:pre [(ifn? f)]}
+  (handle-effect item (f/partial action-or-nil f)))
 
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
@@ -242,7 +269,7 @@ be specified multiple times.
   sent to it by redirecting them to the item specified by the given
   reference."
     [ref item]
-    {:pre [(satisfies? base/Ref ref)
+    {:pre [(base/ref? ref)
            (base/item? item)]}
     (handle-message (f/partial h ref) item)))
 

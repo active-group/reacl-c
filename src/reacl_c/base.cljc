@@ -103,10 +103,11 @@
   E)
 
 (r/define-record-type HandleAction
-  (make-handle-action e f)
+  (make-handle-action e f pred)
   handle-action?
   [e handle-action-e
-   f handle-action-f]
+   f handle-action-f
+   pred handle-action-pred]
   E)
 
 (r/define-record-type SetRef

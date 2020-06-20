@@ -392,6 +392,23 @@
            (tu/inject-action! (tu/find env item)
                               :b)))))
 
+(deftest map-effects-test
+  (let [foobar (c/name-id "foobar")
+        item (c/named foobar (dom/div))
+        a (atom 0)
+        eff1 (c/effect (fn [] (reset! a 1)))
+        eff2 (c/effect (fn [] (reset! a 2)))
+        env (tu/env (c/map-effects item
+                                   {eff1 eff2}))]
+    
+    (tu/mount! env [])
+    (is (some? (tu/find env item)))
+    
+    (is (= (c/return)
+           (tu/inject-action! (tu/find env item)
+                              eff1)))
+    (is (= 2 @a))))
+
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
                                                (throw (ex-info "Test" {:value :foo}))

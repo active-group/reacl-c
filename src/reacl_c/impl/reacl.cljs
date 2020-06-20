@@ -474,13 +474,12 @@
       [(focus binding e lens)]
       [(instantiate binding e)])))
 
-(rcore/defclass ^:private handle-action this state [e f]
+(rcore/defclass ^:private handle-action this state [e f pred]
   local-state [action-to-message
                (fn [_ action]
-                 ;; never handle effects, esp. because of subscriptions (maybe add as an option?)
-                 (if (base/effect? action)
-                   (rcore/return :action action)
-                   (rcore/return :message [this (ActionMessage. action)])))]
+                 (if (pred action)
+                   (rcore/return :message [this (ActionMessage. action)])
+                   (rcore/return :action action)))]
 
   refs [child]
   
@@ -505,11 +504,11 @@
 
 (extend-type base/HandleAction
   IReacl
-  (-xpath-pattern [{e :e f :f}]
-    (wrapper-pattern handle-action e f))
+  (-xpath-pattern [{e :e f :f pred :pred}]
+    (wrapper-pattern handle-action e f pred))
   (-is-dynamic? [{e :e}] true)
-  (-instantiate-reacl [{e :e f :f} binding]
-    [(handle-action binding e f)]))
+  (-instantiate-reacl [{e :e f :f pred :pred} binding]
+    [(handle-action binding e f pred)]))
 
 (defrecord ^:private NewIsoState [state])
 
