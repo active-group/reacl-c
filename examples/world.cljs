@@ -12,37 +12,32 @@
       (println "stopping timer!")
       (.clearInterval js/window id))))
 
-(c/def-dynamic show-date date
-  (.toLocaleTimeString date))
+(c/defn-effect now! []
+  (js/Date.))
 
-(c/def-dynamic show-error state
-  ;; change to (deliver! nil) to see try-catch in action.
-  (dom/div "An error occurred: " (pr-str (second state))
-           "with the state being: " (pr-str (first state))
-           " "
-           (dom/button {:onclick (fn [] (c/return :state [(js/Date.) nil]))} "Reset")))
+(defn show-date [date]
+  (dom/div (if date (.toLocaleTimeString date) "")))
 
-(def clock
-  (c/isolate-state (js/Date.)
-                   (c/try-catch (dom/div (-> (interval-timer 1000)
-                                             (c/handle-action (fn [_ date]
-                                                                (c/return :state date))))
-                                         show-date)
-                                show-error)))
+(defn- set-date [_ date]
+  (c/return :state date))
 
-(c/defn-effect reload []
-  (.reload (.-location js/window) true)
-  (c/return))
+(c/def clock
+  (c/isolate-state nil
+                   (c/fragment
+                    (c/handle-effect-result set-date (now!))
+                    (-> (interval-timer 1000)
+                        (c/handle-action set-date))
+                    (c/dynamic show-date))))
 
-(defn hide [_] (c/return :state false))
-(defn show [_] (c/return :state true))
+(defn hide [_ _] (c/return :state false))
+(defn show [_ _] (c/return :state true))
 
-(c/def-dynamic world-app show?
-  (if show?
-    (dom/div (dom/button {:onclick hide} "Hide")
-             clock
-             (dom/button {:onclick (f/constantly (c/return :action (reload)))} "Reload"))
-    (dom/button {:onclick show} "Show")))
+(c/def world-app
+  (c/with-state show?
+    (if show?
+      (dom/div (dom/button {:onclick hide} "Hide")
+               clock)
+      (dom/button {:onclick show} "Show"))))
 
 (browser/run (.getElementById js/document "app-world")
   world-app

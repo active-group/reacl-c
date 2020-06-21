@@ -4,56 +4,57 @@
               [reacl-c.browser :as browser]
               [reacl-c.dom :as dom]))
 
-(defn checked-state [e]
+(defn checked-state [_ e]
   (c/return :state (.. e -target -checked)))
 
-(c/def-dynamic checkbox checked
-  (dom/input {:type "checkbox"
-              :value checked
-              :onchange checked-state}))
+(c/def checkbox
+  (c/with-state checked
+    (dom/input {:type "checkbox"
+                :value checked
+                :onchange checked-state})))
 
-(defn value-state [e]
+(defn value-state [_ e]
   (c/return :state (.. e -target -value)))
 
-(c/def-dynamic textbox value
-  (dom/input {:type "text"
-              :value value
-              :onchange value-state}))
+(c/def textbox
+  (c/with-state value
+    (dom/input {:type "text"
+                :value value
+                :onchange value-state})))
 
 (defrecord TodosApp [next-id todos])
 (defrecord Todo [id text done?])
 
-(defn add-item-submit [act e]
+(defn add-item-submit [act text e]
   (.preventDefault e)
   (c/return :state ""
-            :action act))
+            :action (act text)))
 
-(c/defn-dynamic add-item text [submit]
-  (dom/form {:onsubmit (f/partial add-item-submit (submit text))}
+(c/defn add-item [submit]
+  (dom/form {:onsubmit (f/partial add-item-submit submit)}
             textbox
             (dom/button {:type "submit"} "Add")))
 
 (defn add-item-form [submit]
   (c/isolate-state "" (add-item submit)))
 
-(defn button-action [action ev]
-  (c/return :action action))
-
 (defn button [label action]
-  (dom/button {:onclick (f/partial button-action action)}
+  (dom/button {:onclick (f/constantly (c/return :action action))}
               label))
 
-(c/defn-dynamic item todo [delete]
-  (dom/div (c/focus :done? checkbox)
-           (button "Zap" delete)
-           " " (:text todo)))
+(c/defn item [delete]
+  (c/with-state todo
+    (dom/div (c/focus :done? checkbox)
+             (button "Zap" delete)
+             " " (:text todo))))
 
-(c/defn-dynamic item-list todos [delete-item]
-  (apply dom/div
-         (map-indexed (fn [idx id]
-                        (-> (c/focus idx (item (delete-item id)))
-                            (c/keyed id)))
-                      (map :id todos))))
+(c/defn item-list [delete-item]
+  (c/with-state todos
+    (apply dom/div
+           (map-indexed (fn [idx id]
+                          (-> (c/focus idx (item (delete-item id)))
+                              (c/keyed id)))
+                        (map :id todos)))))
 
 (defrecord DeleteItem [id])
 (defrecord AddItem [text])
@@ -74,12 +75,12 @@
                             
     (c/return :action action)))
 
-(c/def-dynamic main state
+(c/def main
   (-> (c/fragment (dom/h3 "TODO")
                   (c/focus :todos (item-list ->DeleteItem))
                   (dom/br)
                   (add-item-form ->AddItem))
-      (c/handle-action (f/partial list-actions state))))
+      (c/handle-action list-actions)))
 
 (browser/run (.getElementById js/document "app-todo")
   main
