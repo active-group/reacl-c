@@ -28,7 +28,6 @@
 ;; - getSnapshotBeforeUpdate ?
 ;; - a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
 ;; - (derived-local-state init (fn [outer inner] => inner) item)  ? or same without outer?
-;; - simplify local-state + dynamic somehow?
 
 (clj/defn fragment
   "Returns a container item consisting of the given child items."
