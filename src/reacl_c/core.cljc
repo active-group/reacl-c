@@ -726,7 +726,15 @@ be specified multiple times.
         (throw (ex-info (str "Wrong number of args (" n-args ") passed to " name) {:function name :arity arity}))))))
 
 (defmacro ^:no-doc defn+
-  "Internal utility macro."
+  "Internal utility macro.
+
+  Creates something like
+
+  (def name
+    (mod-fn
+      (fn [& args]
+         (@create (apply @opt-wrapper (fn [@wrapper-args & args] @body) args)))))
+"
   [create mod-fn opt-wrapper wrapper-args name args & body]
   (let [[docstring? args & body] (apply maybe-docstring args body)
         name_ (clojure.core/name name)
@@ -744,7 +752,13 @@ be specified multiple times.
                     (~@create (apply ~@opt-wrapper f# args#))))))))
 
 (defmacro ^:no-doc defn-named+
-  "Internal utility macro."
+  "Internal utility macro.
+
+  Creates something like
+
+  (defn-named name [& args]
+    (apply @opt-wrapper (fn [@wrapper-args & args] @body) args))
+"
   [opt-wrapper wrapper-args name args & body]
   (let [name_ (str *ns* "/" name)]
     `(let [id# (name-id ~name_)]
