@@ -6,6 +6,8 @@
             [reacl-c.browser :as browser]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
+            [schema.core :as s]
+            [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
 #_(deftest static-performance
@@ -446,3 +448,46 @@
            (tu/update! env {:throw? false :reset? true})))
     (is (some? (tu/find env (dom/div "Ok"))))
     ))
+
+(deftest with-state-test
+  (let [env (tu/env (c/with-state foo (dom/div foo)))]
+    (tu/mount! env "Ok")
+    (is (some? (tu/find env (dom/div "Ok")))))
+
+  (let [env (tu/env (c/with-state foo :- s/Str (dom/div foo)))]
+    (tu/mount! env "Ok")
+    (is (some? (tu/find env (dom/div "Ok")))))
+
+  (let [env (tu/env (c/with-state :static (c/dynamic dom/div)))]
+    (tu/mount! env :bar)
+    (is (some? (tu/find env (dom/div)))))
+
+  (let [env (tu/env (c/with-state [a b] (dom/div a b)))]
+    (tu/mount! env ["foo" "bar"])
+    (is (some? (tu/find env (dom/div "foo" "bar")))))
+
+  (let [env (tu/env (c/with-state [a b :local "bar"] (dom/div a b)))]
+    (tu/mount! env "foo")
+    (is (some? (tu/find env (dom/div "foo" "bar"))))))
+
+(deftest defn-test
+  (c/defn defn-test-1 "foo" [a :- s/Str]
+    (dom/div a))
+
+  (is (= "foo" (:doc (meta #'defn-test-1))))
+  
+  (let [env (tu/env (defn-test-1 "Ok"))]
+    (tu/mount! env "Ok")
+    (is (some? (tu/find env (dom/div "Ok")))))
+
+  (c/defn defn-test-2 [p]
+    (c/with-state [a b :local "bar"]
+      (dom/div a b p)))
+
+  (let [env (tu/env (defn-test-2 "baz"))]
+    (tu/mount! env "foo")
+    (is (some? (tu/find env (dom/div "foo" "bar" "baz")))))
+
+  ;; and with-state optimized (made static)
+  (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo"))))
+  )

@@ -3,9 +3,14 @@
             [reacl-c.dom :as dom]
             [clojure.set :as set]
             [schema.core :as s]
+            #?(:clj [schema.macros :as sm])
             [active.clojure.lens :as lens]
-            [active.clojure.functions :as f])
-  (:refer-clojure :exclude [deref partial constantly empty comp]))
+            [active.clojure.functions :as f]
+            [cljs.analyzer :as ana]
+            #?(:clj [clojure.core :as clj])
+            #?(:cljs [cljs.core :as clj] :include-macros true))
+  
+  (:refer-clojure :exclude [deref empty defn]))
 
 ;; Rationale:
 ;; The basic building block is en Item (base/E), which is roughly
@@ -25,7 +30,7 @@
 ;; - (derived-local-state init (fn [outer inner] => inner) item)  ? or same without outer?
 ;; - simplify local-state + dynamic somehow?
 
-(defn fragment
+(clj/defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
   {:pre [(base/assert-item-list "fragment" children)]}
@@ -33,7 +38,7 @@
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
-(defn with-ref
+(clj/defn with-ref
   "Creates an item identical to the one returned from `(f ref &
   args)`, where `ref` is a fresh *reference*. A reference should be
   assigned to one of the items below via [[set-ref]]. You can use it
@@ -49,7 +54,7 @@
       hn (fn [r0 n f args]
            (with-refs (dec n)
              hn_cont r0 f args))]
-  (defn with-refs
+  (clj/defn with-refs
     "Returns an item that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
     [n f & args]
     {:pre [(>= n 0)
@@ -60,7 +65,7 @@
       :else
       (with-ref hn n f args))))
 
-(defn set-ref
+(clj/defn set-ref
   "Returns an item identical to the given item, but with the given
   reference assigned. Note that the returned item cannot be used more
   than once. See [[with-ref]] for a description of references."
@@ -75,7 +80,7 @@
 
 (let [c (fn [refs items f args]
           (apply f (map set-ref items refs) args))]
-  (defn ref-let*
+  (clj/defn ref-let*
     "Returns an item, that calls f with a list and the given arguments,
   where the list consists of the given items, but modified in a way
   that makes them usable as message targets."
@@ -108,7 +113,7 @@
                (fn [[~@names]]
                  ~@body))))
 
-(defn deref
+(clj/defn deref
   "Returns an runner specific value, which might be a native dom
   element backing an item at runtime for example. See [[with-ref]] for
   a description of references."
@@ -117,7 +122,7 @@
   ;; TODO: allow for set-ref items?
   (base/-deref-ref ref))
 
-(defn dynamic
+(clj/defn dynamic
   "Returns a dynamic item, which looks and behaves like the item
   returned from `(f state & args)`, which is evaluated each time the
   state changes."
@@ -125,7 +130,7 @@
   {:pre [(ifn? f)]}
   (base/make-dynamic f args))
 
-(defn focus
+(clj/defn focus
   "Returns an item that focuses the outer state, to the part of it
   that `item` shall see, via the given *lens*. Otherwise behaves and
   looks the same."
@@ -136,7 +141,7 @@
     item
     (base/make-focus item lens)))
 
-(defn static
+(clj/defn static
   "Returns an item that is always like `(f & args)`, independant of
   state changes. The item returned by `f` must not access state nor
   change it."
@@ -144,7 +149,7 @@
   {:pre [(ifn? f)]}
   (base/make-static f args))
 
-(defn embed-state
+(clj/defn embed-state
   "Embeds the state of the given item into a part of the state of the
   resulting item, via the given *lens*."
   [item lens]
@@ -185,7 +190,7 @@ be specified multiple times.
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
 
-(defn send-message!
+(clj/defn send-message!
   "Sends a message to a running application, i.e. `app` must be the
   value returned from [[reacl-c.browser/run]] for example. This can be
   used together with [[handle-message]] in situations where the
@@ -195,7 +200,7 @@ be specified multiple times.
   {:pre [(satisfies? base/Application app)]}
   (base/-send-message! app msg))
 
-(defn handle-message
+(clj/defn handle-message
   "Handles the messages sent to the the resulting item (either
   via [[send-message!]] or [[return]]), by calling `(f state message)`,
   which must return a [[return]] value. The resulting item
@@ -209,7 +214,7 @@ be specified multiple times.
           (fragment (-> (handle-message handle-msg empty)
                         (set-ref ref))
                     (apply f ref args)))]
-  (defn with-message-target
+  (clj/defn with-message-target
     "Returns an item like ´(f target & args)`, where `target` is a
   reference that can be used as a message target, which are then
   handled by a call to `(handle-msg state msg)`, which must return
@@ -217,10 +222,10 @@ be specified multiple times.
     [handle-msg f & args]
     (with-ref h handle-msg f args)))
 
-(defn- no-effect? [action]
+(clj/defn- no-effect? [action]
   (not (base/effect? action)))
 
-(defn handle-action
+(clj/defn handle-action
   "Handles actions emitted by given item, by evaluating `(f state action)` for each
   of them. That must return the result of calling [[return]] with
   either a new state, and maybe one or more other actions (or the
@@ -230,7 +235,7 @@ be specified multiple times.
          (ifn? f)]}
   (base/make-handle-action item f no-effect?))
 
-(defn handle-effect
+(clj/defn handle-effect
   "Handles effect actions emitted by given item, by evaluating `(f
   state action)` for each of them. That must return a [[return]]
   value."
@@ -239,16 +244,16 @@ be specified multiple times.
          (ifn? f)]}
   (base/make-handle-action item f base/effect?))
 
-(defn- keep-if-nil [f v]
+(clj/defn- keep-if-nil [f v]
   (let [vv (f v)]
     (if (nil? vv)
       v
       vv)))
 
-(defn- action-or-nil [f state a]
+(clj/defn- action-or-nil [f state a]
   (return :action (keep-if-nil f a)))
 
-(defn map-actions
+(clj/defn map-actions
   "Returns an item that emits actions `(f action)`, for each
   action emitted by `item`, and otherwise looks an behaves exacly
   the same. If `(f action)` is nil, then the original action is kept,
@@ -258,7 +263,7 @@ be specified multiple times.
   ;; OPT: if f is a map, we could create a predicate from the keys...?
   (handle-action item (f/partial action-or-nil f)))
 
-(defn- effect-mapper [f eff]
+(clj/defn- effect-mapper [f eff]
   (keep-if-nil f
                ;; if composed, recurse into the composition
                (if (base/composed-effect? eff)
@@ -271,7 +276,7 @@ be specified multiple times.
                  (base/map-composed-effect eff (f/partial effect-mapper f))
                  eff)))
 
-(defn map-effects
+(clj/defn map-effects
   "Returns an item that emits actions `(f effect)`, for each effect
   action` emitted by `item`, and otherwise looks an behaves exacly the
   same. If `(f effect)` is nil, then the original effect action is
@@ -285,7 +290,7 @@ be specified multiple times.
 
 (let [h (fn [ref state msg]
           (return :message [ref msg]))]
-  (defn redirect-messages
+  (clj/defn redirect-messages
     "Return an item like the given one, but that handles all messages
   sent to it by redirecting them to the item specified by the given
   reference."
@@ -298,7 +303,7 @@ be specified multiple times.
           (return :message [ref (f msg)]))
       wr (fn [f item ref]
            (handle-message (f/partial h f ref) (set-ref item ref)))]
-  (defn map-messages
+  (clj/defn map-messages
     "Returns an item like the given one, that transforms all messages sent to
   it though `(f msg)`, before they are forwarded to `item`."
     [f item]
@@ -306,7 +311,7 @@ be specified multiple times.
            (base/item? item)]}
     (with-ref (f/partial wr f item))))
 
-(defn name-id
+(clj/defn name-id
   "Generates a fresh unique value that can be used to generate named
   items via [[named]]. Note that calling this twice with the same
   name returns different values."
@@ -314,7 +319,7 @@ be specified multiple times.
   {:pre [(string? s)]}
   (base/make-name-id s))
 
-(defn named
+(clj/defn named
   "Returns an item that looks and works exactly like the given item,
   but with has a user defined name, that appears and can be used in
   testing and debugging utilities. Use [[name-id]] to generate a
@@ -325,7 +330,7 @@ be specified multiple times.
          (base/name-id? name-id)]}
   (base/make-named name-id item))
 
-(defn- id-merge [m1 m2]
+(clj/defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
                (if (= (get r k) v)
                  r
@@ -333,7 +338,7 @@ be specified multiple times.
              m1
              m2))
 
-(defn- select-keys* [m keys]
+(clj/defn- select-keys* [m keys]
   ;; like clojure/select-keys, but missing keys get a nil value.
   (reduce (fn [m [k v]]
             (assoc m k v))
@@ -342,7 +347,7 @@ be specified multiple times.
                  [k (get m k nil)])
                keys)))
 
-(defn local-state
+(clj/defn local-state
   "Returns an item which looks like the given item, with state `outer`,
   where the given item must take a tuple state `[outer inner]`, and
   `initial` is an intial value for the inner state, which can then be
@@ -351,7 +356,7 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-local-state item initial))
 
-(defn add-state
+(clj/defn add-state
   "Adds new state that the given item can access, via a lens on the
   the tuple of states `[outer inner]`, where the initial value for
   `inner` state is `initial`. Note that the resulting item has only
@@ -359,7 +364,7 @@ be specified multiple times.
   [initial lens item] ;; aka extend-state?
   (local-state initial (focus lens item)))
 
-(defn hide-state
+(clj/defn hide-state
   "Hides a part of the state of the given item, via a lens that
   reduces the the tuple of states `[outer inner]`, where the initial
   value for `inner` state is `initial`. The resulting item has only
@@ -368,7 +373,7 @@ be specified multiple times.
   ;; Note: yes, it's actually the same as 'add-state' ;-)
   (add-state initial lens item))
 
-(defn add-merged-state ;; TODO: remove?!
+(clj/defn add-merged-state ;; TODO: remove?!
   "Adds new map or record fields that the given item sees as it's
   state, by merging the the given initial record or hash-map with the
   state of the resulting item. The given item can then update any
@@ -379,13 +384,13 @@ be specified multiple times.
   [initial item]
   (add-state initial lens/merge item))
 
-(defn isolate-state
+(clj/defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
   [initial-state item]
   (static (f/partial add-state initial-state lens/second item)))
 
-(defn keyed
+(clj/defn keyed
   "Adds an arbitrary identifier to the given item, which will be used
   to optimize rendering of it in a list of children of a container
   item."
@@ -393,7 +398,7 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-keyed item key))
 
-(defn lifecycle
+(clj/defn lifecycle
   "Returns an invisible item, that calls `init` each time the item is
   used at a place in the component hierarchy, including every change
   of state or the `init` function itself subsequently. The `finish`
@@ -418,7 +423,7 @@ be specified multiple times.
       finish (fn [cleanup-f [state done]]
                (add-inner (cleanup-f state) state nil))
       no-cleanup (f/constantly (return))]
-  (defn once
+  (clj/defn once
     "Returns an item that evaluates `(f state)` and emits the [[return]]
   value that it must return initially. On subsequent state updates,
   `f` is called too, but the returned [[return]] value is only emitted
@@ -437,20 +442,20 @@ be specified multiple times.
                               (f/partial finish cleanup-f)
                               no-cleanup)))))
 
-(defn init
+(clj/defn init
   "An invisible item that 'emits' the given [[return]] value once as
   an initialization."
   [ret]
   (once (f/constantly ret)))
 
-(defn cleanup
+(clj/defn cleanup
   "Returns an item that evaluates `(f state)` when it is being removed
   from the item tree, and emits the [[return]] value that that must
   return."
   [f]
   (lifecycle (f/constantly (return)) f))
 
-(defn handle-state-change
+(clj/defn handle-state-change
   "Returns an item like the given item, but when a state change is
   emitted by `item`, then `(f prev-state new-state)` is evaluated,
   which must return a [[return]] value. By careful with this, as item
@@ -464,7 +469,7 @@ be specified multiple times.
 (let [h (fn [f args old new]
           (apply f old new args)
           (return :state new))]
-  (defn monitor-state
+  (clj/defn monitor-state
     "When e changes its state, `(f old-state new-state & args)` is
   evaluted for side effects. Note that this is only called when the
   item changes its state 'by itself', not if the state was changed
@@ -477,7 +482,7 @@ be specified multiple times.
 
 ;; Note: low-level feature which is a bit dangerous to use (not check
 ;; if item is mounted); user should use subscriptions.
-(defn ^:no-doc with-async-return [f & args]
+(clj/defn ^:no-doc with-async-return [f & args]
   {:pre [(ifn? f)]}
   (base/make-with-async-return f args))
 
@@ -487,7 +492,7 @@ be specified multiple times.
               (return! (return :message [target msg])))
       h (fn [return! f args]
           (apply f (f/partial send! return!) args))]
-  (defn ^:no-doc with-async-messages [f & args]
+  (clj/defn ^:no-doc with-async-messages [f & args]
     {:pre [(ifn? f)]}
     (with-async-return h f args)))
 
@@ -497,11 +502,11 @@ be specified multiple times.
           (return! (return :action action)))
       g (fn [return! f args]
           (apply f (f/partial h return!) args))]
-  (defn ^:no-doc with-async-actions [f & args]
+  (clj/defn ^:no-doc with-async-actions [f & args]
     {:pre [(ifn? f)]}
     (with-async-return g f args)))
 
-(defn effect
+(clj/defn effect
   "Return an effect action, which, when run, calls the given function
   with the given arguments. The result of that function is ignored,
   unless you use [[handle-effect-result]], or return a [[return]]
@@ -509,7 +514,7 @@ be specified multiple times.
   [f & args]
   (base/make-effect f args))
 
-(defn const-effect
+(clj/defn const-effect
   "An effect that does nothing, with the given value as its result."
   [v]
   (effect identity v))
@@ -518,7 +523,7 @@ be specified multiple times.
   "An effect action that does nothing and returns nil."
   (const-effect nil))
 
-(defn seq-effects
+(clj/defn seq-effects
   "Sequentially compose two or more effects. The first argument must
   be an effect action, and the following must be functions that are
   called with the result of the previous one and must return a new
@@ -533,7 +538,7 @@ be specified multiple times.
 
 (let [g (fn [f args v]
           (apply f v args))]
-  (defn fmap-effect
+  (clj/defn fmap-effect
     "Returns an effect like `eff`, whose result is f applied to the
   result of the given effect."
     [eff f & args]
@@ -543,7 +548,7 @@ be specified multiple times.
                   (fmap-effect eff list))
       next-eff (fn [eff]
                  (f/partial fmap-effect eff cons))]
-  (defn par-effects
+  (clj/defn par-effects
     "Compose effects, which are run in 'parallel' (i.e. in no particular
   order), into one effect that results in a sequence of the results of
   the individual effects."
@@ -553,12 +558,12 @@ be specified multiple times.
     ;; Note: not really parallelized yet, but will be run in one update cycle.
     (apply seq-effects (first-eff eff) (map next-eff effs))))
 
-(defn- send-effect-result [host result]
+(clj/defn- send-effect-result [host result]
   (return :message [host result]))
 
 (let [wr (fn [ref eff]
            (init (return :action (seq-effects eff (f/partial effect send-effect-result ref)))))]
-  (defn handle-effect-result
+  (clj/defn handle-effect-result
     "Runs the given effect once, feeding its result into `(f state
   result)`, which must return a [[return]] value."
     [f eff]
@@ -571,20 +576,20 @@ be specified multiple times.
 
 (defrecord ^:no-doc SubscribedEmulatedResult [action])
 
-(defn ^:no-doc subscribe! [f args deliver! host]
+(clj/defn ^:no-doc subscribe! [f args deliver! host]
   (let [stop! (apply f deliver! args)]
     (assert (ifn? stop!) "Subscription must return a stop function.")
     (return :message [host (SubscribedMessage. stop!)])))
 
-(defn- subscribe-effect [f deliver! args host]
+(clj/defn- subscribe-effect [f deliver! args host]
   (assert (ifn? f))
   (effect subscribe! f args deliver! host))
 
-(defn- unsubscribe! [stop! _]
+(clj/defn- unsubscribe! [stop! _]
   (stop!)
   (return))
 
-(defn- unsubscribe-effect [stop! f args]
+(clj/defn- unsubscribe-effect [stop! f args]
   ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]] below.
   (effect unsubscribe! stop! (cons f args)))
 
@@ -615,7 +620,7 @@ be specified multiple times.
                             :args args
                             :stop! nil}
                            (dynamic (f/partial dyn deliver!))))]
-  (defn subscription
+  (clj/defn subscription
     "Returns an item that asynchronously emits actions according to
   the given function `f`. For that `f` will be called with a
   side-effectful `deliver!` function which takes the action to emit,
@@ -627,7 +632,7 @@ be specified multiple times.
     [f & args]
     (with-async-actions (f/partial stu f args))))
 
-(defn error-boundary
+(clj/defn error-boundary
   "Creates an error boundary around the given item. When the rendering
   of `e` throws an exception, then `(f error)` is evaluated, and must
   result in an [[return]] value. Note that exceptions in functions
@@ -645,7 +650,7 @@ be specified multiple times.
               catch-e
               (-> (focus lens/first try-e)
                   (error-boundary (f/partial set-error state)))))]
-  (defn try-catch
+  (clj/defn try-catch
     "Returns an item that looks an works the same as the item
   `try-item`, until an error is thrown during its rendering. After
   that `catch-item` is rendered instead, with a state of the combined
@@ -667,7 +672,7 @@ be specified multiple times.
       mf (fn [validate! old new]
            ;; state passed up!
            (validate! new :up))]
-  (defn validation-boundary
+  (clj/defn validation-boundary
     "Returns an item that forms a state validation boundary around the given item,
   where `(validate! state :up)` is evaluated for side effects when a
   state change is flowing out of then item upwards, and `(validate!
@@ -692,15 +697,15 @@ be specified multiple times.
        (def ~name
          (named id# ~item)))))
 
-(defn ^:no-doc meta-name-id [v]
+(clj/defn ^:no-doc meta-name-id [v]
   (::name-id (meta v)))
 
-(defn- maybe-docstring [candidate & more]
+(clj/defn- maybe-docstring [candidate & more]
   (if (string? candidate)
     (cons candidate more)
     (cons nil (cons candidate more))))
 
-(defn- arity [args]
+(clj/defn- arity [args]
   ;; args may contain destructuring and schema annotations.
   ;; var-args may have an annotation too [x & args :- schema]
 
@@ -716,7 +721,7 @@ be specified multiple times.
            [0 false]
            args)))
 
-(defn ^:no-doc arity-checker [name arity]
+(clj/defn ^:no-doc arity-checker [name arity]
   (if (= arity -1)
     (fn [n-args] nil)
     (fn [n-args]
@@ -772,7 +777,7 @@ be specified multiple times.
   [name args & body]
   `(defn-named+ nil nil ~name ~args ~@body))
 
-(defn- maybe-schema-arg [candidate & more]
+(clj/defn- maybe-schema-arg [candidate & more]
   (if (and (not-empty more) (= ':- (first more)))
     (list* (list candidate (first more) (second more)) (rest (rest more)))
     (list* (list candidate) more)))
@@ -829,7 +834,7 @@ be specified multiple times.
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
-(defn- subscription-from-defn [fn f & args]
+(clj/defn- subscription-from-defn [fn f & args]
   (apply subscription f args))
 
 (defmacro defn-subscription
@@ -860,7 +865,7 @@ Note that `deliver!` must never be called directly in the body of
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
     `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~@(when docstring? [docstring?]) ~args ~@body)))
 
-(defn ^:no-doc effect-from-defn [fn eff]
+(clj/defn ^:no-doc effect-from-defn [fn eff]
   ;; Note: must be public, because used in macro expansion of defn-effec.
   (vary-meta eff assoc ::effect-defn fn))
 
@@ -879,3 +884,132 @@ Calling it returns an effect action, which can be returned by an item
   [name args & body]
   ;; TODO: allow a schema on the return value
   `(defn+ [effect-from-defn ~name] identity [effect] [] ~name ~args ~@body))
+
+(clj/defn- parse-binding-form [bf & more]
+  (cond
+    (= :static bf) {:static true
+                    :body more}
+    ;; [a b :local ""] :- T
+    (and (vector? bf) (= 4 (count bf)) (= :local (nth bf 2)))
+    (let [[a b _ init] bf
+          [x & body] (apply maybe-schema-arg [a b] more)]
+      {:dynamic (vec x)
+       :local init
+       :body body})
+
+    ;; x :- T
+    :else
+    (let [[x & body] (apply maybe-schema-arg bf more)]
+      {:dynamic (vec x)
+       :body body})))
+
+(defmacro with-state
+  "Returns an item that can look differently depending on its current state.
+
+The basic form is
+
+```
+(with-state foo
+  (dom/div (pr-str foo)))
+```
+
+where `foo` is bound to the current state of the returned item.
+The binding form can optionally be followed by a schema.core annotation:
+
+```
+(with-state foo :- s/Str
+  (dom/div foo))
+```
+
+The binding form can also use destructuring
+
+```
+(with-state {name :name}
+  (dom/div name))
+```
+
+If the binding form is a vector, the second part of the
+  state can be declared to be local to the body item of the form:
+
+```
+(with-state [outer inner :local \"\"]
+  (dom/div (str outer \"->\" inner)))
+```
+
+Note that the state of the inner item (the `div` in this case), will
+  be a tuple (see [[local-state]]) of both outer and inner state, and
+  that the state of the item created by `with-state` is just the first
+  part of that tuple. The expression after `:local` is the initial
+  value of the local state.
+
+One can also use this to define a [[static]] item, which is isolated
+  from state changes:
+
+```
+(with-state :static
+  (dom/div))
+```
+"
+  [binding-form & body]
+  (let [p (apply parse-binding-form binding-form body)]
+    (cond
+      (:static p)
+      `(static (fn [] ~@(:body p)))
+      
+      (contains? p :local)
+      `(local-state ~(:local p)
+                    (dynamic (s/fn ~(:dynamic p) ~@(:body p))))
+      
+      :else
+      `(dynamic (s/fn ~(:dynamic p) ~@(:body p))))))
+
+(clj/defn ^:no-doc local-dynamic [init f & args]
+  (local-state init (apply dynamic f args)))
+
+(clj/defn- resolve* [env symbol]
+  (:name (ana/resolve-var env symbol)))
+
+(clj/defn- var-sym [var]
+  (when var
+    (symbol (str (:ns (meta var)))
+            (name (:name (meta var))))))
+
+(let [with-state-sym (var-sym #'with-state)]
+  (clj/defn- with-state-sym? [env expr]
+    (and (symbol? expr)
+         (= with-state-sym
+            #?(:clj (if (sm/cljs-env? env)
+                      (resolve* env expr)  ;; cljs only
+                      (var-sym (resolve env expr)))) ;; clj only
+            ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
+            #?(:cljs (resolve* env expr))))))
+
+(defmacro defn
+  "A macro like [[clojure.core/defn]], with optional schema
+  annotations like [[schema.core/defn]] and with the name of the var
+  attached to the returned items, which can be helpful in testing and
+  debugging utilities (see [[named]])."
+  [name params & body]
+  (let [[docstring? params & body] (apply maybe-docstring params body)
+        docstring (when docstring? [docstring?])]
+    (cond
+      ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
+      ;; TODO: allow :pre conditions before with-state? (or anything - could just be the last expr. as well)
+      (and (not-empty body)
+           (list? (first body))
+           (empty? (rest body))
+           (<= 2 (count (first body)))
+           (with-state-sym? &env (first (first body))))
+      (let [p (apply parse-binding-form (rest (first body)))
+            body (:body p)]
+        (cond
+          (:static p)
+          `(defn-named+ [static] nil ~name ~@docstring ~params ~@body)
+
+          (contains? p :local)
+          `(defn-named+ [local-dynamic ~(:local p)] ~(:dynamic p) ~name ~@docstring ~params ~@body)
+          
+          :else
+          `(defn-named+ [dynamic] ~(:dynamic p) ~name ~@docstring ~params ~@body)))
+      :else
+      `(defn-named+ nil nil ~name ~@docstring ~params ~@body))))
