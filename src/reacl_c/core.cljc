@@ -697,6 +697,12 @@ be specified multiple times.
        (def ~name
          (named id# ~item)))))
 
+;; TODO: rename def-named def ?
+(defmacro def
+  [name item]
+  ;; Note: it seems def is somewhat special, in that other references to `def` in this file still point to clojure's def.
+  `(def-named ~name ~item))
+
 (clj/defn ^:no-doc meta-name-id [v]
   (::name-id (meta v)))
 
