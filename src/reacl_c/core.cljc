@@ -393,13 +393,6 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-keyed item key))
 
-#_(defn- lift-static-return [v]
-  (if (base/returned? v)
-    (if (= base/keep-state (:state v))
-      (f/constantly v)
-      (throw (ex-info "The 'return' value used here must not contain a state update. Use a function instead." {:value v})))
-    v))
-
 (defn lifecycle
   "Returns an invisible item, that calls `init` each time the item is
   used at a place in the component hierarchy, including every change
@@ -688,27 +681,6 @@ be specified multiple times.
      ;; instantiation is delayed anyway)
     (-> (dynamic (f/partial df item validate!))
         (monitor-state (f/partial mf validate!)))))
-
-#_(let [h (fn [state conds-items default-item]
-          (or (some (fn [[cond-f item]]
-                      (and (cond-f state)
-                           item))
-                    (partition-all 2 conds-items))
-              default-item
-              (throw (ex-info "No condition matched the state, and no default item given." {:state state}))))]
-  (defn dynamic-cond* [conds-items & [default-item]]
-    (dynamic h conds-items default-item)))
-
-#_(defmacro dynamic-cond [& clauses]
-  (let [clauses_ (partition-all 2 clauses)
-        [clauses_ dflt] (if (= :else (first (last clauses_)))
-                          [(drop-last clauses_) (second (last clauses_))]
-                          [clauses_ nil])]
-    `(dynamic-cond* ~(mapcat (fn [[test item]]
-                               `[~test
-                                 ~item])
-                             clauses_)
-                    ~dflt)))
 
 (defmacro def-named
   "A macro to define a named item. This is the same as Clojures
