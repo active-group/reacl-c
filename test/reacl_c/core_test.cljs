@@ -481,6 +481,7 @@
     (is (some? (tu/find env (dom/div "Ok")))))
 
   (c/defn defn-test-2 [p]
+    {:pre [(string? p)]}
     (c/with-state [a b :local "bar"]
       (dom/div a b p)))
 

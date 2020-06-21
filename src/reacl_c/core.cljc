@@ -744,7 +744,8 @@ be specified multiple times.
     (mod-fn
       (fn [& args]
          (@create (apply @opt-wrapper (fn [@wrapper-args & args] @body) args)))))
-"
+  "
+  ;; TODO: create and opt-wrapper should be possible as one.
   [create mod-fn opt-wrapper wrapper-args name args & body]
   (let [[docstring? args & body] (apply maybe-docstring args body)
         name_ (clojure.core/name name)
@@ -989,32 +990,47 @@ One can also use this to define a [[static]] item, which is isolated
             ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
             #?(:cljs (resolve* env expr))))))
 
+(clj/defn- maybe-with-state-expr [env body]
+  (and (not-empty body)
+       (let [candidate (last body)]
+         (when (and (list? candidate)
+                    (<= 2 (count candidate))
+                    (with-state-sym? env (first candidate)))
+           [(butlast body) (apply parse-binding-form (rest candidate))]))))
+
+(clj/defn ^:no-doc static+p [prelude-fn f & args]
+  (apply prelude-fn args)
+  (apply static f args))
+
+(clj/defn ^:no-doc local-dynamic+p [prelude-fn init f & args]
+  (apply prelude-fn args)
+  (apply local-dynamic init f args))
+
+(clj/defn ^:no-doc dynamic+p [prelude-fn f & args]
+  (apply prelude-fn args)
+  (apply dynamic f args))
+
 (defmacro defn
-  "A macro like [[clojure.core/defn]], with optional schema
-  annotations like [[schema.core/defn]] and with the name of the var
-  attached to the returned items, which can be helpful in testing and
-  debugging utilities (see [[named]])."
+  "A macro like [[clojure.core/defn]] to define abstractions over
+  items, with optional schema annotations like [[schema.core/defn]]
+  and with the name of the var attached to the returned items, which
+  can be helpful in testing and debugging utilities (see [[named]])."
   [name params & body]
   (let [[docstring? params & body] (apply maybe-docstring params body)
         docstring (when docstring? [docstring?])]
-    (cond
-      ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
-      ;; TODO: allow :pre conditions before with-state? (or anything - could just be the last expr. as well)
-      (and (not-empty body)
-           (list? (first body))
-           (empty? (rest body))
-           (<= 2 (count (first body)))
-           (with-state-sym? &env (first (first body))))
-      (let [p (apply parse-binding-form (rest (first body)))
-            body (:body p)]
+    ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
+    (if-let [[prelude p] (maybe-with-state-expr &env body)]
+      (let [body (:body p)
+            prelude-fn `(fn ~params ~@prelude)]
         (cond
           (:static p)
-          `(defn-named+ [static] nil ~name ~@docstring ~params ~@body)
+          `(defn-named+ [static+p ~prelude-fn] nil ~name ~@docstring ~params ~@body)
 
           (contains? p :local)
-          `(defn-named+ [local-dynamic ~(:local p)] ~(:dynamic p) ~name ~@docstring ~params ~@body)
+          `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~@docstring ~params ~@body)
           
           :else
-          `(defn-named+ [dynamic] ~(:dynamic p) ~name ~@docstring ~params ~@body)))
-      :else
+          `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~@docstring ~params ~@body)))
+      
+      ;; else
       `(defn-named+ nil nil ~name ~@docstring ~params ~@body))))
