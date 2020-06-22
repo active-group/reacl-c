@@ -405,6 +405,8 @@ be specified multiple times.
   place. Both functions must return a [[return]] value specifying what
   to do."
   [init finish]
+  {:pre [(ifn? init)
+         (ifn? finish)]}
   (base/make-lifecycle init finish))
 
 (let [add-inner (fn [returned outer inner]
