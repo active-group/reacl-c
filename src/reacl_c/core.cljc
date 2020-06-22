@@ -788,6 +788,7 @@ be specified multiple times.
     (list* (list candidate (first more) (second more)) (rest (rest more)))
     (list* (list candidate) more)))
 
+;; TODO: settings a state expr of [x :- s/Str y] breaks silently. Can this work?
 (defmacro defn-dynamic
   "A macro to define a new abstract dynamic item. For example, given
 

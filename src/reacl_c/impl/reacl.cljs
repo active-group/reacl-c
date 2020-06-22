@@ -536,6 +536,7 @@
   (-> (instantiate (rcore/use-reaction [astate (:current lstate)]
                                        (rcore/reaction this ->NewIsoState))
                    e)
+      ;; FIXME: something breaks, when child is ultimately a fragment here - I think it then overwrites ref that are already set inside.. maybe.
       (rcore/refer child))
   
   handle-message
