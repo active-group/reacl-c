@@ -5,7 +5,7 @@
               [reacl-c.dom :as dom]))
 
 (defn checked-state [_ e]
-  (c/return :state (.. e -target -checked)))
+  (.. e -target -checked))
 
 (c/def checkbox
   (c/with-state checked
@@ -14,7 +14,7 @@
                 :onchange checked-state})))
 
 (defn value-state [_ e]
-  (c/return :state (.. e -target -value)))
+  (.. e -target -value))
 
 (c/def textbox
   (c/with-state value
@@ -62,16 +62,14 @@
 (defn list-actions [state action]
   (condp instance? action
     AddItem
-    (c/return :state
-              (-> state
-                  (update :todos conj (->Todo (:next-id state) (:text action) false))
-                  (update :next-id inc)))
+    (-> state
+        (update :todos conj (->Todo (:next-id state) (:text action) false))
+        (update :next-id inc))
                             
     DeleteItem
-    (c/return :state
-              (-> state
-                  (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
-                                               %)))))
+    (-> state
+        (update :todos #(vec (remove (fn [todo] (= (:id action) (:id todo)))
+                                     %))))
                             
     (c/return :action action)))
 

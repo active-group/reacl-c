@@ -409,20 +409,24 @@ be specified multiple times.
          (ifn? finish)]}
   (base/make-lifecycle init finish))
 
-(let [add-inner (fn [returned outer inner]
+(let [lift (fn [r]
+             (if (base/returned? r)
+               r
+               (return :state r)))
+      add-inner (fn [returned outer inner]
                   (let [s (base/returned-state returned)]
                     (base/merge-returned returned
                                          (return :state
                                                  (if (= s base/keep-state)
                                                    [outer inner]
                                                    [s inner])))))
-      init (fn [f [state done]]
-             (let [v (f state)]
+      init (fn [init-f [state done]]
+             (let [v (lift (init-f state))]
                (if (not= v done)
                  (add-inner v state v)
                  (return))))
       finish (fn [cleanup-f [state done]]
-               (add-inner (cleanup-f state) state nil))
+               (add-inner (lift (cleanup-f state)) state nil))
       no-cleanup (f/constantly (return))]
   (clj/defn once
     "Returns an item that evaluates `(f state)` and emits the [[return]]

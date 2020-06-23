@@ -148,19 +148,20 @@
 
 (defn ^:no-doc transform-return [r]
   ;; a base/Returned value to a rcore/return value.
-  (assert (base/returned? r) (str "Expected a value created by 'return', but got: " (pr-str r) "."))
-  (apply rcore/merge-returned
-         (if (not= base/keep-state (:state r))
-           (rcore/return :app-state (:state r))
-           (rcore/return))
-         (concat (map (fn [a] (rcore/return :action a))
-                      (:actions r))
-                 (map (fn [[target msg]]
-                        (let [c (base/deref-message-target target)]
-                          (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
-                          (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
-                          (rcore/return :message [c msg])))
-                      (:messages r)))))
+  (if (base/returned? r)
+    (apply rcore/merge-returned
+           (if (not= base/keep-state (:state r))
+             (rcore/return :app-state (:state r))
+             (rcore/return))
+           (concat (map (fn [a] (rcore/return :action a))
+                        (:actions r))
+                   (map (fn [[target msg]]
+                          (let [c (base/deref-message-target target)]
+                            (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
+                            (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
+                            (rcore/return :message [c msg])))
+                        (:messages r))))
+    (rcore/return :app-state r)))
 
 
 (rcore/defclass ^:private handle-message this state [e f]

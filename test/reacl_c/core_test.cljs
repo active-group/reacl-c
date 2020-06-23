@@ -374,25 +374,32 @@
            (tu/send-message! env 2)))))
 
 (deftest handle-action-test
-  (let [foobar (c/name-id "foobar")
-        item (c/named foobar (dom/div))
-        add-action (fn [state a]
-                     (base/merge-returned (c/return :state (conj state a))
-                                          (c/return)))
-        env (tu/env (c/handle-action item
-                                     add-action))]
+  (testing "basics"
+    (let [foobar (c/name-id "foobar")
+          item (c/named foobar (dom/div))
+          env (tu/env (c/handle-action item
+                                       (fn [state a]
+                                         (c/return :state (conj state a)))))]
     
-    (tu/mount! env [])
-    (is (some? (tu/find env item)))
+      (tu/mount! env [])
+      (is (some? (tu/find env item)))
     
-    (is (= (c/return :state [:a])
-           (tu/inject-action! (tu/find env item)
-                              :a)))
+      (is (= (c/return :state [:a])
+             (tu/inject-action! (tu/find env item)
+                                :a)))
 
-    (tu/update! env [:a])
-    (is (= (c/return :state [:a :b])
-           (tu/inject-action! (tu/find env item)
-                              :b)))))
+      (tu/update! env [:a])
+      (is (= (c/return :state [:a :b])
+             (tu/inject-action! (tu/find env item)
+                                :b)))))
+  (testing "plain state return"
+    (let [item (c/dynamic (f/constantly (dom/div)))
+          env (tu/env (c/handle-action item
+                                       conj))]
+      (tu/mount! env [])
+      (is (= (c/return :state [:a])
+             (tu/inject-action! (tu/find env item)
+                                :a))))))
 
 (deftest map-effects-test
   (let [foobar (c/name-id "foobar")
