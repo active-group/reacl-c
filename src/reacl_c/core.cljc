@@ -409,24 +409,18 @@ be specified multiple times.
          (ifn? finish)]}
   (base/make-lifecycle init finish))
 
-(let [lift (fn [r]
-             (if (base/returned? r)
-               r
-               (return :state r)))
-      add-inner (fn [returned outer inner]
-                  (let [s (base/returned-state returned)]
-                    (base/merge-returned returned
-                                         (return :state
-                                                 (if (= s base/keep-state)
-                                                   [outer inner]
-                                                   [s inner])))))
-      init (fn [init-f [state done]]
-             (let [v (lift (init-f state))]
-               (if (not= v done)
-                 (add-inner v state v)
-                 (return))))
-      finish (fn [cleanup-f [state done]]
-               (add-inner (lift (cleanup-f state)) state nil))
+(let [init (fn [init-f [state local]]
+             (let [r (init-f state)
+                   new (assoc local :init r)]
+               (if (= local new)
+                 (return)
+                 (return :state [state new]
+                         :action r))))
+      finish (fn [cleanup-f [state local]]
+               (return :state [state {}]
+                       :action (cleanup-f state)))
+      pass-act (fn [state act]
+                 act)
       no-cleanup (f/constantly (return))]
   (clj/defn once
     "Returns an item that evaluates `(f state)` and emits the [[return]]
@@ -441,11 +435,12 @@ be specified multiple times.
     [f & [cleanup-f]]
     {:pre [(ifn? f)
            (or (nil? cleanup-f) (ifn? cleanup-f))]}
-    (local-state nil
-                 (lifecycle (f/partial init f)
-                            (if cleanup-f
-                              (f/partial finish cleanup-f)
-                              no-cleanup)))))
+    (-> (local-state {}
+                     (lifecycle (f/partial init f)
+                                (if cleanup-f
+                                  (f/partial finish cleanup-f)
+                                  no-cleanup)))
+        (handle-action pass-act))))
 
 (clj/defn init
   "An invisible item that 'emits' the given [[return]] value once as
