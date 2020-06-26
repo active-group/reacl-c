@@ -133,10 +133,11 @@
   E)
 
 (r/define-record-type Named
-  (make-named name-id e)
+  (make-named name-id e validate-state!)
   named?
   [name-id named-name-id
-   e named-e]
+   e named-e
+   validate-state! named-validate-state!]
   E)
 
 (r/define-record-type ErrorBoundary

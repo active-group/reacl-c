@@ -186,7 +186,9 @@
     [(handle-message binding e f)]))
 
 (defn- gen-named [s]
-  (rcore/class s this state [e]
+  (rcore/class s this state [e validate-state!]
+               validate (when validate-state!
+                          (validate-state! state))
 
                refs [child]
 
@@ -206,11 +208,11 @@
 
 (extend-type base/Named
   IReacl
-  (-xpath-pattern [{e :e name-id :name-id}]
-    (wrapper-pattern (named name-id) e))
-  (-is-dynamic? [{e :e}] (is-dynamic? e))
-  (-instantiate-reacl [{e :e name-id :name-id} binding]
-    [((named name-id) binding e)]))
+  (-xpath-pattern [{e :e name-id :name-id validate-state! :validate-state!}]
+    (wrapper-pattern (named name-id) e validate-state!))
+  (-is-dynamic? [{e :e validate-state! :validate-state!}] (or (some? validate-state!) (is-dynamic? e)))
+  (-instantiate-reacl [{e :e name-id :name-id validate-state! :validate-state!} binding]
+    [((named name-id) binding e validate-state!)]))
 
 (def ^:private static-binding
   (rcore/use-reaction nil

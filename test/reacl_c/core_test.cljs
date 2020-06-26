@@ -7,6 +7,7 @@
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
             [schema.core :as s]
+            [clojure.string :as str]
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
@@ -498,4 +499,24 @@
 
   ;; and with-state optimized (made static)
   (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo"))))
-  )
+
+  (testing "schema validation"
+    (c/defn ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
+      (dom/div (str a)))
+
+    (is (some? (defn-test-3 42)))
+
+    (is (= "Input to defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (integer? :foo)) a)] [0m \n\n"
+           (try (defn-test-3 :foo)
+                nil
+                (catch :default e
+                  (.-message e)))))
+
+    (is (some? (tu/mount! (tu/env (defn-test-3 42)) "foo")))
+
+    (is (str/starts-with?
+         (try (tu/mount! (tu/env (defn-test-3 42)) :foo)
+              false
+              (catch :default e
+                (.-message e)))
+         "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))

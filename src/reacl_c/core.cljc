@@ -318,6 +318,13 @@ be specified multiple times.
   {:pre [(string? s)]}
   (base/make-name-id s))
 
+(clj/defn- named*
+  [name-id validate-state! item]
+  {:pre [(base/item? item)
+         (base/name-id? name-id)
+         (or (nil? validate-state!) (ifn? validate-state!))]}
+  (base/make-named name-id item validate-state!))
+
 (clj/defn named
   "Returns an item that looks and works exactly like the given item,
   but with has a user defined name, that appears and can be used in
@@ -327,7 +334,7 @@ be specified multiple times.
   [name-id item]
   {:pre [(base/item? item)
          (base/name-id? name-id)]}
-  (base/make-named name-id item))
+  (named* name-id nil item))
 
 (clj/defn- id-merge [m1 m2]
   (reduce-kv (fn [r k v]
@@ -701,6 +708,7 @@ be specified multiple times.
 (defmacro def
   [name item]
   ;; Note: it seems def is somewhat special, in that other references to `def` in this file still point to clojure's def.
+  ;; TODO: allow state schema like defn
   `(def-named ~name ~item))
 
 (clj/defn ^:no-doc meta-name-id [v]
@@ -746,7 +754,6 @@ be specified multiple times.
       (fn [& args]
          (@create (apply @opt-wrapper (fn [@wrapper-args & args] @body) args)))))
   "
-  ;; TODO: create and opt-wrapper should be possible as one.
   [create mod-fn opt-wrapper wrapper-args name docstring? args & body]
   (let [name_ (clojure.core/name name)
         name (vary-meta name assoc
@@ -770,10 +777,17 @@ be specified multiple times.
   (defn-named name [& args]
     (apply @opt-wrapper (fn [@wrapper-args & args] @body) args))
 "
-  [opt-wrapper wrapper-args name docstring? args & body]
-  (let [name_ (str *ns* "/" name)]
-    `(let [id# (name-id ~name_)]
-       (defn+ [named id#] (fn [f#] (vary-meta f# assoc ::name-id id#))
+  [opt-wrapper wrapper-args name  docstring? state-schema? args & body]
+  (let [name_ (str *ns* "/" name)
+        name_st (symbol (str "state-of-" name))]
+    `(let [id# (name-id ~name_)
+           validate# ~(when state-schema?
+                        `(s/fn ~(-> name_st
+                                    ;; in particular, copy schema's :always-validate
+                                    (with-meta (meta name)))
+                           [state# :- ~state-schema?]
+                           nil))]
+       (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
          ~opt-wrapper ~wrapper-args ~name ~docstring? ~args ~@body))))
 
 (defmacro defn-named
@@ -782,7 +796,7 @@ be specified multiple times.
   used by testing and debugging utilities."
   [name args & body]
   (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn-named+ nil nil ~name ~docstring? ~args ~@body)))
+    `(defn-named+ nil nil ~name ~docstring? nil ~args ~@body)))
 
 (clj/defn- maybe-schema-arg [candidate & more]
   (if (and (not-empty more) (= ':- (first more)))
@@ -808,7 +822,7 @@ be specified multiple times.
   [name state args & body]
   (let [[docstring? state args & body] (apply maybe-docstring state args body)
         [statev args & body] (apply maybe-schema-arg state args body)]
-    `(defn-named+ [dynamic] ~statev ~name ~docstring? ~args ~@body)))
+    `(defn-named+ [dynamic] ~statev ~name ~docstring? nil ~args ~@body)))
 
 (defmacro def-dynamic
   "A macro to define a new dynamic item. For example, given
@@ -833,7 +847,7 @@ be specified multiple times.
   the body is only evaluated when the arguments change."
   [name args & body]
   (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? ~args
+    `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~args
        ~@body)))
 
 (defmacro def-static
@@ -871,7 +885,7 @@ Note that `deliver!` must never be called directly in the body of
   [name deliver! args & body]
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
-    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~docstring? ~args ~@body)))
+    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~docstring? nil ~args ~@body)))
 
 (clj/defn ^:no-doc effect-from-defn [fn eff]
   ;; Note: must be public, because used in macro expansion of defn-effec.
@@ -1015,24 +1029,43 @@ One can also use this to define a [[static]] item, which is isolated
 
 (defmacro defn
   "A macro like [[clojure.core/defn]] to define abstractions over
-  items, with optional schema annotations like [[schema.core/defn]]
-  and with the name of the var attached to the returned items, which
+  items, with optional schema annotations similar to [[schema.core/defn]].
+
+```
+(defn col [w :- s/Int & content]
+  (apply dom/div {:class (str \"col-\" w)} content))
+```
+
+  The schema of the state that the returned item expects can also be
+  specified like this:
+
+```
+(defn username :- s/Str []
+  (with-state name
+    (dom/div \"Username:\" name)))
+```
+
+  Note that this does not specify the schema of the return value of
+  the defined function, which is always an item.
+
+  Also the name of the var is attached to the returned items, which
   can be helpful in testing and debugging utilities (see [[named]])."
   [name params & body]
-  (let [[docstring? params & body] (apply maybe-docstring params body)]
+  (let [[[name _ state-schema?] params & body] (apply maybe-schema-arg name params body)
+        [docstring? params & body] (apply maybe-docstring params body)]
     ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
     (if-let [[prelude p] (maybe-with-state-expr &env body)]
       (let [body (:body p)
             prelude-fn `(fn ~params ~@prelude)]
         (cond
           (:static p)
-          `(defn-named+ [static+p ~prelude-fn] nil ~name ~docstring? ~params ~@body)
+          `(defn-named+ [static+p ~prelude-fn] nil ~name ~docstring? ~state-schema? ~params ~@body)
 
           (contains? p :local)
-          `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~params ~@body)
+          `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
           
           :else
-          `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~params ~@body)))
+          `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)))
       
       ;; else
-      `(defn-named+ nil nil ~name ~docstring? ~params ~@body))))
+      `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body))))
