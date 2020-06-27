@@ -466,10 +466,6 @@
     (tu/mount! env "Ok")
     (is (some? (tu/find env (dom/div "Ok")))))
 
-  (let [env (tu/env (c/with-state :static (c/dynamic dom/div)))]
-    (tu/mount! env :bar)
-    (is (some? (tu/find env (dom/div)))))
-
   (let [env (tu/env (c/with-state [a b] (dom/div a b)))]
     (tu/mount! env ["foo" "bar"])
     (is (some? (tu/find env (dom/div "foo" "bar")))))
@@ -479,26 +475,43 @@
     (is (some? (tu/find env (dom/div "foo" "bar"))))))
 
 (deftest defn-test
-  (c/defn defn-test-1 "foo" [a :- s/Str]
-    (dom/div a))
+  (testing "simple items"
+    (c/defn defn-test-1 "foo" [a :- s/Str]
+      (dom/div a))
 
-  (is (= "foo" (:doc (meta #'defn-test-1))))
+    (is (= "foo" (:doc (meta #'defn-test-1))))
   
-  (let [env (tu/env (defn-test-1 "Ok"))]
-    (tu/mount! env "Ok")
-    (is (some? (tu/find env (dom/div "Ok")))))
+    (let [env (tu/env (defn-test-1 "Ok"))]
+      (tu/mount! env "Ok")
+      (is (some? (tu/find env (dom/div "Ok"))))))
 
-  (c/defn defn-test-2 [p]
-    {:pre [(string? p)]}
-    (c/with-state [a b :local "bar"]
-      (dom/div a b p)))
+  (testing "dynamic items"
+    (c/defn defn-test-2 [p]
+      {:pre [(string? p)]}
+      (c/with-state [a b :local "bar"]
+        (dom/div a b p)))
 
-  (let [env (tu/env (defn-test-2 "baz"))]
-    (tu/mount! env "foo")
-    (is (some? (tu/find env (dom/div "foo" "bar" "baz")))))
+    (let [env (tu/env (defn-test-2 "baz"))]
+      (tu/mount! env "foo")
+      (is (some? (tu/find env (dom/div "foo" "bar" "baz")))))
 
-  ;; and with-state optimized (made static)
-  (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo"))))
+    ;; and with-state optimized (made static)
+    (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
+
+  (testing "static items"
+    (c/defn defn-test-4 :static [rendered?]
+      (reset! rendered? true)
+      (dom/div))
+    
+    (let [rendered? (atom false)
+          env (tu/env (defn-test-4 rendered?))]
+      (tu/mount! env :bar)
+      (is (some? (tu/find env (dom/div))))
+      (is @rendered?)
+
+      (reset! rendered? false)
+      (tu/update! env :foo)
+      (is (not @rendered?))))
 
   (testing "schema validation"
     (c/defn ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
@@ -514,9 +527,11 @@
 
     (is (some? (tu/mount! (tu/env (defn-test-3 42)) "foo")))
 
-    (is (str/starts-with?
-         (try (tu/mount! (tu/env (defn-test-3 42)) :foo)
-              false
-              (catch :default e
-                (.-message e)))
-         "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))
+    (tu/preventing-error-log
+     (fn []
+       (is (str/starts-with?
+            (try (tu/mount! (tu/env (defn-test-3 42)) :foo)
+                 false
+                 (catch :default e
+                   (.-message e)))
+            "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))))

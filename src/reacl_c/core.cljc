@@ -910,8 +910,6 @@ Calling it returns an effect action, which can be returned by an item
 
 (clj/defn- parse-binding-form [bf & more]
   (cond
-    (= :static bf) {:static true
-                    :body more}
     ;; [a b :local ""] :- T
     (and (vector? bf) (= 4 (count bf)) (= :local (nth bf 2)))
     (let [[a b _ init] bf
@@ -964,21 +962,10 @@ Note that the state of the inner item (the `div` in this case), will
   that the state of the item created by `with-state` is just the first
   part of that tuple. The expression after `:local` is the initial
   value of the local state.
-
-One can also use this to define a [[static]] item, which is isolated
-  from state changes:
-
-```
-(with-state :static
-  (dom/div))
-```
 "
   [binding-form & body]
   (let [p (apply parse-binding-form binding-form body)]
     (cond
-      (:static p)
-      `(static (fn [] ~@(:body p)))
-      
       (contains? p :local)
       `(local-state ~(:local p)
                     (dynamic (s/fn ~(:dynamic p) ~@(:body p))))
@@ -1015,10 +1002,6 @@ One can also use this to define a [[static]] item, which is isolated
                     (with-state-sym? env (first candidate)))
            [(butlast body) (apply parse-binding-form (rest candidate))]))))
 
-(clj/defn ^:no-doc static+p [prelude-fn f & args]
-  (apply prelude-fn args)
-  (apply static f args))
-
 (clj/defn ^:no-doc local-dynamic+p [prelude-fn init f & args]
   (apply prelude-fn args)
   (apply local-dynamic init f args))
@@ -1026,6 +1009,11 @@ One can also use this to define a [[static]] item, which is isolated
 (clj/defn ^:no-doc dynamic+p [prelude-fn f & args]
   (apply prelude-fn args)
   (apply dynamic f args))
+
+(defn- maybe-static [cand & rest]
+  (if (= :static cand)
+    (list* true rest)
+    (list* false (cons cand rest))))
 
 (defmacro defn
   "A macro like [[clojure.core/defn]] to define abstractions over
@@ -1048,24 +1036,33 @@ One can also use this to define a [[static]] item, which is isolated
   Note that this does not specify the schema of the return value of
   the defined function, which is always an item.
 
-  Also the name of the var is attached to the returned items, which
+  Another alternative defines the returned items to be a [[static]]
+  item, which does no depend on it's state:
+
+```
+(defn menu-item :static [href]
+  (dom/a {:href href}))
+```
+
+  In all cases, the name of the var is attached to the returned items, which
   can be helpful in testing and debugging utilities (see [[named]])."
   [name params & body]
-  (let [[[name _ state-schema?] params & body] (apply maybe-schema-arg name params body)
-        [docstring? params & body] (apply maybe-docstring params body)]
-    ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
-    (if-let [[prelude p] (maybe-with-state-expr &env body)]
-      (let [body (:body p)
-            prelude-fn `(fn ~params ~@prelude)]
-        (cond
-          (:static p)
-          `(defn-named+ [static+p ~prelude-fn] nil ~name ~docstring? ~state-schema? ~params ~@body)
-
-          (contains? p :local)
-          `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
+  (let [[static? params & body] (apply maybe-static params body)]
+    (if static?
+      (let [[docstring? params & body] (apply maybe-docstring params body)]
+        `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~params ~@body))
+      (let [[[name _ state-schema?] params & body] (apply maybe-schema-arg name params body)
+            [docstring? params & body] (apply maybe-docstring params body)]
+        ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
+        (if-let [[prelude p] (maybe-with-state-expr &env body)]
+          (let [body (:body p)
+                prelude-fn `(fn ~params ~@prelude)]
+            (cond
+              (contains? p :local)
+              `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
           
-          :else
-          `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)))
+              :else
+              `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)))
       
-      ;; else
-      `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body))))
+          ;; else
+          `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body))))))
