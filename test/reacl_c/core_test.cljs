@@ -457,20 +457,20 @@
     (is (some? (tu/find env (dom/div "Ok"))))
     ))
 
-(deftest with-state-test
-  (let [env (tu/env (c/with-state foo (dom/div foo)))]
+(deftest with-state-as-test
+  (let [env (tu/env (c/with-state-as foo (dom/div foo)))]
     (tu/mount! env "Ok")
     (is (some? (tu/find env (dom/div "Ok")))))
 
-  (let [env (tu/env (c/with-state foo :- s/Str (dom/div foo)))]
+  (let [env (tu/env (c/with-state-as foo :- s/Str (dom/div foo)))]
     (tu/mount! env "Ok")
     (is (some? (tu/find env (dom/div "Ok")))))
 
-  (let [env (tu/env (c/with-state [a b] (dom/div a b)))]
+  (let [env (tu/env (c/with-state-as [a b] (dom/div a b)))]
     (tu/mount! env ["foo" "bar"])
     (is (some? (tu/find env (dom/div "foo" "bar")))))
 
-  (let [env (tu/env (c/with-state [a b :local "bar"] (dom/div a b)))]
+  (let [env (tu/env (c/with-state-as [a b :local "bar"] (dom/div a b)))]
     (tu/mount! env "foo")
     (is (some? (tu/find env (dom/div "foo" "bar"))))))
 
@@ -488,14 +488,14 @@
   (testing "dynamic items"
     (c/defn defn-test-2 [p]
       {:pre [(string? p)]}
-      (c/with-state [a b :local "bar"]
+      (c/with-state-as [a b :local "bar"]
         (dom/div a b p)))
 
     (let [env (tu/env (defn-test-2 "baz"))]
       (tu/mount! env "foo")
       (is (some? (tu/find env (dom/div "foo" "bar" "baz")))))
 
-    ;; and with-state optimized (made static)
+    ;; and with-state-as is optimized (made static)
     (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
 
   (testing "static items"

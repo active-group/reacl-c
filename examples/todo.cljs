@@ -8,7 +8,7 @@
   (.. e -target -checked))
 
 (c/def checkbox
-  (c/with-state checked
+  (c/with-state-as checked
     (dom/input {:type "checkbox"
                 :value checked
                 :onchange checked-state})))
@@ -17,7 +17,7 @@
   (.. e -target -value))
 
 (c/def textbox
-  (c/with-state value
+  (c/with-state-as value
     (dom/input {:type "text"
                 :value value
                 :onchange value-state})))
@@ -43,13 +43,13 @@
               label))
 
 (c/defn item [delete]
-  (c/with-state todo
+  (c/with-state-as todo
     (dom/div (c/focus :done? checkbox)
              (button "Zap" delete)
              " " (:text todo))))
 
 (c/defn item-list [delete-item]
-  (c/with-state todos
+  (c/with-state-as todos
     (apply dom/div
            (map-indexed (fn [idx id]
                           (-> (c/focus idx (item (delete-item id)))

@@ -918,19 +918,20 @@ Calling it returns an effect action, which can be returned by an item
        :local init
        :body body})
 
-    ;; x :- T
+    ;; x or x :- T
     :else
     (let [[x & body] (apply maybe-schema-arg bf more)]
       {:dynamic (vec x)
        :body body})))
 
-(defmacro with-state
+
+(defmacro with-state-as
   "Returns an item that can look differently depending on its current state.
 
 The basic form is
 
 ```
-(with-state foo
+(with-state-as foo
   (dom/div (pr-str foo)))
 ```
 
@@ -938,14 +939,14 @@ where `foo` is bound to the current state of the returned item.
 The binding form can optionally be followed by a schema.core annotation:
 
 ```
-(with-state foo :- s/Str
+(with-state-as foo :- s/Str
   (dom/div foo))
 ```
 
 The binding form can also use destructuring
 
 ```
-(with-state {name :name}
+(with-state-as {name :name}
   (dom/div name))
 ```
 
@@ -953,13 +954,13 @@ If the binding form is a vector, the second part of the
   state can be declared to be local to the body item of the form:
 
 ```
-(with-state [outer inner :local \"\"]
+(with-state-as [outer inner :local \"\"]
   (dom/div (str outer \"->\" inner)))
 ```
 
 Note that the state of the inner item (the `div` in this case), will
   be a tuple (see [[local-state]]) of both outer and inner state, and
-  that the state of the item created by `with-state` is just the first
+  that the state of the item created by `with-state-as` is just the first
   part of that tuple. The expression after `:local` is the initial
   value of the local state.
 "
@@ -984,22 +985,22 @@ Note that the state of the inner item (the `div` in this case), will
     (symbol (str (:ns (meta var)))
             (name (:name (meta var))))))
 
-(let [with-state-sym (var-sym #'with-state)]
-  (clj/defn- with-state-sym? [env expr]
+(let [with-state-as-sym (var-sym #'with-state-as)]
+  (clj/defn- with-state-as-sym? [env expr]
     (and (symbol? expr)
-         (= with-state-sym
+         (= with-state-as-sym
             #?(:clj (if (sm/cljs-env? env)
                       (resolve* env expr)  ;; cljs only
                       (var-sym (resolve env expr)))) ;; clj only
             ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
             #?(:cljs (resolve* env expr))))))
 
-(clj/defn- maybe-with-state-expr [env body]
+(clj/defn- maybe-with-state-as-expr [env body]
   (and (not-empty body)
        (let [candidate (last body)]
          (when (and (list? candidate)
                     (<= 2 (count candidate))
-                    (with-state-sym? env (first candidate)))
+                    (with-state-as-sym? env (first candidate)))
            [(butlast body) (apply parse-binding-form (rest candidate))]))))
 
 (clj/defn ^:no-doc local-dynamic+p [prelude-fn init f & args]
@@ -1029,7 +1030,7 @@ Note that the state of the inner item (the `div` in this case), will
 
 ```
 (defn username :- s/Str []
-  (with-state name
+  (with-state-as name
     (dom/div \"Username:\" name)))
 ```
 
@@ -1053,8 +1054,8 @@ Note that the state of the inner item (the `div` in this case), will
         `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~params ~@body))
       (let [[[name _ state-schema?] params & body] (apply maybe-schema-arg name params body)
             [docstring? params & body] (apply maybe-docstring params body)]
-        ;; Optimization: if the body is a [[with-state]] expression, then lift that up to make it static (non-generative):
-        (if-let [[prelude p] (maybe-with-state-expr &env body)]
+        ;; Optimization: if the body is a [[with-state-as]] expression, then lift that up to make it static (non-generative):
+        (if-let [[prelude p] (maybe-with-state-as-expr &env body)]
           (let [body (:body p)
                 prelude-fn `(fn ~params ~@prelude)]
             (cond

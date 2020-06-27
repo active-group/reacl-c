@@ -33,7 +33,7 @@
 (defn show [_ _] (c/return :state true))
 
 (c/def world-app
-  (c/with-state show?
+  (c/with-state-as show?
     (if show?
       (dom/div (dom/button {:onclick hide} "Hide")
                clock)
