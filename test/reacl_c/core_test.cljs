@@ -537,3 +537,36 @@
                  (catch :default e
                    (.-message e)))
             "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))))
+
+(deftest def-test
+  (testing "simple items"
+    (c/def def-test-1
+      (dom/div))
+
+    (let [env (tu/env def-test-1)]
+      (tu/mount! env nil)
+      (is (some? (tu/find env (dom/div))))))
+
+  (testing "dynamic items"
+    (c/def def-test-2
+      (c/with-state-as a
+        (dom/div a)))
+
+    (let [env (tu/env def-test-2)]
+      (tu/mount! env "foo")
+      (is (some? (tu/find env (dom/div "foo"))))))
+
+  (testing "state schema validation"
+    (c/def ^:always-validate def-test-3 :- s/Str
+      (c/with-state-as a (dom/div a)))
+
+    (is (some? (tu/mount! (tu/env def-test-3) "foo")))
+
+    (tu/preventing-error-log
+     (fn []
+       (is (str/starts-with?
+            (try (tu/mount! (tu/env def-test-3) :foo)
+                 false
+                 (catch :default e
+                   (.-message e)))
+            "Input to state-of-def-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))))

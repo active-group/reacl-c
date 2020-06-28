@@ -713,12 +713,45 @@ be specified multiple times.
        (def ~name
          (named id# ~item)))))
 
-;; TODO: rename def-named def ?
+(defmacro ^:no-doc state-validator [name state-schema?]
+  (let [name_st (symbol (str "state-of-" name))]
+    (when state-schema?
+      `(s/fn ~(-> name_st
+                  ;; in particular, copy schema's :always-validate
+                  (with-meta (meta name)))
+         [state# :- ~state-schema?]
+         nil))))
+
 (defmacro def
-  [name item]
+  "A macro to define items. This is not much different than the
+  standard `def` macro of Clojure, but it attaches the name of the var
+  to the item, which can be helpful in testing and debugging
+  utilities (see [[named]]).
+
+```
+(def submit-button
+  (dom/button {:type \"submit\"}))
+```
+
+ Additionally, a schema can be specified similar
+  to [[core.schema/def]]. That schema does specify which state values
+  are allowed for the defined item:
+
+```
+(def checkbox :- s/Bool
+  (dom/input {:type \"checkbox\" ...}))
+```
+"
+  [name & item]
   ;; Note: it seems def is somewhat special, in that other references to `def` in this file still point to clojure's def.
-  ;; TODO: allow state schema like defn
-  `(def-named ~name ~item))
+  (let [[state-schema? item] (if (= ':- (first item))
+                               [(second item) (rest (rest item))]
+                               [nil item])
+        name_ (str *ns* "/" name)]
+    `(let [id# (name-id ~name_)
+           validate# (state-validator ~name ~state-schema?)]
+       (def ~name
+         (named* id# validate# ~@item)))))
 
 (clj/defn ^:no-doc meta-name-id [v]
   (::name-id (meta v)))
@@ -787,15 +820,9 @@ be specified multiple times.
     (apply @opt-wrapper (fn [@wrapper-args & args] @body) args))
 "
   [opt-wrapper wrapper-args name  docstring? state-schema? args & body]
-  (let [name_ (str *ns* "/" name)
-        name_st (symbol (str "state-of-" name))]
+  (let [name_ (str *ns* "/" name)]
     `(let [id# (name-id ~name_)
-           validate# ~(when state-schema?
-                        `(s/fn ~(-> name_st
-                                    ;; in particular, copy schema's :always-validate
-                                    (with-meta (meta name)))
-                           [state# :- ~state-schema?]
-                           nil))]
+           validate# (state-validator ~name ~state-schema?)]
        (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
          ~opt-wrapper ~wrapper-args ~name ~docstring? ~args ~@body))))
 
