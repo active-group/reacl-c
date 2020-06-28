@@ -404,7 +404,7 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-keyed item key))
 
-(clj/defn lifecycle
+(clj/defn lifecycle ;; TODO: rename handle-lifecyle ?
   "Returns an invisible item, that calls `init` each time the item is
   used at a place in the component hierarchy, including every change
   of state or the `init` function itself subsequently. The `finish`
@@ -639,7 +639,7 @@ be specified multiple times.
     [f & args]
     (with-async-actions (f/partial stu f args))))
 
-(clj/defn error-boundary
+(clj/defn error-boundary ;; TODO: rename handle-error ?!
   "Creates an error boundary around the given item. When the rendering
   of `e` throws an exception, then `(f error)` is evaluated, and must
   result in an [[return]] value. Note that exceptions in functions
