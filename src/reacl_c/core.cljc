@@ -579,14 +579,20 @@ be specified multiple times.
     (with-message-target f
       wr eff)))
 
-(defrecord ^:no-doc SubscribedMessage [stop!])
+(defrecord ^:no-doc SubscribedMessage [stop! sync-actions])
 
 (defrecord ^:no-doc SubscribedEmulatedResult [action])
 
-(clj/defn ^:no-doc subscribe! [f args deliver! host]
-  (let [stop! (apply f deliver! args)]
+(clj/defn ^:no-doc subscribe! [f args async-deliver! host]
+  (let [sync (atom [])
+        deliver! (fn [a]
+                   (if (some? @sync)
+                     (swap! sync conj a)
+                     (async-deliver! a)))
+        stop! (apply f deliver! args)]
+    (reset! sync nil)
     (assert (ifn? stop!) "Subscription must return a stop function.")
-    (return :message [host (SubscribedMessage. stop!)])))
+    (return :message [host (SubscribedMessage. stop! @sync)])))
 
 (clj/defn- subscribe-effect [f deliver! args host]
   (assert (ifn? f))
@@ -603,7 +609,9 @@ be specified multiple times.
 (let [store-sub (fn [f args state msg]
                   (cond
                     (instance? SubscribedMessage msg)
-                    (return :state {:f f :args args :stop! (:stop! msg)})
+                    (apply base/merge-returned
+                           (return :state {:f f :args args :stop! (:stop! msg)})
+                           (map #(return :action %) (:sync-actions msg)))
 
                     ;; added for test-util emulation of subscriptions.
                     (instance? SubscribedEmulatedResult msg)
@@ -628,14 +636,15 @@ be specified multiple times.
                             :stop! nil}
                            (dynamic (f/partial dyn deliver!))))]
   (clj/defn subscription
-    "Returns an item that asynchronously emits actions according to
-  the given function `f`. For that `f` will be called with a
-  side-effectful `deliver!` function which takes the action to emit,
-  and `f` must return a `stop` function of no arguments. You may do
-  some kind of registration at an asynchronous library or native
+    "Returns an item that emits actions according to the given
+  function `f`. Each time the retuned item is used, `f` will be called
+  with a side-effectful `deliver!` function which takes the action to
+  emit, and `f` must return a `stop` function of no arguments. You can
+  call `deliver!` immediately once or multiple times, and you may also
+  do some kind of registration at an asynchronous library or native
   browser api, and use `deliver!` to inform your application about the
-  results, once or multiple times. But when the `stop` function is
-  called, you must prevent any more calls to `deliver!`."
+  results later, once or multiple times. But when the `stop` function
+  is called, you must prevent any more calls to `deliver!`."
     [f & args]
     (with-async-actions (f/partial stu f args))))
 
@@ -875,14 +884,15 @@ With this definition, you can use `(interval-timer 1000)` as an
   item in your application. That item will be invisible, but
   will emit a JavaScript `Date` object as an action every second.
 
-Note that `deliver!` must never be called directly in the body of
-  `defn-subscription`, but only later, from an *asynchronous context*.
-  Also note that the body is evaluated as soon as the subscription
-  item is mounted into your application, and that it must result in
-  a function with no arguments, which is called when the item is
-  removed from the application afterwards.
+Note that `deliver!` can be called directly in the body of
+  `defn-subscription` to emit some actions immediately, or later from
+  an *asynchronous context*.  Also note that the body is evaluated as
+  soon as the subscription item is mounted into your application, and
+  that it must result in a function with no arguments, which is called
+  when the item is removed from the application afterwards.
  "
   [name deliver! args & body]
+  ;; TODO: allow schema spec on the actions?
   (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
     `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~docstring? nil ~args ~@body)))

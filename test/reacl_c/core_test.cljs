@@ -70,6 +70,7 @@
   (let [subscribed (atom nil)
         sub-impl (fn [deliver! x]
                    (reset! subscribed deliver!)
+                   (deliver! :sync)
                    (fn []
                      (reset! subscribed nil)))
         sub (c/subscription sub-impl :x)
@@ -78,11 +79,12 @@
     (tu/mount! env false)
     (is (not @subscribed))
     
-    ;; sub on mount
-    (tu/update! env true)
+    ;; sub on mount and sync actions.
+    (= (c/return :action :sync)
+       (tu/update! env true))
     (is @subscribed)
 
-    ;; test actions emitted.
+    ;; async actions emitted.
     (is (= (c/return :action ::act)
            (tu/with-env-return env
              (fn []
