@@ -892,8 +892,12 @@ be specified multiple times.
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
+(def ^:no-doc subscription-from-defn-meta-key ::subscription-from-defn)
+
 (clj/defn- subscription-from-defn [fn f & args]
-  (apply subscription f args))
+  (apply subscription
+         (vary-meta f assoc subscription-from-defn-meta-key fn) ;; used for test-utils.
+         args))
 
 (defmacro defn-subscription
   "A macro to define the integration of an external source of actions,

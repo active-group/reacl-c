@@ -317,7 +317,12 @@
   "The function passed to the subscription the given subscribe effect was generated from."
   [eff]
   (assert (subscribe-effect? eff))
-  (first (effect-args eff)))
+  (let [f (first (effect-args eff))
+        m (meta f)]
+    ;; if it was created from a defn-subscription (instead of plain subscription), then return that function instead.
+    (if (clojure.core/contains? m core/subscription-from-defn-meta-key)
+      (core/subscription-from-defn-meta-key m)
+      f)))
 
 (defn subscribe-effect-args
   "The arguments passed to the subscription the given subscribe effect was generated from."
