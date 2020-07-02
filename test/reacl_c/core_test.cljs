@@ -327,10 +327,27 @@
 
 (deftest effect-test
   (c/defn-effect effect-test-1 [foo]
-    (c/return))
+    (if (= foo :foo)
+      42
+      (c/return :state 21
+                :action :test)))
 
-  (is (= (effect-test-1 :foo)
-         (effect-test-1 :foo))))
+  (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+    "err")
+  
+  (testing "basics, equality"
+    (is (= (effect-test-1 :foo)
+           (effect-test-1 :foo))))
+
+  (testing "running effects"
+    (is (= [42 (c/return)] (base/run-effect! (effect-test-1 :foo))))
+    (is (= [21 (c/return :action :test)] (base/run-effect! (effect-test-1 :bar)))))
+
+  (testing "state validation"
+    (try (base/run-effect! (effect-test-2 :foo))
+         (is false)
+         (catch :default e
+           (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e)))))))
 
 (deftest handle-effect-result-test
   (testing "results can be received"

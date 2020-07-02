@@ -1,7 +1,8 @@
 (ns ^:no-doc reacl-c.base
     (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
               #?(:clj [active.clojure.record :as r])
-              [active.clojure.functions :as f]))
+              [active.clojure.functions :as f]
+              [schema.core :as s]))
 
 (defprotocol E
   (-is-dynamic? [this] "If the item depends on the state in rendering or behaviour. Some optimizations can be applied if false."))
@@ -198,12 +199,21 @@
 (defrecord KeepState [])
 (def keep-state (KeepState.))
 
+(defn keep-state? [v]
+  (= keep-state v))
+
 (r/define-record-type Returned
   (make-returned state actions messages)
   returned?
   [state returned-state
    actions returned-actions
    messages returned-messages])
+
+(defn return-schema [state message action]
+  {:state (s/conditional keep-state? (s/eq keep-state)
+                         :else state)
+   :messages [message]
+   :actions [action]})
 
 (def empty-return (make-returned keep-state [] []))
 

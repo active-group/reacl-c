@@ -796,20 +796,20 @@ be specified multiple times.
       (fn [& args]
          (@create (apply @opt-wrapper (fn [@wrapper-args & args] @body) args)))))
   "
-  [create mod-fn opt-wrapper wrapper-args name docstring? args & body]
+  [create mod-fn opt-wrapper wrapper-args name result-schema? docstring? args & body]
   (let [name_ (clojure.core/name name)
         name (vary-meta name assoc
                         :doc (or docstring? (:doc (meta name)))
                         :arglists `'(~args))]
     `(let [check-arity# (arity-checker ~name_ ~(arity args))
-           f# (s/fn ~name [~@wrapper-args ~@args] ~@body)
+           f# (s/fn ~name ~@(when result-schema? [:- result-schema?]) [~@wrapper-args ~@args] ~@body)
            check-args-schema# (s/fn ~name [~@args] nil)]
        (def ~name
          (~mod-fn (fn [& args#]
-                    (assert (do (check-arity# (count args#))
-                                (apply check-args-schema# args#)
-                                true))               
-                    (~@create (apply ~@opt-wrapper f# args#))))))))
+                   (assert (do (check-arity# (count args#))
+                               (apply check-args-schema# args#)
+                               true))               
+                   (~@create (apply ~@opt-wrapper f# args#))))))))
 
 (defmacro ^:no-doc defn-named+
   "Internal utility macro.
@@ -932,6 +932,10 @@ Note that `deliver!` can be called directly in the body of
   ;; Note: must be public, because used in macro expansion of defn-effec.
   (vary-meta eff assoc ::effect-defn fn))
 
+(clj/defn ^:no-doc opt-return-state-schema [s]
+  (s/conditional base/returned? (base/return-schema s s/Any s/Any)
+                 :else s))
+
 (defmacro defn-effect
   "A macro similar to defn, that defines a new effect.
 
@@ -945,9 +949,11 @@ Calling it returns an effect action, which can be returned by an item
   effects on some external entity are safe.
  "
   [name args & body]
-  ;; TODO: allow a schema on the return value
-  (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn+ [effect-from-defn ~name] identity [effect] [] ~name ~docstring? ~args ~@body)))
+  (let [[[name _ result-schema?] args & body] (apply maybe-schema-arg name args body)
+        [docstring? args & body] (apply maybe-docstring args body)
+        result-schema? (when (some? result-schema?)
+                         `(opt-return-state-schema ~result-schema?))]
+    `(defn+ [effect-from-defn ~name] identity [effect] [] ~name ~result-schema? ~docstring? ~args ~@body)))
 
 (clj/defn- parse-binding-form [bf & more]
   (cond
