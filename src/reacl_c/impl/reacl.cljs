@@ -14,7 +14,7 @@
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
   (-xpath-pattern [this] "An xpath that selects something like this item.") ;; Note: multiple semantics of this possible; for now a very lose match.
-  (-is-dynamic? [this] "If the item depends on the state that it is bound to.")) ;; TODO: is this implementation dependant? Could move it to "E" then.
+  )
 
 (defrecord WrapRef [reacl-ref]
   base/Ref
@@ -30,12 +30,6 @@
     (nil? e) xp/self ;; nothing can be found in anything
     (satisfies? IReacl e) (-xpath-pattern e)
     :else (assert false (str "No reacl implementation for: " (pr-str e)))))
-
-(defn- is-dynamic? [item]
-  (if (or (string? item)
-          (nil? item))
-    false
-    (-is-dynamic? item)))
 
 (defn- class-args-pattern [class args]
   (xp/comp (xp/type class)
@@ -53,11 +47,11 @@
 
 (defrecord ^:private LiftedClass [class args]
   base/E
+  (-is-dynamic? [this]
+    (and (rcore/reacl-class? class) (rcore/has-app-state? class)))
   IReacl
   (-xpath-pattern [this]
     (class-args-pattern class [args]))
-  (-is-dynamic? [this]
-    (and (rcore/reacl-class? class) (rcore/has-app-state? class)))
   (-instantiate-reacl [this binding]
     [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
        (apply class binding args)
@@ -72,7 +66,7 @@
   "Returns a Reacl component/element for the given item and state binding."
   [binding e]
   (cond
-    (satisfies? IReacl e) (let [cs (if (or (= binding non-dynamic-binding) (not (-is-dynamic? e)))
+    (satisfies? IReacl e) (let [cs (if (or (= binding non-dynamic-binding) (not (base/is-dynamic? e)))
                                      ;; if it is 'static', then isolate it from the changing state from outside
                                      ;; can be a bit faster for large dom trees.
                                      (-instantiate-reacl e non-dynamic-binding)
@@ -181,7 +175,6 @@
   IReacl
   (-xpath-pattern [{e :e f :f}]
     (wrapper-pattern handle-message e f))
-  (-is-dynamic? [this] true)
   (-instantiate-reacl [{e :e f :f} binding]
     [(handle-message binding e f)]))
 
@@ -210,7 +203,6 @@
   IReacl
   (-xpath-pattern [{e :e name-id :name-id validate-state! :validate-state!}]
     (wrapper-pattern (named name-id) e validate-state!))
-  (-is-dynamic? [{e :e validate-state! :validate-state!}] (or (some? validate-state!) (is-dynamic? e)))
   (-instantiate-reacl [{e :e name-id :name-id validate-state! :validate-state!} binding]
     [((named name-id) binding e validate-state!)]))
 
@@ -241,7 +233,6 @@
   IReacl
   (-xpath-pattern [{f :f args :args}]
     (class-args-pattern static (list* f args)))
-  (-is-dynamic? [{e :e}] false)
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply static static-binding f args)]))
 
@@ -363,8 +354,6 @@
                                       (xp/comp (xp/first-where (xp/not xp/class?))
                                                child-match))))
                    (xp/count= (count children))))))))
-  (-is-dynamic? [{events :events children :children}]
-    (or (not (empty? events)) (some is-dynamic? children)))
   (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
     [(apply dom binding type attrs events ref children)]))
 
@@ -384,8 +373,6 @@
                                    (xp/where (xp/comp xp/children (xpath-pattern c))))
                                  children))
                      )))))
-  (-is-dynamic? [{children :children}]
-    (some is-dynamic? children))
   (-instantiate-reacl [{children :children} binding]
     (mapv (partial instantiate binding)
           children)))
@@ -401,7 +388,6 @@
     ;; FIXME: the key does not work... don't know why.
     (xp/and #_(xp/where (xp/comp xp/key (xp/is= key)))
             (xpath-pattern e)))
-  (-is-dynamic? [{e :e}] (is-dynamic? e))
   (-instantiate-reacl [{e :e key :key} binding]
     [(keyed binding e key)]))
 
@@ -421,7 +407,6 @@
   IReacl
   (-xpath-pattern [{f :f args :args}]
     (class-args-pattern with-ref (list* f args)))
-  (-is-dynamic? [_] true)
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-ref binding f args)]))
 
@@ -438,7 +423,6 @@
   IReacl
   (-xpath-pattern [{e :e ref :ref}]
     (wrapper-pattern set-ref e ref))
-  (-is-dynamic? [{e :e}] (is-dynamic? e))
   (-instantiate-reacl [{e :e ref :ref} binding]
     ;; has to be a class for now, because otherwise we would override the ref with all our 'child' refs for passing messages down.
     ;; TODO: either change that; or we could name this 'add-ref' or refer, as one can add multiple refs then...?
@@ -459,7 +443,6 @@
   IReacl
   (-xpath-pattern [{f :f args :args}]
     (class-args-pattern dynamic (list* f args)))
-  (-is-dynamic? [_] true)
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply dynamic binding f args)]))
 
@@ -470,10 +453,9 @@
   IReacl
   (-xpath-pattern [{e :e lens :lens}]
     (wrapper-pattern focus e lens))
-  (-is-dynamic? [{e :e}] (is-dynamic? e))
   (-instantiate-reacl [{e :e lens :lens} binding]
     ;; if this isn't dynamic, then state binding will be 'nil' - don't run the lens over it.
-    (if (is-dynamic? e)
+    (if (base/is-dynamic? e)
       [(focus binding e lens)]
       [(instantiate binding e)])))
 
@@ -509,7 +491,6 @@
   IReacl
   (-xpath-pattern [{e :e f :f pred :pred}]
     (wrapper-pattern handle-action e f pred))
-  (-is-dynamic? [{e :e}] true)
   (-instantiate-reacl [{e :e f :f pred :pred} binding]
     [(handle-action binding e f pred)]))
 
@@ -556,7 +537,6 @@
   IReacl
   (-xpath-pattern [{e :e initial :initial}]
     (wrapper-pattern local-state e initial))
-  (-is-dynamic? [{e :e}] true)
   (-instantiate-reacl [{e :e initial :initial} binding]
     [(local-state binding e initial)]))
 
@@ -587,7 +567,6 @@
   IReacl
   (-xpath-pattern [{f :f args :args}]
     (class-args-pattern with-async-return (list* f args)))
-  (-is-dynamic? [_] true)
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-async-return binding f args)]))
 
@@ -635,7 +614,6 @@
   IReacl
   (-xpath-pattern [{init :init finish :finish}]
     (class-args-pattern lifecycle [init finish]))
-  (-is-dynamic? [_] true)
   (-instantiate-reacl [{init :init finish :finish} binding]
     [(lifecycle binding init finish)]))
 
@@ -666,7 +644,6 @@
   IReacl
   (-xpath-pattern [{e :e f :f}]
     (wrapper-pattern handle-state-change e f))
-  (-is-dynamic? [_] true)
   (-instantiate-reacl [{e :e f :f} binding]
     [(handle-state-change binding e f)]))
 
@@ -697,8 +674,5 @@
   IReacl
   (-xpath-pattern [{e :e f :f}]
     (wrapper-pattern error-boundary e f))
-  (-is-dynamic? [_]
-    ;; f may always need it... :-/
-    true)
   (-instantiate-reacl [{e :e f :f} binding]
     [(error-boundary binding e f)]))

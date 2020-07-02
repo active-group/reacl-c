@@ -3,12 +3,19 @@
               #?(:clj [active.clojure.record :as r])
               [active.clojure.functions :as f]))
 
-(defprotocol E)
+(defprotocol E
+  (-is-dynamic? [this] "If the item depends on the state in rendering or behaviour. Some optimizations can be applied if false."))
 
 (defn item? [v]
   (or (string? v)
       (nil? v)
       (satisfies? E v)))
+
+(defn is-dynamic? [item]
+  (if (or (string? item)
+          (nil? item))
+    false
+    (-is-dynamic? item)))
 
 (defn- item-list-pred [v]
   ;; nil for easier 'conditional rendering'
@@ -50,7 +57,10 @@
   (really-make-fragment children)
   really-fragment?
   [children fragment-children]
-  E)
+  E
+  (-is-dynamic? [{children :children}]
+    ;; TODO: maybe worth to cache/calculate in advance?
+    (some is-dynamic? children)))
 
 (defn make-fragment [children]
   (if (empty? children)
@@ -66,42 +76,48 @@
   dynamic?
   [f dynamic-f
    args dynamic-args]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 (r/define-record-type Static
   (make-static f args)
   static?
   [f static-f
    args static-args]
-  E)
+  E
+  (-is-dynamic? [{e :e}] false))
 
 (r/define-record-type WithRef
   (make-with-ref f args)
   with-ref?
   [f with-ref-f
    args with-ref-args]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 (r/define-record-type WithAsyncReturn
   (make-with-async-return f args)
   with-async-return?
   [f with-async-return-f
    args with-async-return-args]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 (r/define-record-type Focus
   (make-focus e lens)
   focus?
   [e focus-e
    lens focus-lens]
-  E)
+  E
+  (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
 (r/define-record-type LocalState
   (make-local-state e initial)
   local-state?
   [e local-state-e
    initial local-state-initial]
-  E)
+  E
+  (-is-dynamic? [{e :e}] true))
 
 (r/define-record-type HandleAction
   (make-handle-action e f pred)
@@ -109,28 +125,32 @@
   [e handle-action-e
    f handle-action-f
    pred handle-action-pred]
-  E)
+  E
+  (-is-dynamic? [{e :e}] true))
 
 (r/define-record-type SetRef
   (make-set-ref e ref)
   set-ref?
   [e set-ref-e
    ref set-ref-ref]
-  E)
+  E
+  (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
 (r/define-record-type HandleStateChange
   (make-handle-state-change e f)
   handle-state-change?
   [e handle-state-change-e
    f handle-state-change-f]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 (r/define-record-type HandleMessage
   (make-handle-message f e)
   handle-message?
   [f handle-message-f
    e handle-message-e]
-  E)
+  E
+  (-is-dynamic? [this] true))
 
 (r/define-record-type Named
   (make-named name-id e validate-state!)
@@ -138,28 +158,32 @@
   [name-id named-name-id
    e named-e
    validate-state! named-validate-state!]
-  E)
+  E
+  (-is-dynamic? [{e :e validate-state! :validate-state!}] (or (some? validate-state!) (is-dynamic? e))))
 
 (r/define-record-type ErrorBoundary
   (make-error-boundary e f)
   error-boundary?
   [e error-boundary-e
    f error-boundary-f]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 (r/define-record-type Keyed
   (make-keyed e key)
   keyed?
   [e keyed-e
    key keyed-key]
-  E)
+  E
+  (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
 (r/define-record-type Livecycle
   (make-lifecycle init finish)
   lifecycle?
   [init lifecycle-init
    finish lifecycle-finish]
-  E)
+  E
+  (-is-dynamic? [_] true))
 
 
 (defn message-target? [v]
@@ -170,7 +194,6 @@
   (-deref-ref (if (set-ref? target)
                 (set-ref-ref target)
                 target)))
-
 
 (defrecord KeepState [])
 (def keep-state (KeepState.))
