@@ -1084,8 +1084,8 @@ Note that the state of the inner item (the `div` in this case), will
   Note that this does not specify the schema of the return value of
   the defined function, which is always an item.
 
-  Another alternative defines the returned items to be a [[static]]
-  item, which does no depend on it's state:
+  Another alternative defines the returned items to be [[static]],
+  which means they do not depend on their state:
 
 ```
 (defn menu-item :static [href]
