@@ -115,7 +115,7 @@
              (defn-subscription-test-1 :arg)))))
 
   (testing "synchronous delivery, and schema validation"
-    (c/defn-subscription ^:always-validate defn-subscription-test-2 :- s/Int deliver! [arg]
+    (c/defn-subscription defn-subscription-test-2 ^:always-validate deliver! :- s/Int [arg]
       (deliver! arg)
       (fn [] nil))
 
@@ -129,9 +129,8 @@
                 (tu/mount! nil))
             (is false)
             (catch :default e
-              (is (= "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\")) action__170233__auto__)] [0m \n\n"
-                     (.-message e))))))))
-
+              (is (str/starts-with? (.-message e)
+                                    "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\"))")))))))
   )
 
 (deftest defn-named-test

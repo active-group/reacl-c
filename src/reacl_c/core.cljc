@@ -926,18 +926,29 @@ With this definition, you can use `(interval-timer 1000)` as an
   will emit a JavaScript `Date` object as an action every second.
 
 Note that `deliver!` can be called directly in the body of
-  `defn-subscription` to emit some actions immediately, or later from
+  `defn-subscription` to emit some actions immediately, or it can be called later from
   an *asynchronous context*.  Also note that the body is evaluated as
   soon as the subscription item is mounted into your application, and
   that it must result in a function with no arguments, which is called
   when the item is removed from the application afterwards.
- "
+
+A schema annotation is possible after the name of the deliver
+  function, to document and validate the action values emitted by the
+  subscription item:
+
+```
+(defn-subscription window-width ^:always-validate deliver! :- s/Int []
+  (let [id (.setInterval js/window (fn [] (deliver! js/window.innerWidth)) 100)]
+    (fn []
+      (.clearInterval js/window id))))
+```
+  "
   [name deliver! args & body]
-  (let [[[name _ action-schema?] deliver! args & body] (apply maybe-schema-arg name deliver! args body)
+  (let [[[deliver! _ action-schema?] args & body] (apply maybe-schema-arg deliver! args body)
         [docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
     `(let [action-mapper# ~(if (some? action-schema?)
-                            `(s/fn ~(vary-meta deliver! assoc :always-validate (:always-validate (meta name))) [action# :- ~action-schema?] action#)
+                            `(s/fn ~deliver! [action# :- ~action-schema?] action#)
                             `identity)]
        (defn-named+ [subscription-from-defn ~name action-mapper#] [~deliver!] ~name ~docstring? nil ~args ~@body))))
 
