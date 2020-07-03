@@ -92,17 +92,47 @@
     
     ;; unsub on unmount
     (tu/update! env false)
-    (is (not @subscribed))))
+    (is (not @subscribed)))
+
+  ;; equality
+  (let [ff (fn [deliver! a] (fn [] nil))]
+    (is (= (c/subscription ff :foo)
+           (c/subscription ff :foo)))))
 
 (deftest defn-subscription-test
-  (let [x (atom nil)]
-    (c/defn-subscription defn-subscription-test-1 deliver! [arg]
-      (reset! x arg)
+  (testing "basic creation and equality"
+    (let [x (atom nil)]
+      (c/defn-subscription defn-subscription-test-1 deliver! [arg]
+        (reset! x arg)
+        (fn [] nil))
+
+      (is (c/return)
+          (-> (tu/env (defn-subscription-test-1 :arg))
+              (tu/mount! nil)))
+      (is (= :arg @x))
+
+      (is (= (defn-subscription-test-1 :arg)
+             (defn-subscription-test-1 :arg)))))
+
+  (testing "synchronous delivery, and schema validation"
+    (c/defn-subscription ^:always-validate defn-subscription-test-2 :- s/Int deliver! [arg]
+      (deliver! arg)
       (fn [] nil))
 
-    (-> (tu/env (defn-subscription-test-1 :arg))
-        (tu/mount! nil))
-    (is (= :arg @x))))
+    (is (= (c/return :action 42)
+           (-> (tu/env (defn-subscription-test-2 42))
+               (tu/mount!! nil))))
+
+    (tu/preventing-error-log
+     (fn []
+       (try (-> (tu/env (defn-subscription-test-2 "42"))
+                (tu/mount! nil))
+            (is false)
+            (catch :default e
+              (is (= "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\")) action__170233__auto__)] [0m \n\n"
+                     (.-message e))))))))
+
+  )
 
 (deftest defn-named-test
   (testing "schematized args and state"

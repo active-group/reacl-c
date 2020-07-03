@@ -304,4 +304,6 @@
 
       (is (tu/subscribe-effect? eff sub))
       (is (= [:foo] (tu/subscribe-effect-args eff)))
-      (is (= subscription-properties-sub-2 (tu/subscribe-effect-fn eff))))))
+
+      ;; Note: doesn't really make sense (the defined fn is something else than a fn passed to core/subscription)
+      #_(is (= subscription-properties-sub-2 (tu/subscribe-effect-fn eff))))))

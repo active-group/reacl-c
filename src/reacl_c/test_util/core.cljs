@@ -297,38 +297,37 @@
   (assert (base/simple-effect? eff))
   (:args eff))
 
-(defn subscribe-effect?
-  "Tests if the given effect, is one that is emitted by a subscription
-  equal to the given one on mount. This can be useful in unit tests."
-  ([eff]
-   (effect? eff core/subscribe!))
-  ([eff subs]
-   (and (effect? eff core/subscribe!)
-        (let [e-args (effect-args eff)
-              reconstr (apply core/subscription (first e-args) (second e-args))]
-          ;; the first arg is the subs-f, the second arg it's user args.
-          ;; creating a new subscription with same args, should be an = item then.
-          (or (= subs reconstr)
-              ;; effects, as created by a defn-subscription, are slightly more wrapped (also named!):
-              (when-let [real-sub (and (base/named? subs) (:e subs))]
-                (= real-sub reconstr)))))))
+(defn- subscribe-effect-1? [eff]
+  (effect? eff core/subscribe!))
 
 (defn subscribe-effect-fn
   "The function passed to the subscription the given subscribe effect was generated from."
   [eff]
-  (assert (subscribe-effect? eff))
-  (let [f (first (effect-args eff))
-        m (meta f)]
-    ;; if it was created from a defn-subscription (instead of plain subscription), then return that function instead.
-    (if (clojure.core/contains? m core/subscription-from-defn-meta-key)
-      (core/subscription-from-defn-meta-key m)
-      f)))
+  (assert (subscribe-effect-1? eff))
+  (first (effect-args eff)))
 
 (defn subscribe-effect-args
   "The arguments passed to the subscription the given subscribe effect was generated from."
   [eff]
-  (assert (subscribe-effect? eff))
+  (assert (subscribe-effect-1? eff))
   (second (effect-args eff)))
+
+(defn subscribe-effect?
+  "Tests if the given effect, is one that is emitted by a subscription
+  equal to the given one on mount. This can be useful in unit tests."
+  ([eff]
+   (subscribe-effect-1? eff))
+  ([eff subs]
+   (and (effect? eff core/subscribe!)
+        (let [subs-f (subscribe-effect-fn eff)
+              subs-args (subscribe-effect-args eff)]
+          ;; the first arg is the subs-f, the second arg it's user args.
+          ;; creating a new subscription with same args, should be an = item then.
+          (or (= subs (apply core/subscription subs-f subs-args))
+              ;; but if subs if created via a call to to a defn-subscription fn, then it will look different
+              (if-let [f (core/subscription-from-defn-meta-key (meta eff))]
+                (= subs (apply f subs-args))
+                false))))))
 
 (defn ^:no-doc subscribe-effect-host
   [eff]

@@ -583,21 +583,25 @@ be specified multiple times.
 
 (defrecord ^:no-doc SubscribedEmulatedResult [action])
 
-(clj/defn ^:no-doc subscribe! [f args async-deliver! host]
+(clj/defn ^:no-doc subscribe! [f args async-deliver! host action-mapper]
   (let [sync (atom [])
-        deliver! (fn [a]
-                   (if (some? @sync)
-                     (swap! sync conj a)
-                     (async-deliver! a)))
+        deliver! (comp (fn [a]
+                         (if (some? @sync)
+                           (swap! sync conj a)
+                           (async-deliver! a)))
+                       action-mapper)
         stop! (apply f deliver! args)
         sync-actions @sync]
     (reset! sync nil)
     (assert (ifn? stop!) "Subscription must return a stop function.")
     (return :message [host (SubscribedMessage. stop! sync-actions)])))
 
-(clj/defn- subscribe-effect [f deliver! args host]
+(def ^:no-doc subscription-from-defn-meta-key ::subscription-from-defn)
+
+(clj/defn- subscribe-effect [f deliver! args host action-mapper defn-f]
   (assert (ifn? f))
-  (effect subscribe! f args deliver! host))
+  (-> (effect subscribe! f args deliver! host action-mapper)
+      (vary-meta assoc subscription-from-defn-meta-key defn-f)))
 
 (clj/defn- unsubscribe! [stop! _]
   (stop!)
@@ -621,22 +625,26 @@ be specified multiple times.
                     :else
                     (do (assert false (str "Unexpected message:" (pr-str msg)))
                         (return))))
-      msgs (fn [deliver! f args host]
+      msgs (fn [deliver! action-mapper defn-f f args host]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (set-ref host))
-                       (init (return :action (subscribe-effect f deliver! args host)))))
-      dyn (fn [deliver! {f :f args :args stop! :stop!}]
+                       (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
+      dyn (fn [deliver! action-mapper defn-f {f :f args :args stop! :stop!}]
             (if (some? stop!)
               (cleanup (f/constantly (return :action (unsubscribe-effect stop! f args))))
-              (with-ref (f/partial msgs deliver! f args))))
-      stu (fn [f args deliver!]
+              (with-ref (f/partial msgs deliver! action-mapper defn-f f args))))
+      stu (fn [action-mapper defn-f f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
             (isolate-state {:f f
                             :args args
                             :stop! nil}
-                           (dynamic (f/partial dyn deliver!))))]
-  (clj/defn subscription
+                           (dynamic (f/partial dyn deliver! action-mapper defn-f))))]
+  (clj/defn ^:private subscription*
+    [action-mapper defn-f f & args]
+    (with-async-actions (f/partial stu action-mapper defn-f f args))))
+
+(clj/defn subscription
     "Returns an item that emits actions according to the given
   function `f`. Each time the retuned item is used, `f` will be called
   with a side-effectful `deliver!` function which takes the action to
@@ -647,7 +655,8 @@ be specified multiple times.
   results later, once or multiple times. But when the `stop` function
   is called, you must prevent any more calls to `deliver!`."
     [f & args]
-    (with-async-actions (f/partial stu f args))))
+    {:pre [(ifn? f)]}
+    (apply subscription* identity nil f args))
 
 (clj/defn error-boundary ;; TODO: rename handle-error ?!
   "Creates an error boundary around the given item. When the rendering
@@ -893,11 +902,11 @@ be specified multiple times.
   [name item]
   `(def-named ~name (static (f/constantly item))))
 
-(def ^:no-doc subscription-from-defn-meta-key ::subscription-from-defn)
-
-(clj/defn- subscription-from-defn [fn f & args]
-  (apply subscription
-         (vary-meta f assoc subscription-from-defn-meta-key fn) ;; used for test-utils.
+(clj/defn- subscription-from-defn [fn action-mapper f & args]
+  (apply subscription*
+         action-mapper
+         fn
+         f
          args))
 
 (defmacro defn-subscription
@@ -924,10 +933,13 @@ Note that `deliver!` can be called directly in the body of
   when the item is removed from the application afterwards.
  "
   [name deliver! args & body]
-  ;; TODO: allow schema spec on the actions?
-  (let [[docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
+  (let [[[name _ action-schema?] deliver! args & body] (apply maybe-schema-arg name deliver! args body)
+        [docstring? deliver! args & body] (apply maybe-docstring deliver! args body)]
     (assert (symbol? deliver!) "Expected a name for the deliver function before the argument vector.")
-    `(defn-named+ [subscription-from-defn ~name] [~deliver!] ~name ~docstring? nil ~args ~@body)))
+    `(let [action-mapper# ~(if (some? action-schema?)
+                            `(s/fn ~(vary-meta deliver! assoc :always-validate (:always-validate (meta name))) [action# :- ~action-schema?] action#)
+                            `identity)]
+       (defn-named+ [subscription-from-defn ~name action-mapper#] [~deliver!] ~name ~docstring? nil ~args ~@body))))
 
 (clj/defn ^:no-doc effect-from-defn [fn eff]
   ;; Note: must be public, because used in macro expansion of defn-effec.
