@@ -80,8 +80,8 @@
     (is (not @subscribed))
     
     ;; sub on mount and sync actions.
-    (= (c/return :action :sync)
-       (tu/update! env true))
+    (is (= (c/return :action :sync)
+           (tu/update! env true)))
     (is @subscribed)
 
     ;; async actions emitted.

@@ -589,10 +589,11 @@ be specified multiple times.
                    (if (some? @sync)
                      (swap! sync conj a)
                      (async-deliver! a)))
-        stop! (apply f deliver! args)]
+        stop! (apply f deliver! args)
+        sync-actions @sync]
     (reset! sync nil)
     (assert (ifn? stop!) "Subscription must return a stop function.")
-    (return :message [host (SubscribedMessage. stop! @sync)])))
+    (return :message [host (SubscribedMessage. stop! sync-actions)])))
 
 (clj/defn- subscribe-effect [f deliver! args host]
   (assert (ifn? f))
