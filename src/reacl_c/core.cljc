@@ -834,7 +834,7 @@ be specified multiple times.
     `(let [id# (name-id ~name_)
            validate# (state-validator ~name ~state-schema?)]
        (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
-         ~opt-wrapper ~wrapper-args ~name ~docstring? ~args ~@body))))
+         ~opt-wrapper ~wrapper-args ~name nil ~docstring? ~args ~@body))))
 
 (defmacro defn-named
   "A macro to define an abstract item. This is the same as Clojures
