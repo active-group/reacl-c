@@ -379,7 +379,7 @@ be specified multiple times.
   ;; Note: yes, it's actually the same as 'add-state' ;-)
   (add-state initial lens item))
 
-(clj/defn add-merged-state ;; TODO: remove?!
+(clj/defn ^:deprecated add-merged-state
   "Adds new map or record fields that the given item sees as it's
   state, by merging the the given initial record or hash-map with the
   state of the resulting item. The given item can then update any
@@ -713,7 +713,7 @@ be specified multiple times.
     (-> (dynamic (f/partial df item validate!))
         (monitor-state (f/partial mf validate!)))))
 
-(defmacro def-named
+(defmacro ^:deprecated def-named
   "A macro to define a named item. This is the same as Clojures
   `def`, but in addition assigns its name to the item which can be
   used by testing and debugging utilities."
@@ -836,7 +836,7 @@ be specified multiple times.
        (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
          ~opt-wrapper ~wrapper-args ~name nil ~docstring? ~args ~@body))))
 
-(defmacro defn-named
+(defmacro ^:deprecated defn-named
   "A macro to define an abstract item. This is the same as Clojures
   `defn`, but in addition assigns its name to the returned item which can be
   used by testing and debugging utilities."
@@ -850,7 +850,7 @@ be specified multiple times.
     (list* (list candidate) more)))
 
 ;; TODO: settings a state expr of [x :- s/Str y] breaks silently. Can this work?
-(defmacro defn-dynamic
+(defmacro ^:deprecated defn-dynamic
   "A macro to define a new abstract dynamic item. For example, given
 
 ```
@@ -870,7 +870,7 @@ be specified multiple times.
         [statev args & body] (apply maybe-schema-arg state args body)]
     `(defn-named+ [dynamic] ~statev ~name ~docstring? nil ~args ~@body)))
 
-(defmacro def-dynamic
+(defmacro ^:deprecated def-dynamic
   "A macro to define a new dynamic item. For example, given
 
 ```
@@ -885,7 +885,7 @@ be specified multiple times.
   (let [[statev & body] (apply maybe-schema-arg state body)]
     `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
 
-(defmacro defn-static
+(defmacro ^:deprecated defn-static
   "Defines `name` to a function, returning a [[static]] item like the
   item define by the function body. The static item is independant of
   the outside state, and depends only on the argument values. Compared
@@ -896,7 +896,7 @@ be specified multiple times.
     `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~args
        ~@body)))
 
-(defmacro def-static
+(defmacro ^:deprecated def-static
   "Defines `name` to be a [[static]] item that is always like `item`,
   independant of the state."
   [name item]
