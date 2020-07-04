@@ -1,6 +1,7 @@
 (ns ^:no-doc examples.todo
     (:require [reacl-c.core :as c :include-macros true]
               [active.clojure.functions :as f]
+              [active.clojure.lens :as lens]
               [reacl-c.browser :as browser]
               [reacl-c.dom :as dom]))
 
@@ -52,7 +53,7 @@
   (c/with-state-as todos
     (apply dom/div
            (map-indexed (fn [idx id]
-                          (-> (c/focus idx (item (delete-item id)))
+                          (-> (c/focus (lens/at-index idx) (item (delete-item id)))
                               (c/keyed id)))
                         (map :id todos)))))
 
