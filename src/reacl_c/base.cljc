@@ -178,7 +178,7 @@
   E
   (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
-(r/define-record-type Livecycle
+(r/define-record-type Lifecycle
   (make-lifecycle init finish)
   lifecycle?
   [init lifecycle-init

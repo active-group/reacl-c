@@ -1,15 +1,11 @@
 (ns reacl-c.impl.reacl
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
+            [reacl-c.impl.utils :as utils]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
             [clojure.string :as str]))
-
-(defn- warn [& args]
-  (if (and js/console js/console.warn)
-    (apply js/console.warn args)
-    (apply println args)))
 
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
@@ -122,7 +118,7 @@
       (let [action (:action msg)]
         (if (base/effect? action)
           (handle-effect-return this action (base/run-effect! action))
-          (do (warn "Unhandled action:" action)
+          (do (utils/warn "Unhandled action:" action)
               (rcore/return)))) 
 
       :else (pass-message child msg))))
@@ -191,13 +187,7 @@
                render (-> (instantiate (rcore/bind this) e)
                           (rcore/refer child))))
 
-(let [classes (js/WeakMap.)]
-  (defn ^:no-doc named [name-id]
-    (assert (base/name-id? name-id))
-    (or (.get classes name-id)
-        (let [c (gen-named (base/name-id-name name-id))]
-          (.set classes name-id c)
-          c))))
+(def named (utils/named-generator gen-named))
 
 (extend-type base/Named
   IReacl
@@ -610,7 +600,7 @@
 
   render (rdom/fragment))
 
-(extend-type base/Livecycle
+(extend-type base/Lifecycle
   IReacl
   (-xpath-pattern [{init :init finish :finish}]
     (class-args-pattern lifecycle [init finish]))
