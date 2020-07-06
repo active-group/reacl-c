@@ -35,9 +35,9 @@
 (c/def world-app
   (c/with-state-as show?
     (if show?
-      (dom/div (dom/button {:onclick hide} "Hide")
+      (dom/div (dom/button {:onClick hide} "Hide")
                clock)
-      (dom/button {:onclick show} "Show"))))
+      (dom/button {:onClick show} "Show"))))
 
 (browser/run (.getElementById js/document "app-world")
   world-app

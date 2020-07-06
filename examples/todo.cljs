@@ -12,7 +12,7 @@
   (c/with-state-as checked
     (dom/input {:type "checkbox"
                 :value checked
-                :onchange checked-state})))
+                :onChange checked-state})))
 
 (defn value-state [_ e]
   (.. e -target -value))
@@ -21,7 +21,7 @@
   (c/with-state-as value
     (dom/input {:type "text"
                 :value value
-                :onchange value-state})))
+                :onChange value-state})))
 
 (defrecord TodosApp [next-id todos])
 (defrecord Todo [id text done?])
@@ -32,7 +32,7 @@
             :action (act text)))
 
 (c/defn add-item [submit]
-  (dom/form {:onsubmit (f/partial add-item-submit submit)}
+  (dom/form {:onSubmit (f/partial add-item-submit submit)}
             textbox
             (dom/button {:type "submit"} "Add")))
 
@@ -40,7 +40,7 @@
   (c/isolate-state "" (add-item submit)))
 
 (defn button [label action]
-  (dom/button {:onclick (f/constantly (c/return :action action))}
+  (dom/button {:onClick (f/constantly (c/return :action action))}
               label))
 
 (c/defn item [delete]
