@@ -157,12 +157,12 @@
                                  (c/return :action msg)))))]
            (tu/mount! e :state)
            (tu/send-message! e :msg))))
-  (is (= (c/return :state :state2)
-         (let [e (tu/env (->> (dom/div)
-                              (c/handle-message
-                               (fn [state msg]
-                                 (c/return :state msg)))))]
-           (tu/mount! e :state1)
+  (is (= (c/return :state {:data :state2})
+         (let [e (tu/env (c/focus :data (->> (dom/div)
+                                             (c/handle-message
+                                              (fn [state msg]
+                                                (c/return :state msg))))))]
+           (tu/mount! e {:data :state1})
            (tu/send-message! (tu/get-component e) :state2)))))
 
 (deftest invoke-callback-test
