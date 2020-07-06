@@ -658,16 +658,16 @@ be specified multiple times.
     {:pre [(ifn? f)]}
     (apply subscription* identity nil f args))
 
-(clj/defn error-boundary ;; TODO: rename handle-error ?!
+(clj/defn handle-error
   "Creates an error boundary around the given item. When the rendering
-  of `e` throws an exception, then `(f error)` is evaluated, and must
+  of `e` throws an exception, then `(f state error)` is evaluated, and must
   result in an [[return]] value. Note that exceptions in functions
   like [[handle-action]], are not catched by this. See [[try-catch]]
   for a higher level construct to handle errors."
   [item f]
   {:pre [(base/item? item)
          (ifn? f)]}
-  (base/make-error-boundary item f))
+  (base/make-handle-error item f))
 
 (let [set-error (fn [state error]
                   (return :state [state error]))
@@ -675,7 +675,7 @@ be specified multiple times.
             (if (some? error)
               catch-e
               (-> (focus lens/first try-e)
-                  (error-boundary (f/partial set-error state)))))]
+                  (handle-error set-error))))]
   (clj/defn try-catch
     "Returns an item that looks an works the same as the item
   `try-item`, until an error is thrown during its rendering. After

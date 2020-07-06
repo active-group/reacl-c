@@ -162,11 +162,11 @@
   E
   (-is-dynamic? [{e :e validate-state! :validate-state!}] (or (some? validate-state!) (is-dynamic? e))))
 
-(r/define-record-type ErrorBoundary
-  (make-error-boundary e f)
-  error-boundary?
-  [e error-boundary-e
-   f error-boundary-f]
+(r/define-record-type HandleError
+  (make-handle-error e f)
+  handle-error?
+  [e handle-error-e
+   f handle-error-f]
   E
   (-is-dynamic? [_] true))
 

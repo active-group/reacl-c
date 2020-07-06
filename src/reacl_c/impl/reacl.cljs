@@ -637,7 +637,7 @@
   (-instantiate-reacl [{e :e f :f} binding]
     [(handle-state-change binding e f)]))
 
-(rcore/defclass ^:private error-boundary this state [e f]
+(rcore/defclass ^:private handle-error this state [e f]
   
   refs [child]
   
@@ -658,11 +658,11 @@
     ;; 'getDerivedStateFromError' does not have it. It's also very
     ;; implementation dependant, and less informative in our setup.
     ;; Leave that our for now.
-    (transform-return (f error))))
+    (transform-return (f state error))))
 
-(extend-type base/ErrorBoundary
+(extend-type base/HandleError
   IReacl
   (-xpath-pattern [{e :e f :f}]
-    (wrapper-pattern error-boundary e f))
+    (wrapper-pattern handle-error e f))
   (-instantiate-reacl [{e :e f :f} binding]
-    [(error-boundary binding e f)]))
+    [(handle-error binding e f)]))

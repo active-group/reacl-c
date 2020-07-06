@@ -91,9 +91,9 @@
   (gen/fmap #(c/handle-state-change % (f/constantly (c/return)))
             item-gen))
 
-(defn error-boundary [item-gen] ;; TODO: fn?
+(defn handle-error [item-gen] ;; TODO: fn?
   (gen/fmap (fn [i1]
-              (c/error-boundary i1 (f/constantly (c/return))))
+              (c/handle-error i1 (f/constantly (c/return))))
             item-gen))
 
 (declare with-ref)
@@ -125,7 +125,7 @@
     (handle-action item-gen)
     
     (handle-state-change item-gen)
-    (error-boundary item-gen)
+    (handle-error item-gen)
     ;;
     ]))
 
@@ -267,7 +267,7 @@
         base/set-ref? (wr item)
         base/keyed? (wr item)
         base/named? (wr item)
-        base/error-boundary? (wr item)
+        base/handle-error? (wr item)
         base/handle-message? (wr item)
         base/lifecycle? empty-item
         

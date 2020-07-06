@@ -58,7 +58,7 @@
         base/set-ref? (w)
         base/keyed? (w)
         base/named? (w)
-        base/error-boundary? (w) ;; and the error fn?
+        base/handle-error? (w) ;; and the error fn?
         base/handle-message? (w)
         base/handle-state-change? (w)
 
@@ -102,7 +102,7 @@
     base/set-ref? 'set-set
     base/keyed? 'keyed
     base/named? 'named
-    base/error-boundary? 'error-boundary
+    base/handle-error? 'handle-error
     base/handle-message? 'handle-message
     base/handle-state-change? 'handle-state-change
     base/fragment? 'fragment
@@ -132,7 +132,7 @@
           [path {:function [(:f item1) (:f item2)]}]))
 
       ;; wrappers
-      (or (base/handle-action? item1) (base/error-boundary? item1) (base/handle-state-change? item1) (base/handle-message? item1))
+      (or (base/handle-action? item1) (base/handle-error? item1) (base/handle-state-change? item1) (base/handle-message? item1))
       (w item1 item2 :f :function)
 
       (base/set-ref? item1)
