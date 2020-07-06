@@ -170,22 +170,6 @@
   (->> (unmount! env)
        (push!! env)))
 
-(defn send-message!
-  "Sends a message to the given component or the toplevel component of
-  the given test environment, and returns actions and maybe a changed
-  state."
-  [comp msg]
-  {:per [(some? comp)]}
-  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
-  (->ret (r-tu/send-message! comp msg)))
-
-(defn send-message!!
-  "Like [[send-message!]], but also recursively update the item to new states that are returned."
-  [comp msg]
-  {:per [(some? comp)]}
-  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
-  (->ret (r-tu/send-message!! comp msg)))
-
 (defn- dom-node? [comp]
   (string? (.-type comp)))
 
@@ -232,6 +216,24 @@
   "Like [[inject-return!]], but also recursively update the item to new states that are returned."
   [comp ret]
   (inject-return_ comp ret r-tu/inject-return!!))
+
+(defn send-message!
+  "Sends a message to the given component or the toplevel component of
+  the given test environment, and returns actions and maybe a changed
+  state."
+  [comp msg]
+  {:pre [(some? comp)]}
+  ;; TODO: should be possible with something like this, but it isn't:
+  #_(inject-return! comp (core/return :message [(reify base/Ref (-deref-ref [_] comp)) msg]))
+  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
+  (->ret (r-tu/send-message! comp msg)))
+
+(defn send-message!!
+  "Like [[send-message!]], but also recursively update the item to new states that are returned."
+  [comp msg]
+  {:pre [(some? comp)]}
+  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
+  (->ret (r-tu/send-message!! comp msg)))
 
 (defn inject-action!
   "Does the things that would happen if the given component emitted
