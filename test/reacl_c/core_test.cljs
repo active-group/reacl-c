@@ -162,7 +162,7 @@
 
 (deftest defn-dynamic-test
   (testing "schematized args and state"
-    (c/defn-dynamic ^:always-validate defn-dynamic-test-1 state :- schema.core/Int [a :- schema.core/Str]
+    (c/defn-dynamic ^:always-validate defn-dynamic-test-1 state :- schema.core/Int "docstring" [a :- schema.core/Str]
       (dom/div (str state a)))
     (is (base/item? (defn-dynamic-test-1 "foo")))
 
@@ -182,8 +182,8 @@
             (catch :default e
               (is true))))))
 
-  (testing "it is named"
-    (c/defn-dynamic defn-dynamic-test-2 "mydoc" state [a]
+  (testing "it is named and documented"
+    (c/defn-dynamic defn-dynamic-test-2 state "mydoc" [a]
       (dom/div (str state a)))
     (is (contains? (meta defn-dynamic-test-2) :reacl-c.core/name-id))
     ;; no clue why this test fails: (is (= '([a]) (:arglists (meta #'defn-dynamic-test-2))))

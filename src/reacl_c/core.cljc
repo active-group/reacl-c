@@ -866,8 +866,11 @@ be specified multiple times.
 
   when the current state of the item is `state`, and changes whenever the state changes."
   [name state args & body]
-  (let [[docstring? state args & body] (apply maybe-docstring state args body)
-        [statev args & body] (apply maybe-schema-arg state args body)]
+  ;; Note: some old bug made a docstring possible both left and right of the state... keep that backwards-compatible for now. (until we remove defn-dynamic)
+  (let [[docstring1? state args & body] (apply maybe-docstring state args body)
+        [statev args & body] (apply maybe-schema-arg state args body)
+        [docstring2? args & body] (apply maybe-docstring args body)
+        docstring? (or docstring1? docstring2?)]
     `(defn-named+ [dynamic] ~statev ~name ~docstring? nil ~args ~@body)))
 
 (defmacro ^:deprecated def-dynamic
