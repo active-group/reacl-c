@@ -7,12 +7,12 @@
   [dom item initial-state]
   (impl/run dom item initial-state))
 
-(defn lift
+(defn lift-reacl
   "Returns an item implemented by the given Reacl class and arguments."
   [class & args]
   (apply impl/lift class args))
 
-(defn render
+(defn reacl-render
   "Returns a Reacl element or component implementing the given item,
   and with the given state `binding`."
   [binding item]
