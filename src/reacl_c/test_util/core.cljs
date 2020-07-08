@@ -1,67 +1,19 @@
 (ns reacl-c.test-util.core
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]
-            [reacl-c.dom :as dom]
-            [reacl-c.impl.reacl :as impl]
+            [reacl-c.impl.tu-reacl :as impl]
             [reacl-c.test-util.item-generators :as item-gen]
             [clojure.test.check.generators :as gen]
-            [reacl2.core :as rcore :include-macros true]
-            [reacl2.test-util.beta :as r-tu]
-            [reacl-c.test-util.xpath :as xpath]
-            [reacl2.test-util.xpath :as rxpath]
             [active.clojure.functions :as f])
-  (:refer-clojure :exclude [resolve find contains? count]))
-
-;; Note: just reusing rcore/test-util is not a good fit, esp. because
-;; when/if xpath reveals much of the internals (dom class wrapper,
-;; other classes that are an implementation detail). Maybe this should
-;; be replaced by our own simulator.
-
-(defn- ->ret [r]
-  (assert (rcore/returned? r))
-  ;; reacl return => reacl-c return
-  (apply core/return
-         (apply concat
-                (let [s (rcore/returned-app-state r)]
-                  (when-not (rcore/keep-state? s)
-                    [:state s]))
-                (map (fn [a]
-                       [:action a])
-                     (rcore/returned-actions r)))))
+  (:refer-clojure :exclude [find]))
 
 (defn env
   "Returns a new test environment to test the behavior of the given item."
   [item & [options]]
-  ;; Note: this tests items using their Reacl implementation, and
-  ;; ultimately Reacts test-renderer.
-  (let [this-env (atom nil)
-        ;; Note: this basically replicates impl/toplevel - can't reuse
-        ;; that easily, because it would create another level (maybe
-        ;; with a change to get-components?)
-        action-reducer (fn [_ a]
-                         (if (base/effect? a)
-                           ;; execute effect, ignoring it's value
-                           (let [[v ret] (base/run-effect! a)]
-                             (impl/transform-return ret))
-                           ;; or return actions
-                           (rcore/return :action a)))
-        class (rcore/class "env" this state []
-                           refs [child]
-                           handle-message (fn [msg]
-                                            (rcore/return :message [(rcore/get-dom child) msg]))
-                           render (-> (impl/instantiate (rcore/bind this) item)
-                                      (rcore/refer child)
-                                      (rcore/reduce-action action-reducer)))]
-    (reset! this-env (r-tu/env class options))
-    @this-env))
-
-(defn- get-root-component [env]
-  (r-tu/get-component env))
+  (impl/env item options))
 
 (defn get-components [env]
-  ;; we always wrap the "env" class around the main component.
-  (let [env-comp (get-root-component env)]
-    (array-seq (.-children env-comp))))
+  (impl/get-components env))
 
 (defn get-component [env]
   (let [cs (get-components env)]
@@ -72,29 +24,25 @@
       (do (assert false "no unique toplevel component - is it a fragment?")
           nil))))
 
-(defn- search-root [env]
-  (if (r-tu/env? env)
-    ;; Note: the root can have multiple children (if a fragment is used at toplevel)
-    [(get-root-component env) rxpath/children]
-    [env rxpath/self]))
-
 ;; TODO: helpers for when something cannot be found? (assert-exprs maybe?)
 
-(defn find [env item]
-  (let [[c base] (search-root env)]
-    (rxpath/select c (rxpath/comp base rxpath/all (xpath/item item)))))
-
-(defn find-named [env thing]
-  (let [[c base] (search-root env)]
-    (rxpath/select c (rxpath/comp base rxpath/all (xpath/named thing)))))
+(defn- ensure-some [lst]
+  (cond
+    (empty? lst) nil
+    (empty? (rest lst)) (first lst)
+    :else (throw (js/Error. "More than one node matches the given path."))))
 
 (defn find-all [env item]
-  (let [[c base] (search-root env)]
-    (rxpath/select-all c (rxpath/comp base rxpath/all (xpath/item item)))))
+  (impl/find-all env item))
+
+(defn find [env item]
+  (ensure-some (find-all env item)))
 
 (defn find-all-named [env thing]
-  (let [[c base] (search-root env)]
-    (rxpath/select-all c (rxpath/comp base rxpath/all (xpath/named thing)))))
+  (impl/find-all-named env thing))
+
+(defn find-named [env thing]
+  (ensure-some (find-all-named env thing)))
 
 (defn describe-failed-find [env item]
   ;; this is still to be considered 'experimental'; hard to given a "good" tip
@@ -113,40 +61,38 @@
         (recur (inc n) (rest smaller-list))))))
 
 (defn with-env-return [env f]
-  (->ret (r-tu/with-component-return (get-root-component env)
-           (fn [comp]
-             (f)))))
+  (impl/with-env-return env f))
 
 (defn mount!
   "Mounts the item of the given test environment with the given
   state, and returns actions and maybe a changed state."
   [env state]
-  (->ret (r-tu/mount! env state)))
+  (impl/mount! env state))
 
 (defn update!
   "Updates the state of the item of the given test environment, and
   returns actions and maybe a changed state."
   [env state]
-  (->ret (r-tu/update! env state)))
+  (impl/update! env state))
 
 (defn unmount!
   "Unmounts the item of the given test environment, and return
   actions and maybe a changed state."
   [env]
-  (->ret (r-tu/unmount! env)))
+  (impl/unmount! env))
 
 (defn push!
   "Apply the state change in the given 'return' value, if there is
   any, and merge the return value resulting from that - pushing the
   update cycle one turn."
   [env ret]
-  (->ret (r-tu/push! env (impl/transform-return ret))))
+  (impl/push! env ret))
 
 (defn push!!
   "Recursively apply the state change in the given 'return' value,
   until the state does not change anymore."
   [env ret]
-  (->ret (r-tu/push!! env (impl/transform-return ret))))
+  (impl/push!! env ret))
 
 (defn update!!
   "Updates the state of the item of the given test environment, and
@@ -170,39 +116,18 @@
   (->> (unmount! env)
        (push!! env)))
 
-(defn- dom-node? [comp]
-  (string? (.-type comp)))
-
 (defn invoke-callback!
   "Invokes the function assiciated with the given `callback` of the
   given test component of a dom element (e.g. `:onclick`), with the
   given event object, and returns a changed app-state and actions from
   the toplevel item, in the form of a `reacl/return` value."
   [comp callback event]
-  (assert (dom-node? comp) (str "Must be a dom node to invoke callbacks: " (pr-str comp)))
-  (->ret (r-tu/invoke-callback! comp callback event)))
+  (impl/invoke-callback! comp callback event))
 
 (defn invoke-callback!!
   "Like [[invoke-callback!]], but also recursively update the item to new states that are returned."
   [comp callback event]
-  (assert (dom-node? comp) (str "Must be a dom node to invoke callbacks: " (pr-str comp)))
-  (->ret (r-tu/invoke-callback!! comp callback event)))
-
-(defn- inject-return_ [comp ret f]
-  {:pre [(some? comp)]}
-  (let [comp (if (dom-node? comp)
-               ;; When a dom item was selected, we have the raw dom node here;
-               ;; to injecting a return, there must be a wrapper class
-               ;; around it.
-               ;; Also, it must be the corresponding dom wrapper class, because
-               ;; otherwise the return could be different (e.g. if it's a
-               ;; handle-action, returning from there would be really different)
-               (let [p (.-parent comp)]
-                 (when-not (and p (.-type p) (impl/dom-class-for-type (.-type comp)))
-                   (assert false "The given node is a dom node without any event handlers attached. It's not possible to inject something there."))
-                 p)
-               comp)]
-    (->ret (f comp (impl/transform-return ret)))))
+  (impl/invoke-callback!! comp callback event))
 
 (defn inject-return!
   "Does the things that would happen if the given component returned
@@ -210,30 +135,24 @@
   returns what would be emitted (state and/or actions) from the tested
   item, in the form of a 'return' value."
   [comp ret]
-  (inject-return_ comp ret r-tu/inject-return!))
+  (impl/inject-return! comp ret))
 
 (defn inject-return!!
   "Like [[inject-return!]], but also recursively update the item to new states that are returned."
   [comp ret]
-  (inject-return_ comp ret r-tu/inject-return!!))
+  (impl/inject-return!! comp ret))
 
 (defn send-message!
   "Sends a message to the given component or the toplevel component of
   the given test environment, and returns actions and maybe a changed
   state."
   [comp msg]
-  {:pre [(some? comp)]}
-  ;; TODO: should be possible with something like this, but it isn't:
-  #_(inject-return! comp (core/return :message [(reify base/Ref (-deref-ref [_] comp)) msg]))
-  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
-  (->ret (r-tu/send-message! comp msg)))
+  (impl/send-message! comp msg))
 
 (defn send-message!!
   "Like [[send-message!]], but also recursively update the item to new states that are returned."
   [comp msg]
-  {:pre [(some? comp)]}
-  ;; TODO: better check the comp? sending a message to a fragment/dom/string item gives weird reacl errors.
-  (->ret (r-tu/send-message!! comp msg)))
+  (impl/send-message!! comp msg))
 
 (defn inject-action!
   "Does the things that would happen if the given component emitted
@@ -266,7 +185,7 @@
   toplevel changes as a 'return' value."
   [env eff]
   (assert (base/effect? eff) eff)
-  (inject-return! (get-root-component env)
+  (inject-return! (impl/get-root-component env)
                   (let [[value ret] (base/run-effect! eff)]
                     ret)))
 
@@ -375,14 +294,6 @@
      (core/map-effects item disable-all-subs))
     ([item subs]
      (core/map-effects item (f/partial disable-subs subs)))))
-
-(defn- find-ref [env ref]
-  ;; Note: deref host would return the 'reacl component' instead of the test renderer component
-  (let [comp (core/deref ref)]
-    (let [tcomp (.find (get-root-component env)
-                       (fn [ti]
-                         (= (.-instance ti) comp)))]
-      tcomp)))
 
 (defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of
