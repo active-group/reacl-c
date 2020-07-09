@@ -11,27 +11,7 @@
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
-#_(deftest static-performance
-  (let [env (tu/env (dom/div {:id "a"}
-                             (apply dom/div (repeat 20 (dom/span)))
-                             (c/fragment (apply dom/span (repeat 15 "x")))))
-        tupd (fn [n]
-               (let [st (js/window.performance.now)]
-                 (doseq [i (range n)]
-                   (tu/update! env i))
-                 (- (js/window.performance.now) st)))]
-    (tu/mount! env 0)
-    (is (= nil
-           [(tupd 100) (tupd 1000) (tupd 10000)]))
-    ;; with opt: [147.63500000117347 962.6399999833666 7743.50499996217]
-    ;; no opt:   [241.18999997153878 1239.70500001451 8591.40999999363]
-    ;; at least it does not get worse :-/
-
-    ;; opt: (not (= nil [136.2799999769777 924.7550000436604 8942.974999954458]))
-    ;; no opt: (not (= nil [127.08000000566244 1228.9699999964796 11590.480000013486]))
-    
-    )
-  )
+  ;; TODO: remove things already tested in browser-test... e.g. behavioral tests only of the higher level components.
 
 (deftest item-equality-test
   ;; items should be referentially equal

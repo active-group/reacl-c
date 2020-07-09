@@ -1,4 +1,4 @@
-(ns reacl-c.impl.react-test
+(ns reacl-c.impl.browser-test
   (:require [reacl-c.browser :as browser]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
@@ -8,6 +8,30 @@
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
+
+#_(deftest simple-performance-test
+  (let [host (js/document.createElement "div")
+        run (fn [st]
+              (browser/run host
+                (dom/div {:id "a"}
+                         (apply dom/div (repeat 20 (dom/span)))
+                         (c/fragment (apply dom/span (repeat 15 "x"))))
+                st))
+        tupd (fn [n]
+               (let [st (js/window.performance.now)]
+                 (doseq [i (range n)]
+                   (run  i))
+                 (- (js/window.performance.now) st)))]
+    (run 0)
+    (is (= nil
+           [(tupd 100) (tupd 1000) (tupd 10000)]))
+    
+    ;; 1.9 reacl [152.27999998023733 1182.5650000246242 8815.754999988712]
+    ;; 1.9 react [68.25999997090548 350.3499999642372 2993.8100000144914]
+
+    )
+  )
+
 
 (defn renders-as* [item & [state]]
   (let [host (js/document.createElement "div")]
