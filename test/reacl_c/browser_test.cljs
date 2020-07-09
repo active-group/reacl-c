@@ -349,28 +349,28 @@
 
 (deftest lift-reacl-test
   (testing "syncs state"
-    (let [it (browser/lift (reacl/class "foo" this state []
-                                        render (rdom/div (str state))))]
+    (let [it (browser/lift-reacl (reacl/class "foo" this state []
+                                              render (rdom/div (str state))))]
       (is (= "ok1" (text (.-firstChild (renders-as it "ok1"))))))
     
-    (let [it (browser/lift (reacl/class "foo" this state []
-                                        component-did-mount (fn [] (reacl/return :app-state "ok11"))
-                                        render (rdom/div (str state))))]
+    (let [it (browser/lift-reacl (reacl/class "foo" this state []
+                                              component-did-mount (fn [] (reacl/return :app-state "ok11"))
+                                              render (rdom/div (str state))))]
       (is (= "ok11" (text (.-firstChild (renders-as it "start")))))))
   
   (testing "emits actions"
-    (let [it (browser/lift (reacl/class "foo" this state [v]
-                                        component-did-mount (fn [] (reacl/return :action v))
-                                        render (rdom/div (str state)))
-                           "ok2")]
+    (let [it (browser/lift-reacl (reacl/class "foo" this state [v]
+                                              component-did-mount (fn [] (reacl/return :action v))
+                                              render (rdom/div (str state)))
+                                 "ok2")]
       (is (= "ok2" (text (.-firstChild (renders-as (-> it
                                                        (c/handle-action (fn [state a] a)))
                                                    "start")))))))
   (testing "forwards messages"
-    (let [it (browser/lift (reacl/class "foo3" this state []
-                                        handle-message (fn [msg]
-                                                         (reacl/return :app-state msg))
-                                        render (rdom/span)))
+    (let [it (browser/lift-reacl (reacl/class "foo3" this state []
+                                              handle-message (fn [msg]
+                                                               (reacl/return :app-state msg))
+                                              render (rdom/span)))
           [x inject!] (injector)
           n (renders-as (dom/div (c/with-ref (fn [ref]
                                                (c/fragment (c/dynamic dom/div)
@@ -384,8 +384,8 @@
 (deftest reacl-render-test
   (let [node (js/document.createElement "div")
         wr (reacl/class "foo" this state []
-                        render (browser/render (reacl/bind this)
-                                               (dom/div (c/dynamic str))))]
+                        render (browser/reacl-render (reacl/bind this)
+                                                     (dom/div (c/dynamic str))))]
     (reacl/render-component node wr "ok1")
     (is (= "ok1" (text (.-firstChild (.-firstChild node))))))
 
@@ -393,8 +393,8 @@
         [x inject!] (injector)
         wr (reacl/class "foo" this state []
                         render (rdom/fragment (rdom/div state)
-                                              (browser/render (reacl/bind this)
-                                                              x)))]
+                                              (browser/reacl-render (reacl/bind this)
+                                                                    x)))]
     (reacl/render-component node wr "start")
     (inject! node (constantly (c/return :state "ok2")))
     (is (= "ok2" (text (.-firstChild (.-firstChild node)))))))
@@ -402,12 +402,12 @@
 (deftest full-reacl-test
   ;; render and lift also work in combination.
   (is (passes-actions (fn [x]
-                        (browser/lift (reacl/class "foo" this state []
-                                                   render (browser/render (reacl/bind this) x))))))
+                        (browser/lift-reacl (reacl/class "foo" this state []
+                                                         render (browser/reacl-render (reacl/bind this) x))))))
   (is (passes-messages (fn [x]
-                         (browser/lift (reacl/class "foo" this state []
-                                                    refs [child]
-                                                    handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
-                                                    render (-> (browser/render (reacl/bind this) x)
-                                                               (reacl/refer child)))))))
+                         (browser/lift-reacl (reacl/class "foo" this state []
+                                                          refs [child]
+                                                          handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
+                                                          render (-> (browser/reacl-render (reacl/bind this) x)
+                                                                     (reacl/refer child)))))))
   )
