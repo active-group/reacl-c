@@ -1131,7 +1131,7 @@ Note that the state of the inner item (the `div` in this case), will
         ;; Optimization: if the body is a [[with-state-as]] expression, then lift that up to make it static (non-generative):
         (if-let [[prelude p] (maybe-with-state-as-expr &env body)]
           (let [body (:body p)
-                prelude-fn `(fn ~params ~@prelude)]
+                prelude-fn `(s/fn ~params ~@prelude)]
             (cond
               (contains? p :local)
               `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
