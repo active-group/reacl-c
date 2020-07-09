@@ -317,7 +317,9 @@
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding ref]
     ;; TODO: optimize away some classes? (add base/E -might-receive-messages?)
     ;; TODO: what would a :ref in attrs refer to?
-    (r0/elem (dom-class type) ref [binding attrs events children])))
+    (if (empty? events)
+      (apply r0/dom-elem type attrs (map #(render-child % binding) children)) ;; TODO: ref?
+      (r0/elem (dom-class type) ref [binding attrs events children]))))
 
 (r0/defclass fragment this [binding children]
   $handle-message (fn [msg] (assert false)) ;; TODO: exn

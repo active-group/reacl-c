@@ -98,12 +98,13 @@
       "auto-focus" "autofocus"
       n)))
 
-(defn- adjust-dom-attr-name [n]
-  (case n
-    "for" "htmlFor"
-    "class" "className"
-    (legacy-adjust-dom-attr-name n) ;; TODO: get rid of this.
-    ))
+(def ^:private adjust-dom-attr-name
+  (memoize (fn [n]
+             (case n
+               "for" "htmlFor"
+               "class" "className"
+               (legacy-adjust-dom-attr-name n) ;; TODO: get rid of this.
+               ))))
 
 (defn- camelize
   "Camelcases a hyphenated string, for example:
@@ -112,9 +113,10 @@
   [s]
   (str/replace s #"-(.)" (fn [[_ c]] (str/upper-case c))))
 
-(defn- adjust-dom-style-name [n]
-  ;; needed for border-style => borderStyle. Not sure if correct for -moz-column-role ?
-  (camelize n))
+(def ^:private adjust-dom-style-name
+  (memoize (fn [n]
+             ;; needed for border-style => borderStyle. Not sure if correct for -moz-column-role ?
+             (camelize n))))
 
 (defn- adjust-dom-attr-value [n v]
   (case n
