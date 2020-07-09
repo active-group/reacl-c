@@ -41,7 +41,6 @@
     (aset class k v)))
 
 (defn- make-class [name decls]
-  ;; TODO: "shouldComponentUpdate" (fn [...])
   (let [method-decls (remove static? decls)
         static-decls (map (fn [[[_ k] v]] [k v]) (filter static? decls))]
     (doto (createReactClass
@@ -54,11 +53,29 @@
                                                  (this-as this
                                                           (aset this "child_ref" (create-ref))
                                                           (when f (mk-state (.call f this)))))))
-                                     #_(update "shouldComponentUpdate"
-                                               (fn [p]
-                                                 ;; TODO: = default?
-                                                 )
-                                               )
+                                     (update "shouldComponentUpdate"
+                                             (fn [p]
+                                               (if p
+                                                 (fn [new-props new-state]
+                                                   (this-as this
+                                                            (.call p this (extract-args new-props) (when (some? new-state) (extract-state new-state)))))
+                                                 (fn [new-props new-state]
+                                                   (this-as this
+                                                            (let [res (or (and (some? new-state) ;; class has no local-state...
+                                                                               (not= (extract-state new-state)
+                                                                                     (get-state this)))
+                                                                          (not= (extract-args new-props)
+                                                                                (extract-args (.-props this))))]
+                                                              #_(js/console.log name (if res "will rerender" "will not rerender")
+                                                                              (if res
+                                                                                [(some? new-state)
+                                                                                 (and (some? new-state) ;; class has no local-state...
+                                                                                      (not= (extract-state new-state)
+                                                                                            (get-state this)))
+                                                                                 (not= (extract-args new-props)
+                                                                                       (extract-args (.-props this)))]
+                                                                                []))
+                                                              res))))))
                                      ))))
       (set-statics! static-decls))))
 
