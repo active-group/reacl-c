@@ -1,4 +1,4 @@
-(ns reacl-c.impl.browser-test
+(ns reacl-c.browser-test
   (:require [reacl-c.browser :as browser]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
