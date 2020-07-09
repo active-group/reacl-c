@@ -5,7 +5,6 @@
             [reacl-c.impl.reacl :as impl]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.beta :as r-tu]
-            [reacl-c.test-util.xpath :as xpath]
             [reacl2.test-util.xpath :as rxpath]))
 
 ;; Note: just reusing rcore/test-util is not a good fit, esp. because
