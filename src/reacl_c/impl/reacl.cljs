@@ -53,12 +53,12 @@
        (apply class binding args)
        (apply class args))]))
 
-(defn lift [class & args]
+(defn lift-reacl [class & args]
   (LiftedClass. class args))
 
 (def ^:private non-dynamic-binding (rcore/use-app-state nil))
 
-(defn instantiate
+(defn- instantiate
   "Returns a Reacl component/element for the given item and state binding."
   [binding e]
   (cond
@@ -75,6 +75,8 @@
     (nil? e) (rdom/fragment)
     
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
+
+(def reacl-render instantiate)
 
 (defn- instantiate-child [binding e]
   ;; returns multiple elements or strings

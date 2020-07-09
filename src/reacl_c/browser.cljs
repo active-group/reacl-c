@@ -1,4 +1,4 @@
-(ns reacl-c.browser ;; TODO: rename 'reacl' or react? or 'runner', 'toplevel'?
+(ns reacl-c.browser
   (:require [reacl-c.impl.reacl :as impl]))
 
 (defn run
@@ -7,15 +7,19 @@
   [dom item initial-state]
   (impl/run dom item initial-state))
 
-(defn lift-reacl
-  "Returns an item implemented by the given Reacl class and arguments."
+(defn lift ;; TODO: rename lift-reacl
+  "Returns an item implemented by the given Reacl class and
+  arguments. The Reacl app-state will be the returned item's state,
+  messages sent to the item will be forwarded to the class, and
+  actions emitted by the class are emitted as actions from the
+  returned item."
   [class & args]
-  (apply impl/lift class args))
+  (apply impl/lift-reacl class args))
 
-(defn reacl-render
-  "Returns a Reacl element or component implementing the given item,
-  and with the given state `binding`."
+(defn render ;; TODO: rename reacl-render
+  "Returns a Reacl element or component rending the given item,
+  and with the given state `binding`, which determines the state of
+  the item."
   [binding item]
-  (impl/instantiate binding item))
-
-;; render-child ?
+  ;; TODO: with or without effects being executed? (currently without)
+  (impl/reacl-render binding item))

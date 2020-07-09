@@ -3,7 +3,9 @@
             [reacl-c.impl.utils :as utils]
             [reacl-c.impl.stores :as stores]
             [reacl-c.base :as base]
+            [reacl-c.core :as core]
             [reacl-c.dom :as dom]
+            [reacl2.core :as reacl :include-macros true]
             [clojure.string :as str]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
@@ -15,13 +17,17 @@
                     action-target ;; for action handling and message emission.
                     ])
 
+(def ^:private $handle-message "reacl_c__handleMessage")
+
 (defn- send-message! [comp msg]
-  ;; TODO: exn if not defined.
-  ((aget comp "__handleMessage") msg))
+  (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
+  (assert (some? (aget comp $handle-message)) (pr-str comp))
+  ((aget comp $handle-message) msg))
 
 (defn- send-message-react-ref! [target msg]
   ;; TODO: exn if ref not set.
-  (send-message! (.-current  target) msg))
+  (assert (some? (.-current target)) (str (pr-str target) ", " (pr-str msg)))
+  (send-message! (.-current target) msg))
 
 (defn- send-message-base-ref! [target msg]
   ;; TODO: exn if ref not set.
@@ -60,7 +66,7 @@
 
 (defn- render [item binding ref]
   (cond
-    ;; TODO: fragments can't have refs... what does that mean for us?
+    ;; TODO: fragments can't have refs... what does that mean for us? Maybe we should throw, because react ignores is silently...
     (string? item) (r0/fragment item)
     (nil? item) (r0/fragment)
     :else
@@ -112,7 +118,7 @@
                                (f/partial toplevel-actions this))
                      (r0/child-ref this)))
   
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
 
   [:static "getDerivedStateFromProps"] (new-state-reinit second))
 
@@ -128,7 +134,7 @@
 ;; items
 
 (r0/defclass dynamic this [binding f & args]
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
   "render" (fn [] (render (apply f (:state binding) args)
                           binding
                           (r0/child-ref this))))
@@ -139,7 +145,7 @@
     (r0/elem dynamic ref (list* binding f args))))
 
 (r0/defclass focus this [binding e lens]
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
   
   "render" (fn [] (render e
                           (assoc binding
@@ -154,7 +160,7 @@
     (r0/elem focus ref [binding e lens])))
 
 (r0/defclass local-state this [binding e initial]
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
 
   "getInitialState" (fn [] (new-state this initial))
 
@@ -178,7 +184,7 @@
               (call-event-handler! binding f action))
             ((:action-target binding) pass)))]
   (r0/defclass handle-action this [binding e f pred]
-    "__handleMessage" (forward-messages this)
+    $handle-message (forward-messages this)
     
     "render" (fn [] (render e
                             (assoc binding :action-target (f/partial h binding f pred))
@@ -192,7 +198,7 @@
 (let [send! (fn [binding r]
               (call-event-handler! binding (constantly r)))]
   (r0/defclass with-async-return this [binding f & args]
-    "__handleMessage" (forward-messages this)
+    $handle-message (forward-messages this)
     
     "render" (fn [] (render (apply f (f/partial send! binding) args)
                             binding
@@ -206,7 +212,7 @@
 (r0/defclass lifecycle this [binding init finish]
   "render" (fn [] (r0/fragment nil))
 
-  "__handleMessage" (fn [msg] (assert false)) ;; TODO: exn?
+  $handle-message (fn [msg] (assert false)) ;; TODO: exn?
   
   ;; OPT: shouldUpdate could ignore the finish fn.
   "componentDidMount" (fn [] (call-event-handler! binding init))
@@ -221,7 +227,7 @@
 (let [upd (fn [binding f old-state new-state]
             (call-event-handler*! old-state (:action-target binding) f new-state))]
   (r0/defclass handle-state-change this [binding e f]
-    "__handleMessage" (forward-messages this)
+    $handle-message (forward-messages this)
     
     "render" (fn [] (render e
                             (assoc binding
@@ -236,7 +242,7 @@
 (r0/defclass handle-message this [binding e f]
   "render" (fn [] (render e binding nil))
   
-  "__handleMessage" (fn [msg] (call-event-handler! binding f msg)))
+  $handle-message (fn [msg] (call-event-handler! binding f msg)))
 
 (extend-type base/HandleMessage
   IReact
@@ -249,7 +255,7 @@
                                                   (when validate-state!
                                                     (validate-state! (r0/extract-state state)))
                                                   nil)
-            "__handleMessage" (forward-messages this)
+            $handle-message (forward-messages this)
             "render" (fn [] (render e binding (r0/child-ref this)))))
 
 (def named (utils/named-generator gen-named))
@@ -261,9 +267,10 @@
 
 (r0/defclass static this [binding f args]
   "render" (fn [] (render (apply f args)
-                          binding (r0/child-ref this)))
-  
-  "__handleMessage" (forward-messages this))
+                          binding
+                          (r0/child-ref this)))
+
+  $handle-message (forward-messages this))
 
 (extend-type base/Static
   IReact
@@ -296,14 +303,13 @@
 (def dom-class
   (memoize (fn [type]
              (r0/class type this [binding attrs events children]
-                       "__handleMessage" (fn [msg] (assert false)) ;; TODO: exn
+                       $handle-message (fn [msg] (assert false)) ;; TODO: exn
                        "getInitialState" (fn [] {:event-handler (event-handler this)})
                        "render" (fn []
                                   (apply r0/dom-elem type
                                          (-> attrs
                                              (assoc :ref (r0/child-ref this))
                                              (merge (event-fns this events)))
-                                         ;; TODO: events
                                          (map #(render-child % binding) children)))))))
 
 (extend-type dom/Element
@@ -313,15 +319,22 @@
     ;; TODO: what would a :ref in attrs refer to?
     (r0/elem (dom-class type) ref [binding attrs events children])))
 
+(r0/defclass fragment this [binding children]
+  $handle-message (fn [msg] (assert false)) ;; TODO: exn
+  "render" (fn [] (apply r0/fragment (map #(render-child % binding)
+                                          children))))
+
 (extend-type base/Fragment
   IReact
   (-instantiate-react [{children :children} binding ref]
-    ;; TODO: needs a class for messages (add base/E -might-receive-messages?). TODO: ref
+    ;; TODO: needs the class for messages (only if base/E -might-receive-messages?). TODO: ref
     (apply r0/fragment (map #(render-child % binding)
-                            children))))
+                              children))
+    ;; TODO: get rid of this; no one whould event try to set a ref on a fragment.
+    #_(r0/elem fragment ref [binding children])))
 
 (r0/defclass id this [binding e]
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
   
   "render" (fn [] (render e binding (r0/child-ref this))))
 
@@ -335,7 +348,7 @@
   (-deref-ref [_] (.-current ref)))
 
 (r0/defclass with-ref this [binding f args]
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
 
   "getInitialState" (fn [] {:ref (RRef. (r0/create-ref))})
   
@@ -348,7 +361,7 @@
     (r0/elem with-ref ref [binding f args])))
 
 (r0/defclass set-ref this [binding e ^RRef ref]
-  "__handleMessage" (forward-messages this (:ref ref))
+  $handle-message (forward-messages this (:ref ref))
   
   "render" (fn [] (render e binding (:ref ref))))
 
@@ -359,7 +372,7 @@
 
 (r0/defclass handle-error this [binding e f]
   
-  "__handleMessage" (forward-messages this)
+  $handle-message (forward-messages this)
   
   "render" (fn [] (render e binding (r0/child-ref this)))
 
@@ -372,3 +385,132 @@
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
     (r0/elem handle-error ref [binding e f])))
+
+
+;; Reacl compat
+
+(defrecord PassState [v])
+(defrecord PassActions [v])
+
+(def ^{:private true
+       :dynamic true}
+  *in-reacl-cycle* nil)
+
+(defn- reacl-queue-message [comp msg]
+  ;; Requires new reacl version that allows send-message all the time.
+  (reacl/send-message! comp msg)
+  ;; if we are in a reacl cycle, we must pipe the update through to some reacl handler higher on the stack
+  #_(if *in-reacl-cycle*
+    (swap! *in-reacl-cycle* conj [comp msg])
+    (loop [msgs [msg]]
+      (when-not (empty? msgs)
+        (let [new-msgs (atom [])]
+          (binding [*in-reacl-cycle* new-msgs]
+            (reacl/send-message! comp (first msgs)))
+          (recur (concat (rest msgs) @new-msgs)))))))
+
+(defn- capture-reacl-messages [thunk]
+  (let [msgs (atom [])]
+    (binding [*in-reacl-cycle* msgs]
+      (thunk))
+    (reduce reacl/merge-returned
+            (reacl/return)
+            (map #(reacl/return :message %)
+                 @msgs))))
+
+(defn- capture-reacl-messages_ [thunk]
+  (thunk)
+  (reacl/return))
+
+;; runs a (class args) component in the context of the given 'reacl-c/react binding'
+(reacl/defclass reacl-wrapper this [binding class args]
+  refs [child]
+  
+  render
+  (-> (if (reacl/has-app-state? class)
+        (apply class (reacl/use-reaction (:state binding)
+                                         (reacl/reaction this ->PassState))
+               args)
+        (apply class args))
+      (reacl/reduce-action (fn [_ a]
+                             (reacl/return :message [this (PassActions. [a])])))
+      (reacl/refer child))
+
+  handle-message
+  (fn [msg]
+    (cond
+      (instance? PassState msg)
+      (capture-reacl-messages ;; OPT: is the capturing really needed here? write a test case for it.
+       (fn []
+         (call-event-handler! binding (fn [state]
+                                        (core/return :state (:v msg))))))
+
+      (instance? PassActions msg)
+      (capture-reacl-messages
+       (fn []
+         (call-event-handler! binding (fn [state]
+                                        (base/make-returned base/keep-state (:v msg) nil)))))
+
+      ;; pass down
+      :else (reacl/return :message [(reacl/get-dom child) msg]))))
+
+(r0/defclass lifted-reacl this [binding class args]
+  "render"
+  (fn []
+    (-> (reacl/instantiate-toplevel reacl-wrapper binding class args)
+        (reacl/refer (r0/child-ref this))))
+  
+  $handle-message
+  (fn [msg]
+    (reacl/send-message! (.-current (r0/child-ref this)) msg)))
+
+(defrecord LiftedReacl [class args]
+  base/E
+  (-is-dynamic? [this] (reacl/has-app-state? class))
+
+  IReact
+  (-instantiate-react [this binding ref]
+    (r0/elem lifted-reacl ref [binding class args])))
+
+(defn lift-reacl [reacl-class & args]
+  (LiftedReacl. reacl-class args))
+
+(defrecord ReaclStore [state comp]
+  stores/IStore
+  (-get [this] state)
+  (-set [this v]
+    ;; Note: really important here to not make infinite update loops:
+    (when (not= v state)
+      (reacl-queue-message comp (PassState. v)))))
+
+(defn- reacl-action-target [comp actions]
+  (reacl-queue-message comp (PassActions. actions)))
+
+;; runs item in the context of a Reacl component.
+(reacl/defclass reacl-item this state [item]
+  refs [child]
+  
+  render (-> (render item (Binding. state
+                                    (ReaclStore. state this)
+                                    (f/partial reacl-action-target this))
+                     nil)
+             (reacl/refer child))
+
+  handle-message
+  (fn [msg]
+    (cond
+      (instance? PassState msg)
+      (reacl/return :app-state (:v msg))
+
+      (instance? PassActions msg)
+      (reduce reacl/merge-returned
+              (reacl/return)
+              (map #(reacl/return :action %) (:v msg)))
+
+      :else ;; pass msg
+      (capture-reacl-messages
+       (fn []
+         (send-message! (reacl/get-dom child) msg))))))
+
+(defn reacl-render [reacl-binding item]
+  (reacl-item reacl-binding item))
