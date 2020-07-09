@@ -94,7 +94,9 @@
 (defn- legacy-adjust-dom-attr-name [n]
   (if (str/starts-with? n "on")
     (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n))
-    n))
+    (case n
+      "auto-focus" "autofocus"
+      n)))
 
 (defn- adjust-dom-attr-name [n]
   (case n
@@ -103,14 +105,23 @@
     (legacy-adjust-dom-attr-name n) ;; TODO: get rid of this.
     ))
 
+(defn- camelize
+  "Camelcases a hyphenated string, for example:
+  > (camelize \"background-color\")
+  < \"backgroundColor\""
+  [s]
+  (str/replace s #"-(.)" (fn [[_ c]] (str/upper-case c))))
+
+(defn- adjust-dom-style-name [n]
+  ;; needed for border-style => borderStyle. Not sure if correct for -moz-column-role ?
+  (camelize n))
+
 (defn- adjust-dom-attr-value [n v]
   (case n
-    "style" (clj->js v)
+    "style" (clj->js (into {} (map (fn [[k v]] [(adjust-dom-style-name (name k)) v]) v)))
     v))
 
 (defn dom-elem [type attrs & children]
-  #_(js/console.log "dom attrs" attrs)
-  ;; TODO: more attr translations (style...)
   (let [aobj (reduce-kv (fn [r k v]
                           (let [n (name k)]
                             (aset r (adjust-dom-attr-name n) (adjust-dom-attr-value n v)))
