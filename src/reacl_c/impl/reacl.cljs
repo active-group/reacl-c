@@ -79,11 +79,11 @@
 (def reacl-render instantiate)
 
 (defn- instantiate-child [binding e]
-  ;; returns multiple elements or strings
+  ;; returns an object suitable as a react element child.
   (cond
-    (satisfies? IReacl e) (-instantiate-reacl e binding)
-    (string? e) [e]
-    (nil? e) []
+    (satisfies? IReacl e) (instantiate binding e)
+    (string? e) e
+    (nil? e) (rdom/fragment)
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])
@@ -268,7 +268,11 @@
 (defn- native-dom [binding type attrs & children]
   (apply rdom/element type
          attrs
-         (map (partial instantiate binding) children)))
+         ;; Note: it's important to have text elements as direct
+         ;; children of dom elements. A "<option>...</option>" breaks
+         ;; in Chrome for example, when the content is even a
+         ;; fragment.
+         (map (partial instantiate-child binding) children)))
 
 (def dom-class-for-type
   ;; There should be a finite set of tag names, so using memoize should be ok.

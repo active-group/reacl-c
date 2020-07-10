@@ -1,4 +1,4 @@
-(ns reacl-c.test.core-test
+(ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.base :as base]
             [reacl-c.dom :as dom]
@@ -6,7 +6,7 @@
             [reacl-c.browser :as browser]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
-            [schema.core :as s]
+            [schema.core :as s :include-macros true]
             [clojure.string :as str]
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
@@ -562,7 +562,17 @@
                  false
                  (catch :default e
                    (.-message e)))
-            "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))))
+            "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))")))))
+
+  (testing "regression with schemata"
+    (c/defn defn-test-5 "foo" [x a :- s/Str y]
+      (c/with-state-as foo
+        (dom/div a)))
+
+    (let [env (tu/env (defn-test-5 1 "Ok" 2))]
+      (tu/mount! env "Ok")
+      (is (some? (tu/find env (dom/div "Ok")))))
+    ))
 
 (deftest def-test
   (testing "simple items"
