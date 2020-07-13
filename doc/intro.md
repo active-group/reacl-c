@@ -209,7 +209,7 @@ Reacl-c also offers a convenient macro to create dynamic items called
 (greeting "de")   ;; is an item
 ```
 
-Node that in the `defn` macro of Reacl-c was used here to define a
+Note that in the `defn` macro of Reacl-c was used here to define a
 function that returns an item. That macro is basically like an
 enhanced variant of Clojure's `defn`, but should be used only to
 define abstractions over items. See below for more features of the
@@ -457,26 +457,26 @@ plays a role, e.g. for `local-state` items. But occasionally, one also
 want's to make use of that and write items that can react to those
 transitions in the lifecycle of an item.
 
-The first such items are those created by the `c/once` function:
+The first such items are those created by the `c/init` and `c/finalize` functions:
 
 ```clojure
-(c/once (fn [state] (c/return :action "I'm in use"))
-        (fn [state] (c/return :action "I'm not in use anymore")))
+(c/fragment
+  (c/init (c/return :action "I'm in use"))
+  (c/finalize (c/return :action "I'm not in use anymore")))
 ```
 
-The `once` function returns an item, which calls the first function
-when used initially at some place in the item tree, and the second one
-(which is optional) when it is not used there anymore. The first
-function is actually also called on each state update, but the retured
-`return` value is then only 'executed' when it is different from the
-last time it was executed. So with `once` items you can do something
-at the first and last points of an items lifetime at some place in the
-item tree, as well as the points in time when the state is
-changed. Note that you can easily combine these items with others in a
+In this example the first action is emitted from the resulting item
+when that is used at some place in the tree, and the second action
+when it is not used anymore there.
+
+For more advaned reactions to lifecycle events, there are the `c/once`
+and the `c/lifecycle` items.
+
+Note that you can easily combine these items with others in a
 fragment item, which is then equivalent to *their* lifetime:
 
 ```clojure
-(c/fragment (c/once ...) some-other-item)
+(c/fragment (c/init ...) some-other-item)
 ```
 
 ## The outside world

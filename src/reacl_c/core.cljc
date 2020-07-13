@@ -462,6 +462,12 @@ be specified multiple times.
   [f]
   (lifecycle (f/constantly (return)) f))
 
+(clj/defn finalize
+  "An invisible item that 'emits' the given [[return]] value once as
+  a cleanup after the item was used somewhere in the component tree."
+  [ret]
+  (cleanup (f/constantly ret)))
+
 (clj/defn handle-state-change
   "Returns an item like the given item, but when a state change is
   emitted by `item`, then `(f prev-state new-state)` is evaluated,
