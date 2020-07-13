@@ -197,16 +197,23 @@ the current state, passes the state down to it and every state change
 upwards, passes all actions upwards, and forwards all messages sent to
 it to the item returned for the current state.
 
-Reacl-c also offers a convenient macro to define functions that create
-dynamic items, which should usually be used:
+Reacl-c also offers a convenient macro to create dynamic items called
+`with-state-as`:
 
 ```clojure
-(c/defn-dynamic greeting state [lang]
-  (dom/div (if (= lang "de") "Hallo, " "Hello, ")
-           state))
+(c/defn greeting [lang]
+  (c/with-state-as state
+    (dom/div (if (= lang "de") "Hallo, " "Hello, ")
+             state)))
 		   
 (greeting "de")   ;; is an item
 ```
+
+Node that in the `defn` macro of Reacl-c was used here to define a
+function that returns an item. That macro is basically like an
+enhanced variant of Clojure's `defn`, but should be used only to
+define abstractions over items. See below for more features of the
+`defn` and `def` macro.
 
 Items created by this `greeting` function expect a string as their
 state - the name of a person for example. To use this item in a place
@@ -283,10 +290,25 @@ may change its position over time and still keep the same local state
 and will not be reset to the initial state. The keys within the same
 child list must of course be unique for that.
 
-There are a few convenience functions in Reacl-c that additionally
-apply some lens on the `[outer inner]` tuple (`c/add-state`,
-`c/hide-state`) via `c/focus`, or completely remove the outer state
-(`c/isolate-state`).
+Because it's often convenient to use the current value of the local
+state to change the returned item, new state can also be intrudoced
+directly with the `with-state-as` macro:
+
+```clojure
+(c/with-state-as [outer inner :local 42]
+  (dom/div (pr-str (+ outer inner))))
+```
+
+The state of the returned item is bound to `outer`, and `inner` to the
+new local state, initialized to `42`. Note that the state of the inner
+item (the `div` in this case) is again a tuple of the outer and inner
+states. The above is equivalent to
+
+```clojure
+(c/local-state 42
+  (c/dynamic (fn [[outer inner]]
+                (dom/div (pr-str (+ outer inner))))))
+```
 
 Finally, *static items* can be created. Static items ignore the state
 they receive from above, and, to prevent mistakes, it's an error if
@@ -294,9 +316,6 @@ they try to change the state:
 
 ```clojure
 (c/static (fn [] (dom/h1 "Foo")))
-
-(c/defn-static header [text]
-  (dom/h1 text))
 ```
 
 They are similar to the items created by `c/isolate-state` with an
@@ -307,8 +326,18 @@ increase the performance of your application, by 'cutting off' larger
 item branches from any state update. Note that it is important that
 you pass the *same* function to `static` each time. In Clojure,
 anonymous functions are different objects each time then `fn` form is
-evaluated. So when working on performance, the use of the
-`c/defn-static` or the `c/def-static` macros is strongly encouraged.
+evaluated. So when used as an optimization, one should use the `defn`
+macros of Reacl-c, which can define abstract static items in the
+following way:
+
+```clojure
+(c/defn table-1-header :static [label1 label2]
+  (dom/tr (dom/th label1) (dom/th label2)))
+```
+
+In this way, the body of `table-1-header` will not be evaluated again
+nor re-rendered on any state change from above, as long as it's
+used with same arguments.
 
 ### Working with actions
 
