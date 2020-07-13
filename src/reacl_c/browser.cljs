@@ -7,7 +7,7 @@
   [dom item initial-state]
   (impl/run dom item initial-state))
 
-(defn lift ;; TODO: rename lift-reacl
+(defn lift-reacl
   "Returns an item implemented by the given Reacl class and
   arguments. The Reacl app-state will be the returned item's state,
   messages sent to the item will be forwarded to the class, and
@@ -16,7 +16,7 @@
   [class & args]
   (apply impl/lift-reacl class args))
 
-(defn render ;; TODO: rename reacl-render
+(defn reacl-render
   "Returns a Reacl element or component rending the given item,
   and with the given state `binding`, which determines the state of
   the item."
