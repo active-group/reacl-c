@@ -227,7 +227,7 @@
                                       (dom/div (-> (c/handle-message (fn [state msg]
                                                                        (c/return :state msg))
                                                                      (dom/div))
-                                                   (c/set-ref ref))
+                                                   (c/refer ref))
                                                (-> (c/once (f/constantly (c/return :action ::test)))
                                                    (c/handle-action (fn [_ _]
                                                                       (send! ref :msg)
@@ -242,7 +242,7 @@
                                       (dom/div (-> (c/handle-message (fn [state msg]
                                                                        (c/return :state msg))
                                                                      (dom/div))
-                                                   (c/set-ref ref))
+                                                   (c/refer ref))
                                                (c/once (f/constantly (c/return :message [ref :msg])))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
@@ -277,7 +277,7 @@
                                                        (-> (c/handle-message (fn [state msg]
                                                                                (c/return :state msg))
                                                                              (dom/div))
-                                                           (c/set-ref ref))))))))]
+                                                           (c/refer ref))))))))]
     (tu/mount! env :st)
     (is (= (c/return :state :msg)
            (tu/send-message! (tu/get-component env) :msg))))

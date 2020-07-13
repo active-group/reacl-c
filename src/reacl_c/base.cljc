@@ -129,11 +129,11 @@
   E
   (-is-dynamic? [{e :e}] true))
 
-(r/define-record-type SetRef
-  (make-set-ref e ref)
-  set-ref?
-  [e set-ref-e
-   ref set-ref-ref]
+(r/define-record-type Refer
+  (make-refer e ref)
+  refer?
+  [e refer-e
+   ref refer-ref]
   E
   (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
@@ -189,11 +189,11 @@
 
 (defn message-target? [v]
   (or (ref? v)
-      (set-ref? v)))
+      (refer? v)))
 
 (defn deref-message-target [target]
-  (-deref-ref (if (set-ref? target)
-                (set-ref-ref target)
+  (-deref-ref (if (refer? target)
+                (refer-ref target)
                 target)))
 
 (defrecord KeepState [])

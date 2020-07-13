@@ -10,7 +10,7 @@
             #?(:clj [clojure.core :as clj])
             #?(:cljs [cljs.core :as clj] :include-macros true))
   
-  (:refer-clojure :exclude [deref empty defn]))
+  (:refer-clojure :exclude [deref empty defn refer]))
 
 ;; Rationale:
 ;; The basic building block is en Item (base/E), which is roughly
@@ -40,7 +40,7 @@
 (clj/defn with-ref
   "Creates an item identical to the one returned from `(f ref &
   args)`, where `ref` is a fresh *reference*. A reference should be
-  assigned to one of the items below via [[set-ref]]. You can use it
+  assigned to one of the items below via [[refer]]. You can use it
   as the target of a `(return :message [target msg])` for example."
   [f & args]
   (base/make-with-ref f args))
@@ -64,7 +64,7 @@
       :else
       (with-ref hn n f args))))
 
-(clj/defn set-ref
+(clj/defn refer
   "Returns an item identical to the given item, but with the given
   reference assigned. Note that the returned item cannot be used more
   than once. See [[with-ref]] for a description of references."
@@ -72,13 +72,13 @@
   {:pre [(base/item? item)]}
   ;; Note: when setting a ref on a dom item, we don't want the
   ;; class/component, but the 'raw' dom element. Pass the ref down to
-  ;; get that.
+  ;; get that. (TODO: why? for dom manupulation? Split that from the messaging api then)
   (if (dom/element? item)
     (dom/set-ref item ref)
-    (base/make-set-ref item ref)))
+    (base/make-refer item ref)))
 
 (let [c (fn [refs items f args]
-          (apply f (map set-ref items refs) args))]
+          (apply f (map refer items refs) args))]
   (clj/defn ref-let*
     "Returns an item, that calls f with a list and the given arguments,
   where the list consists of the given items, but modified in a way
@@ -118,7 +118,7 @@
   a description of references."
   [ref]
   ;; TODO: needs more to access to actually access the native dom; move this to 'browser namespace'?
-  ;; TODO: allow for set-ref items?
+  ;; TODO: allow for refer items?
   (base/-deref-ref ref))
 
 (clj/defn dynamic
@@ -184,7 +184,7 @@ be specified multiple times.
             (:action) (recur nxt state (conj! actions arg) messages)
             (:message) (let [[target msg] arg]
                          (assert (some? target) "Missing target for message.")
-                         (assert (base/message-target? target) "Target must be a reference created by with-ref or an item created by set-ref.")
+                         (assert (base/message-target? target) "Target must be a reference created by with-ref or an item created by refer.")
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
@@ -211,7 +211,7 @@ be specified multiple times.
 
 (let [h (fn [ref handle-msg f args]
           (fragment (-> (handle-message handle-msg empty)
-                        (set-ref ref))
+                        (refer ref))
                     (apply f ref args)))]
   (clj/defn with-message-target
     "Returns an item like ´(f target & args)`, where `target` is a
@@ -301,7 +301,7 @@ be specified multiple times.
 (let [h (fn [f ref state msg]
           (return :message [ref (f msg)]))
       wr (fn [f item ref]
-           (handle-message (f/partial h f ref) (set-ref item ref)))]
+           (handle-message (f/partial h f ref) (refer item ref)))]
   (clj/defn map-messages
     "Returns an item like the given one, that transforms all messages sent to
   it though `(f msg)`, before they are forwarded to `item`."
@@ -628,7 +628,7 @@ be specified multiple times.
       msgs (fn [deliver! action-mapper defn-f f args host]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
-                           (set-ref host))
+                           (refer host))
                        (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
       dyn (fn [deliver! action-mapper defn-f {f :f args :args stop! :stop!}]
             (if (some? stop!)

@@ -5,7 +5,8 @@
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  (:refer-clojure :exclude [refer]))
 
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
@@ -88,7 +89,7 @@
 
 (defn- pass-message [child msg]
   (let [comp (rcore/get-dom child)]
-    (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use set-ref?"))
+    (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use refer?"))
     (rcore/return :message [comp msg])))
 
 (declare transform-return)
@@ -147,7 +148,7 @@
                         (:actions r))
                    (map (fn [[target msg]]
                           (let [c (base/deref-message-target target)]
-                            (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
+                            (assert (some? c) (str "Target for message not available. Forgot to use refer?"))
                             (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
                             (rcore/return :message [c msg])))
                         (:messages r))))
@@ -404,7 +405,7 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-ref binding f args)]))
 
-(rcore/defclass ^:privte set-ref this state [e ref]
+(rcore/defclass ^:privte refer this state [e ref]
   handle-message
   (fn [msg]
     (pass-message (reacl-ref ref) msg))
@@ -413,14 +414,13 @@
   (-> (instantiate (rcore/bind this) e)
       (rcore/refer (reacl-ref ref))))
 
-(extend-type base/SetRef
+(extend-type base/Refer
   IReacl
   (-xpath-pattern [{e :e ref :ref}]
-    (wrapper-pattern set-ref e ref))
+    (wrapper-pattern refer e ref))
   (-instantiate-reacl [{e :e ref :ref} binding]
     ;; has to be a class for now, because otherwise we would override the ref with all our 'child' refs for passing messages down.
-    ;; TODO: either change that; or we could name this 'add-ref' or refer, as one can add multiple refs then...?
-    [(set-ref binding e ref)]))
+    [(refer binding e ref)]))
 
 (rcore/defclass ^:private dynamic this state [f & args]
   refs [child]

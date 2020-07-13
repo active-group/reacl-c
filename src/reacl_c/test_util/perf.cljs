@@ -55,7 +55,7 @@
         base/local-state? (update item :e #(resolve-* % [state (:initial item)] resolve-dyn))
         
         base/handle-action? (w)
-        base/set-ref? (w)
+        base/refer? (w)
         base/keyed? (w)
         base/named? (w)
         base/handle-error? (w) ;; and the error fn?
@@ -99,7 +99,7 @@
     base/focus? 'focus
     base/local-state? 'local-state
     base/handle-action? 'handle-action
-    base/set-ref? 'set-set
+    base/refer? 'refer
     base/keyed? 'keyed
     base/named? 'named
     base/handle-error? 'handle-error
@@ -135,7 +135,7 @@
       (or (base/handle-action? item1) (base/handle-error? item1) (base/handle-state-change? item1) (base/handle-message? item1))
       (w item1 item2 :f :function)
 
-      (base/set-ref? item1)
+      (base/refer? item1)
       (w item1 item2 :ref :reference)
 
       (base/focus? item1)

@@ -72,7 +72,7 @@
                         (-> (f (c/handle-message (fn [state msg]
                                                    (c/return :action msg))
                                                  c/empty))
-                            (c/set-ref ref)
+                            (c/refer ref)
                             (c/handle-action (fn [_ a]
                                                (c/return :state a)))))))
         node (renders-as it "start")]
@@ -174,7 +174,7 @@
     (is (= 1 @upd))))
 
 (deftest messaging-test
-  ;; tests: with-ref set-ref handle-message, also handle-action
+  ;; tests: with-ref refer handle-message, also handle-action
   (let [upd (atom 0)
         [x inject!] (injector)
         it (c/with-ref (fn [ref]
@@ -182,7 +182,7 @@
                                   (-> (c/handle-message (fn [state msg]
                                                           (c/return :state :done))
                                                         c/empty)
-                                      (c/set-ref ref))
+                                      (c/refer ref))
                                   (-> x
                                       (c/handle-action (fn [state a]
                                                          (c/return :message [ref a])))))))
@@ -195,8 +195,8 @@
 (deftest with-ref-test
   (is (passes-messages (fn [x] (c/with-ref (constantly x))))))
 
-(deftest set-ref-test
-  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/set-ref x ref)))))))
+(deftest refer-test
+  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref)))))))
 
 (deftest handle-action-test
   (is (passes-messages (fn [x] (c/handle-action x (fn [st a] (c/return :action a)))))))
@@ -374,7 +374,7 @@
           [x inject!] (injector)
           n (renders-as (dom/div (c/with-ref (fn [ref]
                                                (c/fragment (c/dynamic dom/div)
-                                                           (c/set-ref it ref)
+                                                           (c/refer it ref)
                                                            (c/handle-action x (fn [state a]
                                                                                 (c/return :message [ref a])))))))
                         "start")]
