@@ -111,14 +111,6 @@
   [env]
   (->ret (r-tu/unmount! env)))
 
-(defn push!
-  [env ret]
-  (->ret (r-tu/push! env (impl/transform-return ret))))
-
-(defn push!!
-  [env ret]
-  (->ret (r-tu/push!! env (impl/transform-return ret))))
-
 ;; TODO: make find-env public in reacl.beta... then reduce !! fns to f+push
 
 (defn- dom-node? [comp]

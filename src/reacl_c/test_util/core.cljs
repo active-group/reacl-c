@@ -86,13 +86,26 @@
   any, and merge the return value resulting from that - pushing the
   update cycle one turn."
   [env ret]
-  (impl/push! env ret))
+  (let [st (base/returned-state ret)]
+    (if (not (= base/keep-state st))
+      (base/merge-returned ret (update! env st))
+      ret)))
+
+(def ^:dynamic *max-update-loops* 100)
 
 (defn push!!
   "Recursively apply the state change in the given 'return' value,
   until the state does not change anymore."
   [env ret]
-  (impl/push!! env ret))
+  (loop [r ret
+         state base/keep-state
+         n 1]
+    (when (> n *max-update-loops*)
+      (throw (ex-info "Component keeps on updating. Check the livecylcle methods, which should eventually reach a fixed state." {:intermediate-state state})))
+    (let [st (base/returned-state r)]
+      (if (not= state st)
+        (recur (push! env r) st (inc n))
+        r))))
 
 (defn update!!
   "Updates the state of the item of the given test environment, and
@@ -185,7 +198,7 @@
   toplevel changes as a 'return' value."
   [env eff]
   (assert (base/effect? eff) eff)
-  (inject-return! (impl/get-root-component env)
+  (inject-return! (get-component env)
                   (let [[value ret] (base/run-effect! eff)]
                     ret)))
 
