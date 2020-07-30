@@ -201,7 +201,7 @@ Reacl-c also offers a convenient macro to create dynamic items called
 `with-state-as`:
 
 ```clojure
-(c/defn greeting [lang]
+(c/defn-item greeting [lang]
   (c/with-state-as state
     (dom/div (if (= lang "de") "Hallo, " "Hello, ")
              state)))
@@ -209,11 +209,11 @@ Reacl-c also offers a convenient macro to create dynamic items called
 (greeting "de")   ;; is an item
 ```
 
-Note that in the `defn` macro of Reacl-c was used here to define a
+Note that in the `defn-item` macro of Reacl-c was used here to define a
 function that returns an item. That macro is basically like an
-enhanced variant of Clojure's `defn`, but should be used only to
+enhanced variant of Clojure's `defn`, but must only be used to
 define abstractions over items. See below for more features of the
-`defn` and `def` macro.
+`defn-item` and `def-item` macro.
 
 Items created by this `greeting` function expect a string as their
 state - the name of a person for example. To use this item in a place
@@ -326,12 +326,12 @@ increase the performance of your application, by 'cutting off' larger
 item branches from any state update. Note that it is important that
 you pass the *same* function to `static` each time. In Clojure,
 anonymous functions are different objects each time then `fn` form is
-evaluated. So when used as an optimization, one should use the `defn`
+evaluated. So when used as an optimization, one should use the `defn-item`
 macros of Reacl-c, which can define abstract static items in the
 following way:
 
 ```clojure
-(c/defn table-1-header :static [label1 label2]
+(c/defn-item table-1-header :static [label1 label2]
   (dom/tr (dom/th label1) (dom/th label2)))
 ```
 

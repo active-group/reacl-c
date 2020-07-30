@@ -283,7 +283,7 @@
            (tu/send-message! (tu/get-component env) :msg)))))
 
 (deftest defn-messages-test
-  (c/defn defn-messages-test-1 :- [s/Int] [x]
+  (c/defn-item defn-messages-test-1 :- [s/Int] [x]
     (assert (int? x))
     (c/handle-message (fn [state m]
                         (conj state x m))
@@ -293,7 +293,7 @@
     (is (= (c/return :state [42 13])
            (tu/send-message! env 13))))
 
-  (c/def defn-messages-test-2
+  (c/def-item defn-messages-test-2
     (c/handle-message (fn [state m]
                         (conj state m))
                       c/empty))
@@ -521,9 +521,9 @@
     (tu/mount! env "foo")
     (is (some? (tu/find env (dom/div "foo" "bar"))))))
 
-(deftest defn-test
+(deftest defn-item-test
   (testing "simple items"
-    (c/defn defn-test-1 "foo" [a :- s/Str]
+    (c/defn-item defn-test-1 "foo" [a :- s/Str]
       (dom/div a))
 
     (is (= "foo" (:doc (meta #'defn-test-1))))
@@ -533,7 +533,7 @@
       (is (some? (tu/find env (dom/div "Ok"))))))
 
   (testing "dynamic items"
-    (c/defn defn-test-2 [p]
+    (c/defn-item defn-test-2 [p]
       {:pre [(string? p)]}
       (c/with-state-as [a b :local "bar"]
         (dom/div a b p)))
@@ -546,7 +546,7 @@
     (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
 
   (testing "static items"
-    (c/defn defn-test-4 :static [rendered?]
+    (c/defn-item defn-test-4 :static [rendered?]
       (reset! rendered? true)
       (dom/div))
     
@@ -561,7 +561,7 @@
       (is (not @rendered?))))
 
   (testing "schema validation"
-    (c/defn ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
+    (c/defn-item ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
       (dom/div (str a)))
 
     (is (some? (defn-test-3 42)))
@@ -584,7 +584,7 @@
             "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))")))))
 
   (testing "regression with schemata"
-    (c/defn defn-test-5 "foo" [x a :- s/Str y]
+    (c/defn-item defn-test-5 "foo" [x a :- s/Str y]
       (c/with-state-as foo
         (dom/div a)))
 
@@ -593,9 +593,9 @@
       (is (some? (tu/find env (dom/div "Ok")))))
     ))
 
-(deftest def-test
+(deftest def-item-test
   (testing "simple items"
-    (c/def def-test-1
+    (c/def-item def-test-1
       (dom/div))
 
     (let [env (tu/env def-test-1)]
@@ -603,7 +603,7 @@
       (is (some? (tu/find env (dom/div))))))
 
   (testing "dynamic items"
-    (c/def def-test-2
+    (c/def-item def-test-2
       (c/with-state-as a
         (dom/div a)))
 
@@ -612,7 +612,7 @@
       (is (some? (tu/find env (dom/div "foo"))))))
 
   (testing "state schema validation"
-    (c/def ^:always-validate def-test-3 :- s/Str
+    (c/def-item ^:always-validate def-test-3 :- s/Str
       (c/with-state-as a (dom/div a)))
 
     (is (some? (tu/mount! (tu/env def-test-3) "foo")))
