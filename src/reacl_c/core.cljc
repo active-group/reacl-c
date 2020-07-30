@@ -218,6 +218,7 @@ be specified multiple times.
   reference that can be used as a message target, which are then
   handled by a call to `(handle-msg state msg)`, which must return
   a [[return]] value."
+    ;; useful when sending messages upwards.
     [handle-msg f & args]
     (with-ref h handle-msg f args)))
 
@@ -297,6 +298,17 @@ be specified multiple times.
     {:pre [(base/ref? ref)
            (base/item? item)]}
     (handle-message (f/partial h ref) item)))
+
+(let [h (fn [ref f args]
+          (redirect-messages ref (apply f ref args)))]
+  (clj/defn forward-messages
+    "Returns an item like `(f ref & args)` where `ref` is a reference
+    to which any messages sent to the returned item is forwarded
+    to. You must use [[set-ref]] to define which item that is further
+    down in the item."
+    [f & args]
+    ;; useful when sening messages downwards.
+    (with-ref (f/partial h f args))))
 
 (let [h (fn [f ref state msg]
           (return :message [ref (f msg)]))
