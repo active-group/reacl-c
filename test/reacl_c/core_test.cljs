@@ -113,103 +113,12 @@
                                     "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\"))")))))))
   )
 
-(deftest defn-named-test
-  (testing "schematized args and state"
-    (c/defn-named ^:always-validate defn-named-test-1 [a :- schema.core/Str]
-      (dom/div (str a)))
-    (is (base/item? (defn-named-test-1 "foo")))
-
-    (try (defn-named-test-1 42)
-         (is false)
-         (catch :default e
-           (is true))))
-
-  (testing "it is named"
-    (c/defn-named defn-named-test-2 "mydoc" [a]
-      (dom/div (str a)))
-    (is (contains? (meta defn-named-test-2) :reacl-c.core/name-id))
-
-    ;; no clue why this test fails: (is (= '([a]) (:arglists (meta #'defn-named-test-2))))
-    (is (= "mydoc" (:doc (meta #'defn-named-test-2)))))
-
-  (testing "checks arity"
-    (c/defn-named defn-named-test-3 [a]
-      (dom/div (str a)))
-    (try (defn-named-test-3)
-         (is false)
-         (catch :default e
-           (is true)))))
-
-(deftest defn-dynamic-test
-  (testing "schematized args and state"
-    (c/defn-dynamic ^:always-validate defn-dynamic-test-1 state :- schema.core/Int "docstring" [a :- schema.core/Str]
-      (dom/div (str state a)))
-    (is (base/item? (defn-dynamic-test-1 "foo")))
-
-    (do (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) 42)
-        (is true))
-
-    ;; throws on data not matching schema:
-    (tu/preventing-error-log
-     (fn []
-       (try (defn-dynamic-test-1 42)
-         
-            (is false)
-            (catch :default e
-              (is true)))
-       (try (tu/mount! (tu/env (defn-dynamic-test-1 "abc")) "42")
-            (is false)
-            (catch :default e
-              (is true))))))
-
-  (testing "it is named and documented"
-    (c/defn-dynamic defn-dynamic-test-2 state "mydoc" [a]
-      (dom/div (str state a)))
-    (is (contains? (meta defn-dynamic-test-2) :reacl-c.core/name-id))
-    ;; no clue why this test fails: (is (= '([a]) (:arglists (meta #'defn-dynamic-test-2))))
-    (is (= "mydoc" (:doc (meta #'defn-dynamic-test-2))))
-    )
-
-  (testing "checks arity on call"
-    (c/defn-dynamic defn-dynamic-test-3 state [a]
-      (dom/div (str state a)))
-    (try (defn-dynamic-test-3)
-         (is false)
-         (catch :default e
-           (is true))))
-  
-  (testing "a regression with varargs"
-    (c/defn-dynamic defn-dynamic-test-4 state [& args]
-      (dom/div))
-
-    (is (= (defn-dynamic-test-4) (defn-dynamic-test-4)))
-
-    (is (= (defn-dynamic-test-4 "x") (defn-dynamic-test-4 "x")))
-
-    (c/defn-dynamic defn-dynamic-test-5 "docstring" state [a1 & args]
-      (dom/div))
-
-    (is (= "docstring")
-        (:doc (meta #'defn-dynamic-test-5)))
-
-    (is (= (defn-dynamic-test-5 "x") (defn-dynamic-test-5 "x")))
-
-    (is (= (defn-dynamic-test-5 "x" "y") (defn-dynamic-test-5 "x" "y")))))
-
 (deftest static-test
   (let [env (tu/env (c/static #(c/dynamic (fn [st] (dom/div (str st))))))]
     (tu/mount! env "foo")
     (is (nil? (tu/find env (dom/div "foo"))))
     (tu/update! env "bar")
     (is (nil? (tu/find env (dom/div "bar")))))
-
-  (c/defn-static static-test-1 [a]
-    (dom/div (str a)))
-  (let [env (tu/env (c/dynamic (fn [st] (static-test-1 st))))]
-    (tu/mount! env "foo")
-    (is (some? (tu/find env (dom/div "foo"))))
-    (tu/update! env "bar")
-    (is (some? (tu/find env (dom/div "bar")))))
 
   (let [env (tu/env (c/static #(c/once (fn [_] (c/return :state "foo")))))]
     (tu/preventing-error-log

@@ -391,17 +391,6 @@ be specified multiple times.
   ;; Note: yes, it's actually the same as 'add-state' ;-)
   (add-state initial lens item))
 
-(defn ^:deprecated add-merged-state
-  "Adds new map or record fields that the given item sees as it's
-  state, by merging the the given initial record or hash-map with the
-  state of the resulting item. The given item can then update any
-  field, but the fields from `initial are 'removed' from the outer
-  state. Note that any fields not in the `initial` value are put in
-  the outer state. If there are duplicate fields, the inner state
-  'wins'."
-  [initial item]
-  (add-state initial lens/merge item))
-
 (defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
@@ -731,16 +720,6 @@ be specified multiple times.
     (-> (dynamic (f/partial df item validate!))
         (monitor-state (f/partial mf validate!)))))
 
-(defmacro ^:deprecated def-named
-  "A macro to define a named item. This is the same as Clojures
-  `def`, but in addition assigns its name to the item which can be
-  used by testing and debugging utilities."
-  [name item]
-  (let [name_ (str *ns* "/" name)]
-    `(let [id# (name-id ~name_)]
-       (def ~name
-         (named id# ~item)))))
-
 (defmacro ^:no-doc state-validator [name state-schema?]
   (let [name_st (symbol (str "state-of-" name))]
     (when state-schema?
@@ -853,74 +832,10 @@ be specified multiple times.
        (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
          ~opt-wrapper ~wrapper-args ~name nil ~docstring? ~args ~@body))))
 
-(defmacro ^:deprecated defn-named
-  "A macro to define an abstract item. This is the same as Clojures
-  `defn`, but in addition assigns its name to the returned item which can be
-  used by testing and debugging utilities."
-  [name args & body]
-  (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn-named+ nil nil ~name ~docstring? nil ~args ~@body)))
-
 (defn- maybe-schema-arg [candidate & more]
   (if (and (not-empty more) (= ':- (first more)))
     (list* (list candidate (first more) (second more)) (rest (rest more)))
     (list* (list candidate) more)))
-
-;; TODO: settings a state expr of [x :- s/Str y] breaks silently. Can this work?
-(defmacro ^:deprecated defn-dynamic
-  "A macro to define a new abstract dynamic item. For example, given
-
-```
-(defn-dynamic greeting state [arg]
-  (dom/div (str arg \" \" state)))
-```
-
-  You can create a new dynamic item by calling `(greeting \"Hello\")`, which looks exactly like
-
-```
-(dom/div (str \"Hello\" \" \" \"world\")
-```
-
-  when the current state of the item is `state`, and changes whenever the state changes."
-  [name state args & body]
-  ;; Note: some old bug made a docstring possible both left and right of the state... keep that backwards-compatible for now. (until we remove defn-dynamic)
-  (let [[docstring1? state args & body] (apply maybe-docstring state args body)
-        [statev args & body] (apply maybe-schema-arg state args body)
-        [docstring2? args & body] (apply maybe-docstring args body)
-        docstring? (or docstring1? docstring2?)]
-    `(defn-named+ [dynamic] ~statev ~name ~docstring? nil ~args ~@body)))
-
-(defmacro ^:deprecated def-dynamic
-  "A macro to define a new dynamic item. For example, given
-
-```
-(def-dynamic current-state state
-  (dom/span \"Current state is: \" (pr-str state)))
-```
-
-  then `current-state` is an item that shows the current state as it
-  changes over time. This is similar to [[defn-dynamic]] but without the
-  arguments."
-  [name state & body]
-  (let [[statev & body] (apply maybe-schema-arg state body)]
-    `(def-named ~name (dynamic (s/fn [~@statev] ~@body)))))
-
-(defmacro ^:deprecated defn-static
-  "Defines `name` to a function, returning a [[static]] item like the
-  item define by the function body. The static item is independant of
-  the outside state, and depends only on the argument values. Compared
-  to an ordinary function, this can greatly increase performance, as
-  the body is only evaluated when the arguments change."
-  [name args & body]
-  (let [[docstring? args & body] (apply maybe-docstring args body)]
-    `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~args
-       ~@body)))
-
-(defmacro ^:deprecated def-static
-  "Defines `name` to be a [[static]] item that is always like `item`,
-  independant of the state."
-  [name item]
-  `(def-named ~name (static (f/constantly item))))
 
 (defn- subscription-from-defn [fn action-mapper f & args]
   (apply subscription*
