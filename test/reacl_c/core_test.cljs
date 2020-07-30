@@ -280,8 +280,27 @@
                                                            (c/refer ref))))))))]
     (tu/mount! env :st)
     (is (= (c/return :state :msg)
-           (tu/send-message! (tu/get-component env) :msg))))
-  )
+           (tu/send-message! (tu/get-component env) :msg)))))
+
+(deftest defn-messages-test
+  (c/defn defn-messages-test-1 :- [s/Int] [x]
+    (assert (int? x))
+    (c/handle-message (fn [state m]
+                        (conj state x m))
+                      c/empty))
+  (let [env (tu/env (defn-messages-test-1 42))]
+    (tu/mount! env [])
+    (is (= (c/return :state [42 13])
+           (tu/send-message! env 13))))
+
+  (c/def defn-messages-test-2
+    (c/handle-message (fn [state m]
+                        (conj state m))
+                      c/empty))
+  (let [env (tu/env defn-messages-test-2)]
+    (tu/mount! env [])
+    (is (= (c/return :state [13])
+           (tu/send-message! env 13)))))
 
 (deftest once-test
   ;; state dependant.
