@@ -247,12 +247,8 @@ embed a new inner state in the current outer state:
 
 This conforms to the functional programming concept of a *lens*. All
 functions like this can be used, as well as keywords and integers with
-the aforementioned meaning. Reacl-c includes a few lenses that are
-frequently used: `c/first-lens` on the first part of a tuple,
-`c/second-lens` on the second part, the identity lens `c/id-lens`, and
-a `c/merge-lens` that merges two associative collections into one in a
-certain way. For many more predefined lenses and lens combinators,
-take a look at
+the aforementioned meaning. Look at a large collection of useful
+lenses and lens combinators in
 [`active.clojure.lens`](https://github.com/active-group/active-clojure).
 
 The next thing concerning the state of items, is introducing new state
