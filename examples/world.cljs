@@ -21,7 +21,7 @@
 (defn- set-date [_ date]
   (c/return :state date))
 
-(c/def clock
+(c/def-item clock
   (c/isolate-state nil
                    (c/fragment
                     (c/handle-effect-result set-date (now!))
@@ -32,7 +32,7 @@
 (defn hide [_ _] (c/return :state false))
 (defn show [_ _] (c/return :state true))
 
-(c/def world-app
+(c/def-item world-app
   (c/with-state-as show?
     (if show?
       (dom/div (dom/button {:onClick hide} "Hide")
