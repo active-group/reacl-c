@@ -92,6 +92,9 @@
     (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use refer?"))
     (rcore/return :message [comp msg])))
 
+(defn- message-deadend [type msg]
+  (throw (ex-info (str "Cannot send a message to " type " items.") {:value msg})))
+
 (declare transform-return)
 (defn- handle-effect-return [toplevel eff [_ ret]]
   ;; Note: effect results are ignored here; user must use core/handle-effect-result to use it
@@ -249,7 +252,7 @@
       (transform-return (f state ev)))
 
     :else
-    (throw (ex-info "Cannot send a message to dom elements." {:value msg}))))
+    (message-deadend "dom" msg)))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -581,7 +584,7 @@
       unmount-msg
       (transform-return (finish state))
 
-      (throw (ex-info "Cannot send a message to lifecycle items." {:value msg}))))
+      (message-deadend "lifecycle" msg)))
 
   should-component-update?
   (fn [new-state _ new-init new-finish]
