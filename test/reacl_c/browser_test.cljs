@@ -242,6 +242,22 @@
       (inject! n (constantly [:d :c]))
       (is (= (pr-str [:d :c]) (text (.-firstChild n))))))
 
+  ;; FIXME - and I think Reacl cannot fix it.
+  #_(testing "consistency - never see inconsistent states."
+    (let [[x inject!] (injector)
+          states (atom [])
+          n (renders-as (dom/div (c/local-state 2
+                                                (c/dynamic (fn [st]
+                                                             (swap! states conj st)
+                                                             x))))
+                        4)
+          invariant (fn [[a b]]
+                      (or (and (odd? a) (odd? b))
+                          (and (even? a) (even? b))))]
+      (is (= 1 (count @states)))
+      (is (every? invariant @states))
+      (inject! n [3 5])))
+
   (testing "reinit"
     (let [[x inject!] (injector)
           n (renders-as (dom/div (c/with-state-as st
