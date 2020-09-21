@@ -991,23 +991,25 @@ Note that the state of the inner item (the `div` in this case), will
     (symbol (str (:ns (meta var)))
             (name (:name (meta var))))))
 
-(let [with-state-as-sym (var-sym #'with-state-as)]
-  (defn- with-state-as-sym? [env expr]
-    (and (symbol? expr)
-         (= with-state-as-sym
-            #?(:clj (if (sm/cljs-env? env)
-                      (resolve* env expr)  ;; cljs only
-                      (var-sym (resolve env expr)))) ;; clj only
-            ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
-            #?(:cljs (resolve* env expr))))))
+#?(:clj
+   (let [with-state-as-sym (var-sym #'with-state-as)]
+     (defn- with-state-as-sym? [env expr]
+       (and (symbol? expr)
+            (= with-state-as-sym
+               (if (sm/cljs-env? env)
+                 (resolve* env expr)  ;; cljs only
+                 (var-sym (resolve env expr))) ;; clj only
+               )))))
 
 (defn- maybe-with-state-as-expr [env body]
-  (and (not-empty body)
-       (let [candidate (last body)]
-         (when (and (list? candidate)
-                    (<= 2 (count candidate))
-                    (with-state-as-sym? env (first candidate)))
-           [(butlast body) (apply parse-binding-form (rest candidate))]))))
+  #?(:clj (and (not-empty body)
+               (let [candidate (last body)]
+                 (when (and (list? candidate)
+                            (<= 2 (count candidate))
+                            (with-state-as-sym? env (first candidate)))
+                   [(butlast body) (apply parse-binding-form (rest candidate))]))))
+  ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
+  #?(:cljs (throw (ex-info "ClojureScript macro??" {}))))
 
 (defn ^:no-doc local-dynamic+p [prelude-fn init f & args]
   (apply prelude-fn args)
