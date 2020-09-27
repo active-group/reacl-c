@@ -37,6 +37,23 @@
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
+#?(:cljs
+   ;; previously named lift-reacl
+   (defn reacl
+     "Returns an item implemented by the given Reacl class and arguments."
+     [class & args]
+     (base/make-lift-reacl class args)))
+
+;; #?(:cljs
+;;    #_(defn react [class & args]
+;;      ;; TODO; + state update, receive messages, emit actions?
+;;      ))
+
+;; #?(:cljs
+;;    #_(defn dom-element [node-name init-fn]
+;;        ;; TODO + state update, receive messages, emit actions?
+;;        ))
+
 (defn with-ref
   "Creates an item identical to the one returned from `(f ref &
   args)`, where `ref` is a fresh *reference*. A reference should be
@@ -113,11 +130,11 @@
                  ~@body))))
 
 (defn deref
-  "Returns an runner specific value, which might be a native dom
+  "Returns a runner specific value, which might be a native dom
   element backing an item at runtime for example. See [[with-ref]] for
   a description of references."
   [ref]
-  ;; TODO: needs more to access to actually access the native dom; move this to 'browser namespace'?
+  ;; TODO: needs more to access to actually access the native dom; move this to 'main namespace'?
   ;; TODO: allow for refer items?
   (base/-deref-ref ref))
 
@@ -188,16 +205,6 @@ be specified multiple times.
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
-
-(defn send-message!
-  "Sends a message to a running application, i.e. `app` must be the
-  value returned from [[reacl-c.browser/run]] for example. This can be
-  used together with [[handle-message]] in situations where the
-  application is not running standalone, but integrated in a different
-  framework."
-  [app msg]
-  {:pre [(satisfies? base/Application app)]}
-  (base/-send-message! app msg))
 
 (defn handle-message
   "Handles the messages sent to the the resulting item (either

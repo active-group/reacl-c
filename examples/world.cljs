@@ -1,7 +1,7 @@
 (ns ^:no-doc examples.world
     (:require [reacl-c.core :as c :include-macros true]
               [active.clojure.functions :as f]
-              [reacl-c.browser :as browser]
+              [reacl-c.main :as main]
               [reacl-c.dom :as dom]))
 
 (c/defn-subscription interval-timer deliver! [ms]
@@ -39,6 +39,6 @@
                clock)
       (dom/button {:onClick show} "Show"))))
 
-(browser/run (.getElementById js/document "app-world")
+(main/run (.getElementById js/document "app-world")
   world-app
   true)

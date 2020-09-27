@@ -2,7 +2,7 @@
     (:require [reacl-c.core :as c :include-macros true]
               [active.clojure.functions :as f]
               [active.clojure.lens :as lens]
-              [reacl-c.browser :as browser]
+              [reacl-c.main :as main]
               [reacl-c.dom :as dom]))
 
 (defn checked-state [_ e]
@@ -81,7 +81,7 @@
                   (add-item-form ->AddItem))
       (c/handle-action list-actions)))
 
-(browser/run (.getElementById js/document "app-todo")
+(main/run (.getElementById js/document "app-todo")
   main
   (TodosApp. 0 [(Todo. -1 "Example" false)]))
 

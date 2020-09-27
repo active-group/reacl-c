@@ -3,7 +3,6 @@
             [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
-            [reacl-c.browser :as browser]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
             [schema.core :as s :include-macros true]
@@ -11,7 +10,7 @@
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
-  ;; TODO: remove things already tested in browser-test... e.g. behavioral tests only of the higher level components.
+  ;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components.
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -155,18 +154,6 @@
                                                (c/once (f/constantly (c/return :message [ref :msg])))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
-
-(deftest app-send-message-test
-  (let [e (js/document.createElement "div")
-        received (atom nil)
-        app (browser/run e
-              (c/handle-message (fn [state msg]
-                                  (reset! received msg)
-                                  (c/return))
-                                c/empty)
-              nil)]
-    (c/send-message! app ::hello)
-    (is (= ::hello @received))))
 
 (deftest map-messages-test
   (let [env (tu/env (c/map-messages (fn [msg] [:x msg])

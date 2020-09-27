@@ -42,20 +42,14 @@
            ;; TODO: exactly one child or not?
            (xp/where (xp/comp xp/children (xpath-pattern e)))))
 
-(defrecord ^:private LiftedClass [class args]
-  base/E
-  (-is-dynamic? [this]
-    (and (rcore/reacl-class? class) (rcore/has-app-state? class)))
+(extend-type base/LiftReacl
   IReacl
-  (-xpath-pattern [this]
+  (-xpath-pattern [{class :class args :args}]
     (class-args-pattern class [args]))
-  (-instantiate-reacl [this binding]
+  (-instantiate-reacl [{class :class args :args} binding]
     [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
        (apply class binding args)
        (apply class args))]))
-
-(defn lift [class & args]
-  (LiftedClass. class args))
 
 (def ^:private non-dynamic-binding (rcore/use-app-state nil))
 
@@ -86,6 +80,7 @@
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])
+(defrecord ^:private StateMessage [value])
 
 (defn- pass-message [child msg]
   (let [comp (rcore/get-dom child)]
@@ -94,51 +89,6 @@
 
 (defn- message-deadend [type msg]
   (throw (ex-info (str "Cannot send a message to " type " items.") {:value msg})))
-
-(declare transform-return)
-(defn- handle-effect-return [toplevel eff [_ ret]]
-  ;; Note: effect results are ignored here; user must use core/handle-effect-result to use it
-  (assert (base/returned? ret))
-  (assert (= base/keep-state (:state ret)))
-  (let [actions (not-empty (:actions ret))]
-    ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
-    (apply rcore/merge-returned
-           (transform-return (base/make-returned base/keep-state [] (:messages ret)))
-           (mapv #(rcore/return :message [toplevel (ActionMessage. %)])
-                 actions))))
-
-(rcore/defclass ^:private toplevel this state [e]
-  refs [child]
-  
-  render
-  (-> (instantiate (rcore/bind this) e)
-      (rcore/refer child)
-      (rcore/action-to-message this ->ActionMessage))
-
-  handle-message
-  (fn [msg]
-    (cond
-      (instance? ActionMessage msg)
-      (let [action (:action msg)]
-        (if (base/effect? action)
-          (handle-effect-return this action (base/run-effect! action))
-          (do (utils/warn "Unhandled action:" action)
-              (rcore/return)))) 
-
-      :else (pass-message child msg))))
-
-
-(defrecord ^:private ReaclApplication [comp]
-  base/Application  
-  (-send-message! [this msg]
-    (rcore/send-message! comp msg)))
-
-(defn run
-  [dom item initial-state]
-  (ReaclApplication. (rcore/render-component dom
-                                             toplevel
-                                             initial-state
-                                             item)))
 
 (defn ^:no-doc transform-return [r]
   ;; a base/Returned value to a rcore/return value.
@@ -156,6 +106,40 @@
                             (rcore/return :message [c msg])))
                         (:messages r))))
     (rcore/return :app-state r)))
+
+(rcore/defclass ^:private toplevel this [state e onchange onaction]
+  refs [child]
+  
+  render
+  (-> (instantiate (rcore/use-reaction state (rcore/reaction this ->StateMessage)) e)
+      (rcore/refer child)
+      (rcore/action-to-message this ->ActionMessage))
+
+  handle-message
+  (fn [msg]
+    (cond
+      (instance? StateMessage msg)
+      (transform-return (onchange (:value msg)))
+      
+      (instance? ActionMessage msg)
+      (transform-return (onaction (:action msg))) 
+
+      :else (pass-message child msg))))
+
+
+(defrecord ^:private ReaclApplication [comp]
+  base/Application
+  (-component [this] comp)
+  (-send-message! [this msg]
+    (rcore/send-message! comp msg)))
+
+(defn run
+  [dom item state onchange onaction]
+  (ReaclApplication. (rcore/render-component dom
+                                             toplevel
+                                             state item
+                                             onchange onaction)))
+
 
 
 (rcore/defclass ^:private handle-message this state [e f]
