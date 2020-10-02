@@ -7,6 +7,8 @@
             [active.clojure.lens :as lens]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
+            "react-test-renderer"
+            ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 #_(deftest simple-performance-test
@@ -411,3 +413,23 @@
                                                           render (-> (browser/reacl-render (reacl/bind this) x)
                                                                      (reacl/refer child)))))))
   )
+
+(deftest bubbling-events-test
+  ;; state consitency upon a bubbling event.
+  (let [last-c1-local (atom nil)
+        inner (atom false)
+        outer (atom false)
+        
+        c1 (c/dynamic (fn [state]
+                        (reset! last-c1-local state)
+                        (dom/div {:onclick (fn [state ev]
+                                             (conj state :new-local-2))}
+                                 (dom/div {:onclick (fn [state ev]
+                                                      (conj state :new-local-1))}))))
+        host (js/document.createElement "div")
+        cc (browser/run host c1 [])]
+    
+    (let [inner-div (.-firstChild (.-firstChild host))]
+      (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))
+
+    (is (= [:new-local-1 :new-local-2] @last-c1-local))))
