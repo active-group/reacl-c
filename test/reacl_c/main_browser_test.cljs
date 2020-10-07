@@ -5,6 +5,7 @@
             [clojure.string :as str]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
+            [schema.core :as s]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 #_(deftest simple-performance-test
@@ -111,15 +112,36 @@
     (main/run host (c/dynamic str) "bar")
     (is (= "bar" (text (.-firstChild host))))))
 
-(deftest running-effects-test
-  (let [eff (c/effect (fn [a]
-                        (:res a))
-                      {:res "ok"})
-        n (renders-as (dom/div (c/dynamic str)
-                               (c/handle-effect-result (fn [st res]
-                                                         res)
-                                                       eff)))]
-    (is (= "ok" (text (.-firstChild n))))))
+(deftest effects-test
+  (testing "running and handling result"
+    (let [eff (c/effect (fn [a]
+                          (:res a))
+                        {:res "ok"})
+          n (renders-as (dom/div (c/dynamic str)
+                                 (c/handle-effect-result (fn [st res]
+                                                           res)
+                                                         eff)))]
+      (is (= "ok" (text (.-firstChild n))))))
+
+  (testing "mapping effects, with parrallel effects"
+    (let [eff (c/effect (fn [] :foo))
+          n (renders-as (dom/div (c/dynamic str)
+                                 (-> (c/handle-effect-result (fn [st res]
+                                                               ;; first of par-effects result:
+                                                               (first res))
+                                                             (c/par-effects eff eff))
+                                     (c/map-effects {eff (c/const-effect :bar)}))))]
+      (is (= ":bar" (text (.-firstChild n))))))
+
+  (testing "state validation"
+    (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+      "err")
+    
+    (try (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))
+         (is false)
+         (catch :default e
+           (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))
+  )
 
 (deftest dom-test
   (is (passes-actions dom/div))
@@ -180,7 +202,15 @@
 
     ;; does not render again on state change:
     (inject! node (constantly false))
-    (is (= 1 @upd))))
+    (is (= 1 @upd)))
+
+  ;; throws on state changes
+  (tu/preventing-error-log
+   (fn []
+     (try (renders-as (c/static #(c/once (fn [_] (c/return :state "foo")))))
+          (is false)
+          (catch :default e
+            (is true))))))
 
 (deftest messaging-test
   ;; tests: with-ref refer handle-message, also handle-action

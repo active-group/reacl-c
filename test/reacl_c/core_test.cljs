@@ -1,6 +1,5 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
@@ -111,21 +110,6 @@
               (is (str/starts-with? (.-message e)
                                     "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\"))")))))))
   )
-
-(deftest static-test
-  (let [env (tu/env (c/static #(c/dynamic (fn [st] (dom/div (str st))))))]
-    (tu/mount! env "foo")
-    (is (nil? (tu/find env (dom/div "foo"))))
-    (tu/update! env "bar")
-    (is (nil? (tu/find env (dom/div "bar")))))
-
-  (let [env (tu/env (c/static #(c/once (fn [_] (c/return :state "foo")))))]
-    (tu/preventing-error-log
-     (fn []
-       (try (tu/mount! env :x)
-            (is false)
-            (catch :default e
-              (is true)))))))
 
 
 (deftest with-async-messages-test
@@ -261,42 +245,7 @@
   
   (testing "basics, equality"
     (is (= (effect-test-1 :foo)
-           (effect-test-1 :foo))))
-
-  (testing "running effects"
-    (is (= [42 (c/return)] (base/run-effect! (effect-test-1 :foo))))
-    (is (= [21 (c/return :action :test)] (base/run-effect! (effect-test-1 :bar)))))
-
-  (testing "state validation"
-    (try (base/run-effect! (effect-test-2 :foo))
-         (is false)
-         (catch :default e
-           (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e)))))))
-
-(deftest handle-effect-result-test
-  (testing "results can be received"
-    (let [count (atom 0)
-          eff (c/effect (fn []
-                          (swap! count inc)))
-          env (tu/env (c/handle-effect-result (fn [state uuid]
-                                                (c/return :state uuid))
-                                              eff))]
-      (is (= (c/return :state 1)
-             (tu/mount!! env nil)))
-    
-      (is (= (c/return)
-             (tu/update!! env nil)))))
-
-  (testing "effects can be mapped and handled"
-    (let [eff (c/effect (fn []
-                          :foo))
-          env (tu/env (-> (c/handle-effect-result (fn [state uuid]
-                                                    (c/return :state uuid))
-                                                  eff)
-                          (c/map-effects {eff (c/const-effect :bar)})))]
-      (is (= (c/return :state :bar)
-             (tu/mount!! env nil)))))
-  )
+           (effect-test-1 :foo)))))
 
 (deftest ref-let-test
   (let [env (tu/env (c/ref-let [it-1 (c/handle-message (fn [state msg]
@@ -345,38 +294,6 @@
              (tu/inject-action! (tu/find env item)
                                 :a))))))
 
-(deftest map-effects-test
-  (let [foobar (c/name-id "foobar")
-        item (c/named foobar (dom/div))]
-
-    (testing "simple replacement"
-      (let [a (atom 0)
-            eff1 (c/effect (fn [] (reset! a 1)))
-            eff2 (c/effect (fn [] (reset! a 2)))
-            env (tu/env (c/map-effects item
-                                       {eff1 eff2}))]
-
-        (tu/mount! env [])
-        (is (= (c/return)
-               (tu/inject-action! (tu/find env item)
-                                  eff1)))
-        (is (= 2 @a))))
-
-    (testing "in compositions"
-      (let [a (atom 0)
-            b (atom 0)
-            eff1 (c/effect (fn [] (swap! a inc)))
-            eff2 (c/effect (fn [] (swap! b inc)))
-            
-            env (tu/env (c/map-effects item
-                                       {eff1 eff2}))]
-
-        (tu/mount! env [])
-        (tu/inject-action! (tu/find env item)
-                           (c/par-effects eff1 eff1))
-        (is (= 0 @a))
-        (is (= 2 @b))))    
-    ))
 
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
