@@ -2,6 +2,7 @@
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
+            [active.clojure.functions :as f]
             #?(:cljs [reacl-c.impl.reacl :as impl])))
 
 ;; webcomponent(hybrids.js?), 
@@ -21,7 +22,7 @@
                     msgs (base/returned-messages ret)]
                 (when monitor (monitor eff res ret))
                 (recur (concat (rest effs) more-effs)
-                       (base/merge-returned res (base/make-returned base/keep-state more-acts msgs))
+                       (base/merge-returned ret (base/make-returned base/keep-state more-acts msgs))
                        (inc n))))))]
   (defn execute-effects [item & [options]]
     (core/handle-effect item (f/partial h
