@@ -1,6 +1,5 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.dom :as dom]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
@@ -15,33 +14,28 @@
   ;; items should be referentially equal
   (testing "fragment"
     (is (= (c/fragment) (c/fragment)))
-    (is (= (c/fragment (dom/div)) (c/fragment (dom/div))))
+    (is (= (c/fragment "foo") (c/fragment "foo")))
     ;; to simplify conditional rendering (via 'when'), nil is the same as an empty fragment
     (is (= nil (c/fragment)))
     (is (= nil c/empty)))
-  (testing "div"
-    (is (= (dom/div) (dom/div)))
-    (is (= (dom/div "a") (dom/div "a")))
-    (is (= (dom/div {:onclick identity}) (dom/div {:onclick identity})))
-    (is (= (dom/div (dom/div "a")) (dom/div (dom/div "a")))))
   (testing "dynamic"
-    (let [f (fn [x] (dom/div x))]
+    (let [f (fn [x] (c/fragment x))]
       (is (= (c/dynamic f) (c/dynamic f)))))
   (testing "focus"
-    (is (= (c/focus :a (dom/div)) (c/focus :a (dom/div)))))
+    (is (= (c/focus :a "foo") (c/focus :a "foo"))))
   (testing "handle-action"
     (let [f (fn [state a])]
-      (is (= (c/handle-action (dom/div) f) (c/handle-action (dom/div) f)))))
+      (is (= (c/handle-action "foo" f) (c/handle-action "foo" f)))))
   (testing "add-state"
-    (is (= (c/add-state :a :b (dom/div)) (c/add-state :a :b (dom/div)))))
+    (is (= (c/add-state :a :b "foo") (c/add-state :a :b "foo"))))
   (testing "keyed"
-    (is (= (c/keyed (dom/div) :a) (c/keyed (dom/div) :a))))
+    (is (= (c/keyed "foo" :a) (c/keyed "foo" :a))))
   (testing "once"
     (is (= (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))) (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
   (testing "with-async-actions"
     (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
   (testing "monitor-state"
-    (is (= (c/handle-state-change (dom/div) :f) (c/handle-state-change (dom/div) :f))))
+    (is (= (c/handle-state-change "foo" :f) (c/handle-state-change "foo" :f))))
   )
 
 (deftest subscription-test
