@@ -8,13 +8,15 @@
 
 ;; om, reagent, etc.?
 
+;; TODO: refs, keys. (take 'props'?)
+
 (defn react-controlled
   "Returns a React element running the given item. Current state and
   state changes are 'controlled' by the given arguments. Toplevel
   actions and effects are passed to the given handler function. If you
   want to effects to be executed, use [[main/execute-effects]]."
   [item state set-state! handle-action!]
-  (impl/react-run item state set-state! (or handle-action! main/action-error)))
+  (impl/react-run item state set-state! handle-action!))
 
 (defn react-uncontrolled
   "Returns a React element running the given item, which manages its
@@ -24,4 +26,4 @@
   (react-controlled (core/local-state initial-state (core/focus lens/second (main/execute-effects item)))
                     nil
                     main/state-error
-                    handle-action!))
+                    (or handle-action! main/action-error)))

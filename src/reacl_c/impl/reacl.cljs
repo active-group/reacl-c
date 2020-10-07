@@ -119,10 +119,12 @@
   (fn [msg]
     (cond
       (instance? StateMessage msg)
-      (transform-return (onchange (:value msg)))
+      (do (onchange (:value msg))
+          (rcore/return))
       
       (instance? ActionMessage msg)
-      (transform-return (onaction (:action msg))) 
+      (do (onaction (:action msg))
+          (rcore/return)) 
 
       :else (pass-message child msg))))
 
