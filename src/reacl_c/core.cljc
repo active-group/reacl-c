@@ -44,15 +44,19 @@
      [class & args]
      (base/make-lift-reacl class args)))
 
-;; #?(:cljs
-;;    #_(defn react [class & args]
-;;      ;; TODO; + state update, receive messages, emit actions?
-;;      ))
+#_(:cljs
+   (defn react
+     "Returns an item implemented by the given React class and props."
+     [class props]
+     (base/make-lift-react class props)))
 
-;; #?(:cljs
-;;    #_(defn dom-element [node-name init-fn]
-;;        ;; TODO + state update, receive messages, emit actions?
-;;        ))
+#_(:cljs
+   (defn element
+     "Returns an item implemented by the a dom node of the given type, e.g. a web component.
+The optional `init-fn` is called on the created dom node, to add
+  attributes or children to it."
+     [node-type & [init-fn]]
+     (base/make-lift-dom node-type init-fn)))
 
 (defn with-ref
   "Creates an item identical to the one returned from `(f ref &
