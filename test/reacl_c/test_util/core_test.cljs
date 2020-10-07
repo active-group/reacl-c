@@ -171,7 +171,7 @@
                               :act1)))))
 
 (deftest inject-state-change-test
-  (c/defn-dynamic foobar state [] (dom/div (pr-str state)))
+  (c/defn-item foobar [] (c/with-state-as state (dom/div (pr-str state))))
   (let [e (tu/env (foobar))]
     (tu/mount! e :state1)
     (is (= (c/return :state :state2)

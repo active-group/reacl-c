@@ -5,7 +5,8 @@
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
-            [clojure.string :as str]))
+            [clojure.string :as str])
+  (:refer-clojure :exclude [refer]))
 
 (defprotocol ^:private IReacl
   (-instantiate-reacl [this binding] "Returns a list of Reacl components or dom elements.")
@@ -41,24 +42,18 @@
            ;; TODO: exactly one child or not?
            (xp/where (xp/comp xp/children (xpath-pattern e)))))
 
-(defrecord ^:private LiftedClass [class args]
-  base/E
-  (-is-dynamic? [this]
-    (and (rcore/reacl-class? class) (rcore/has-app-state? class)))
+(extend-type base/LiftReacl
   IReacl
-  (-xpath-pattern [this]
+  (-xpath-pattern [{class :class args :args}]
     (class-args-pattern class [args]))
-  (-instantiate-reacl [this binding]
+  (-instantiate-reacl [{class :class args :args} binding]
     [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
        (apply class binding args)
        (apply class args))]))
 
-(defn lift-reacl [class & args]
-  (LiftedClass. class args))
-
 (def ^:private non-dynamic-binding (rcore/use-app-state nil))
 
-(defn- instantiate
+(defn instantiate
   "Returns a Reacl component/element for the given item and state binding."
   [binding e]
   (cond
@@ -76,8 +71,6 @@
     
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
-(def reacl-render instantiate)
-
 (defn- instantiate-child [binding e]
   ;; returns an object suitable as a react element child.
   (cond
@@ -87,56 +80,15 @@
     :else (throw (ex-info "Expected an item or a string only." {:value e}))))
 
 (defrecord ^:private ActionMessage [action])
+(defrecord ^:private StateMessage [value])
 
 (defn- pass-message [child msg]
   (let [comp (rcore/get-dom child)]
-    (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use set-ref?"))
+    (assert (rcore/component? comp) (str "Not a component: " (pr-str comp) ". Forgot to use refer?"))
     (rcore/return :message [comp msg])))
 
-(declare transform-return)
-(defn- handle-effect-return [toplevel eff [_ ret]]
-  ;; Note: effect results are ignored here; user must use core/handle-effect-result to use it
-  (assert (base/returned? ret))
-  (assert (= base/keep-state (:state ret)))
-  (let [actions (not-empty (:actions ret))]
-    ;; new actions are not passed upwards, but handled again as toplevel actions (can be more effects, basically)
-    (apply rcore/merge-returned
-           (transform-return (base/make-returned base/keep-state [] (:messages ret)))
-           (mapv #(rcore/return :message [toplevel (ActionMessage. %)])
-                 actions))))
-
-(rcore/defclass ^:private toplevel this state [e]
-  refs [child]
-  
-  render
-  (-> (instantiate (rcore/bind this) e)
-      (rcore/refer child)
-      (rcore/action-to-message this ->ActionMessage))
-
-  handle-message
-  (fn [msg]
-    (cond
-      (instance? ActionMessage msg)
-      (let [action (:action msg)]
-        (if (base/effect? action)
-          (handle-effect-return this action (base/run-effect! action))
-          (do (utils/warn "Unhandled action:" action)
-              (rcore/return)))) 
-
-      :else (pass-message child msg))))
-
-
-(defrecord ^:private ReaclApplication [comp]
-  base/Application  
-  (-send-message! [this msg]
-    (rcore/send-message! comp msg)))
-
-(defn run
-  [dom item initial-state]
-  (ReaclApplication. (rcore/render-component dom
-                                             toplevel
-                                             initial-state
-                                             item)))
+(defn- message-deadend [type msg]
+  (throw (ex-info (str "Cannot send a message to " type " items.") {:value msg})))
 
 (defn ^:no-doc transform-return [r]
   ;; a base/Returned value to a rcore/return value.
@@ -149,12 +101,56 @@
                         (:actions r))
                    (map (fn [[target msg]]
                           (let [c (base/deref-message-target target)]
-                            (assert (some? c) (str "Target for message not available. Forgot to use set-ref?"))
+                            (assert (some? c) (str "Target for message not available. Forgot to use refer?"))
                             (assert (rcore/component? c) (str "Target for message is not a component: " (pr-str c)))
                             (rcore/return :message [c msg])))
                         (:messages r))))
     (rcore/return :app-state r)))
 
+(rcore/defclass ^:private toplevel this [state e onchange onaction]
+  refs [child]
+  
+  render
+  (-> (instantiate (rcore/use-reaction state (rcore/reaction this ->StateMessage)) e)
+      (rcore/refer child)
+      (rcore/action-to-message this ->ActionMessage))
+
+  handle-message
+  (fn [msg]
+    (cond
+      (instance? StateMessage msg)
+      (do (onchange (:value msg))
+          (rcore/return))
+      
+      (instance? ActionMessage msg)
+      (do (onaction (:action msg))
+          (rcore/return)) 
+
+      :else (pass-message child msg))))
+
+
+(defrecord ^:private ReaclApplication [comp]
+  base/Application
+  (-component [this] comp)
+  (-send-message! [this msg callback]
+    (rcore/send-message! comp msg callback)))
+
+(defn run
+  [dom item state onchange onaction]
+  (ReaclApplication. (rcore/render-component dom
+                                             toplevel
+                                             state item
+                                             onchange onaction)))
+
+(defn react-send-message!
+  "Send a message to the component created by [[react-run]]."
+  [comp msg & [callback]]
+  (rcore/send-message! comp msg callback))
+
+(defn react-run
+  [item state onchange onaction]
+  ;; Note: just instantiating toplevel looks similar, but Reacl elements need a toplevel/uber-class to work:
+  (rcore/react-element toplevel {:args [state item onchange onaction]}))
 
 (rcore/defclass ^:private handle-message this state [e f]
   should-component-update?
@@ -250,7 +246,7 @@
       (transform-return (f state ev)))
 
     :else
-    (throw (ex-info "Cannot send a message to dom elements." {:value msg}))))
+    (message-deadend "dom" msg)))
 
 (defn- dom-event-handler [target]
   (fn [ev]
@@ -406,7 +402,7 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply with-ref binding f args)]))
 
-(rcore/defclass ^:privte set-ref this state [e ref]
+(rcore/defclass ^:privte refer this state [e ref]
   handle-message
   (fn [msg]
     (pass-message (reacl-ref ref) msg))
@@ -415,14 +411,13 @@
   (-> (instantiate (rcore/bind this) e)
       (rcore/refer (reacl-ref ref))))
 
-(extend-type base/SetRef
+(extend-type base/Refer
   IReacl
   (-xpath-pattern [{e :e ref :ref}]
-    (wrapper-pattern set-ref e ref))
+    (wrapper-pattern refer e ref))
   (-instantiate-reacl [{e :e ref :ref} binding]
     ;; has to be a class for now, because otherwise we would override the ref with all our 'child' refs for passing messages down.
-    ;; TODO: either change that; or we could name this 'add-ref' or refer, as one can add multiple refs then...?
-    [(set-ref binding e ref)]))
+    [(refer binding e ref)]))
 
 (rcore/defclass ^:private dynamic this state [f & args]
   refs [child]
@@ -583,7 +578,7 @@
       unmount-msg
       (transform-return (finish state))
 
-      (throw (ex-info "Cannot send a message to lifecycle items." {:value msg}))))
+      (message-deadend "lifecycle" msg)))
 
   should-component-update?
   (fn [new-state _ new-init new-finish]

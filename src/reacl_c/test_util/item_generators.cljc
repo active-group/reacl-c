@@ -149,8 +149,7 @@
 (def with-ref
   (gen/fmap (fn [item]
               (c/with-ref (fn [r]
-                            ;; TODO: wrap it a little deeper?
-                            (c/set-ref item r))))
+                            (c/refer item r))))
             node-item))
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -264,7 +263,7 @@
         base/focus? (wr item)
         base/local-state? (wr item)
         base/handle-action? (wr item)
-        base/set-ref? (wr item)
+        base/refer? (wr item)
         base/keyed? (wr item)
         base/named? (wr item)
         base/handle-error? (wr item)

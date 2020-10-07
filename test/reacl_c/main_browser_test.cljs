@@ -1,5 +1,5 @@
-(ns reacl-c.browser-test
-  (:require [reacl-c.browser :as browser]
+(ns reacl-c.main-browser-test
+  (:require [reacl-c.main :as main]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
             [clojure.string :as str]
@@ -7,37 +7,48 @@
             [active.clojure.lens :as lens]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
-            "react-test-renderer"
+            [schema.core :as s]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 #_(deftest simple-performance-test
-  (let [host (js/document.createElement "div")
-        run (fn [st]
-              (browser/run host
-                (dom/div {:id "a"}
-                         (apply dom/div (repeat 20 (dom/span)))
-                         (c/fragment (apply dom/span (repeat 15 "x"))))
-                st))
-        tupd (fn [n]
-               (let [st (js/window.performance.now)]
-                 (doseq [i (range n)]
-                   (run  i))
-                 (- (js/window.performance.now) st)))]
-    (run 0)
-    (is (= nil
-           [(tupd 100) (tupd 1000) (tupd 10000)]))
-    
-    ;; 1.9 reacl [152.27999998023733 1182.5650000246242 8815.754999988712]
-    ;; 1.9 react [68.25999997090548 350.3499999642372 2993.8100000144914]
+    (let [host (js/document.createElement "div")
+          run (fn [st]
+                (main/run host
+                  (dom/div {:id "a"}
+                           (apply dom/div (repeat 20 (dom/span)))
+                           (c/fragment (apply dom/span (repeat 15 "x"))))
+                  st))
+          tupd (fn [n]
+                 (let [st (js/window.performance.now)]
+                   (doseq [i (range n)]
+                     (run  i))
+                   (- (js/window.performance.now) st)))]
+      (run 0)
+      (is (= nil
+             [(tupd 100) (tupd 1000) (tupd 10000)]))
+      
+      ;; 1.9 reacl [152.27999998023733 1182.5650000246242 8815.754999988712]
+      ;; 1.9 react [68.25999997090548 350.3499999642372 2993.8100000144914]
 
+      )
     )
-  )
 
+(deftest app-send-message-test
+  (let [e (js/document.createElement "div")
+        received (atom nil)
+        app (main/run e
+              (c/handle-message (fn [state msg]
+                                  (reset! received msg)
+                                  (c/return))
+                                c/empty)
+              nil)]
+    (main/send-message! app ::hello)
+    (is (= ::hello @received))))
 
 (defn renders-as* [item & [state]]
   (let [host (js/document.createElement "div")]
-    (browser/run host item state)
+    (main/run host item state)
     (array-seq (.-childNodes host))))
 
 (defn renders-as [item & [state]]
@@ -74,7 +85,7 @@
                         (-> (f (c/handle-message (fn [state msg]
                                                    (c/return :action msg))
                                                  c/empty))
-                            (c/set-ref ref)
+                            (c/refer ref)
                             (c/handle-action (fn [_ a]
                                                (c/return :state a)))))))
         node (renders-as it "start")]
@@ -98,21 +109,42 @@
 
 (deftest run-test
   (let [host (js/document.createElement "div")]
-    (browser/run host (c/dynamic str) "foo")
+    (main/run host (c/dynamic str) "foo")
     (is (= "foo" (text (.-firstChild host))))
 
-    (browser/run host (c/dynamic str) "bar")
+    (main/run host (c/dynamic str) "bar")
     (is (= "bar" (text (.-firstChild host))))))
 
-(deftest running-effects-test
-  (let [eff (c/effect (fn [a]
-                        (:res a))
-                      {:res "ok"})
-        n (renders-as (dom/div (c/dynamic str)
-                               (c/handle-effect-result (fn [st res]
-                                                         res)
-                                                       eff)))]
-    (is (= "ok" (text (.-firstChild n))))))
+(deftest effects-test
+  (testing "running and handling result"
+    (let [eff (c/effect (fn [a]
+                          (:res a))
+                        {:res "ok"})
+          n (renders-as (dom/div (c/dynamic str)
+                                 (c/handle-effect-result (fn [st res]
+                                                           res)
+                                                         eff)))]
+      (is (= "ok" (text (.-firstChild n))))))
+
+  (testing "mapping effects, with parrallel effects"
+    (let [eff (c/effect (fn [] :foo))
+          n (renders-as (dom/div (c/dynamic str)
+                                 (-> (c/handle-effect-result (fn [st res]
+                                                               ;; first of par-effects result:
+                                                               (first res))
+                                                             (c/par-effects eff eff))
+                                     (c/map-effects {eff (c/const-effect :bar)}))))]
+      (is (= ":bar" (text (.-firstChild n))))))
+
+  (testing "state validation"
+    (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+      "err")
+    
+    (try (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))
+         (is false)
+         (catch :default e
+           (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))
+  )
 
 (deftest dom-test
   (is (passes-actions dom/div))
@@ -173,10 +205,18 @@
 
     ;; does not render again on state change:
     (inject! node (constantly false))
-    (is (= 1 @upd))))
+    (is (= 1 @upd)))
+
+  ;; throws on state changes
+  (tu/preventing-error-log
+   (fn []
+     (try (renders-as (c/static #(c/once (fn [_] (c/return :state "foo")))))
+          (is false)
+          (catch :default e
+            (is true))))))
 
 (deftest messaging-test
-  ;; tests: with-ref set-ref handle-message, also handle-action
+  ;; tests: with-ref refer handle-message, also handle-action
   (let [upd (atom 0)
         [x inject!] (injector)
         it (c/with-ref (fn [ref]
@@ -184,7 +224,7 @@
                                   (-> (c/handle-message (fn [state msg]
                                                           (c/return :state :done))
                                                         c/empty)
-                                      (c/set-ref ref))
+                                      (c/refer ref))
                                   (-> x
                                       (c/handle-action (fn [state a]
                                                          (c/return :message [ref a])))))))
@@ -197,8 +237,8 @@
 (deftest with-ref-test
   (is (passes-messages (fn [x] (c/with-ref (constantly x))))))
 
-(deftest set-ref-test
-  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/set-ref x ref)))))))
+(deftest refer-test
+  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref)))))))
 
 (deftest handle-action-test
   (is (passes-messages (fn [x] (c/handle-action x (fn [st a] (c/return :action a)))))))
@@ -223,7 +263,7 @@
     (is (passes-messages (fn [x] (c/focus id x)))))
   
   (is (= "foo" (text (renders-as (c/focus :a (c/dynamic str))
-                                {:a "foo"})))))
+                                 {:a "foo"})))))
 
 (deftest local-state-test
   (is (passes-messages (fn [x] (c/local-state nil (c/focus lens/first x)))))
@@ -243,6 +283,22 @@
 
       (inject! n (constantly [:d :c]))
       (is (= (pr-str [:d :c]) (text (.-firstChild n))))))
+
+  ;; FIXME - and I think Reacl cannot fix it.
+  #_(testing "consistency - never see inconsistent states."
+      (let [[x inject!] (injector)
+            states (atom [])
+            n (renders-as (dom/div (c/local-state 2
+                                                  (c/dynamic (fn [st]
+                                                               (swap! states conj st)
+                                                               x))))
+                          4)
+            invariant (fn [[a b]]
+                        (or (and (odd? a) (odd? b))
+                            (and (even? a) (even? b))))]
+        (is (= 1 (count @states)))
+        (is (every? invariant @states))
+        (inject! n [3 5])))
 
   (testing "reinit"
     (let [[x inject!] (injector)
@@ -267,7 +323,7 @@
                                                             (+ old new)))))
                       1)]
     (is (= "1" (text (.-firstChild n))))
-      
+    
     (inject! n (constantly 3))
     (is (= "4" (text (.-firstChild n))))))
 
@@ -297,7 +353,7 @@
                                      (c/fragment y (dom/span) l)))))
                       false)]
     (is (= (pr-str [false :a]) (text (.-lastChild n))))
-      
+    
     (inject-x! n (constantly [false :b]))
     (inject-y! n (constantly true))
     (is (= (pr-str [true :b]) (text (.-firstChild n))))))
@@ -349,71 +405,6 @@
                        :error err}) (text (.-firstChild n))))
        ))))
 
-(deftest lift-reacl-test
-  (testing "syncs state"
-    (let [it (browser/lift-reacl (reacl/class "foo" this state []
-                                              render (rdom/div (str state))))]
-      (is (= "ok1" (text (.-firstChild (renders-as it "ok1"))))))
-    
-    (let [it (browser/lift-reacl (reacl/class "foo" this state []
-                                              component-did-mount (fn [] (reacl/return :app-state "ok11"))
-                                              render (rdom/div (str state))))]
-      (is (= "ok11" (text (.-firstChild (renders-as it "start")))))))
-  
-  (testing "emits actions"
-    (let [it (browser/lift-reacl (reacl/class "foo" this state [v]
-                                              component-did-mount (fn [] (reacl/return :action v))
-                                              render (rdom/div (str state)))
-                                 "ok2")]
-      (is (= "ok2" (text (.-firstChild (renders-as (-> it
-                                                       (c/handle-action (fn [state a] a)))
-                                                   "start")))))))
-  (testing "forwards messages"
-    (let [it (browser/lift-reacl (reacl/class "foo3" this state []
-                                              handle-message (fn [msg]
-                                                               (reacl/return :app-state msg))
-                                              render (rdom/span)))
-          [x inject!] (injector)
-          n (renders-as (dom/div (c/with-ref (fn [ref]
-                                               (c/fragment (c/dynamic dom/div)
-                                                           (c/set-ref it ref)
-                                                           (c/handle-action x (fn [state a]
-                                                                                (c/return :message [ref a])))))))
-                        "start")]
-      (inject! n (constantly (c/return :action "ok3")))
-      (is (= "ok3" (text (.-firstChild (.-firstChild n))))))))
-
-(deftest reacl-render-test
-  (let [node (js/document.createElement "div")
-        wr (reacl/class "foo" this state []
-                        render (browser/reacl-render (reacl/bind this)
-                                                     (dom/div (c/dynamic str))))]
-    (reacl/render-component node wr "ok1")
-    (is (= "ok1" (text (.-firstChild (.-firstChild node))))))
-
-  (let [node (js/document.createElement "div")
-        [x inject!] (injector)
-        wr (reacl/class "foo" this state []
-                        render (rdom/fragment (rdom/div state)
-                                              (browser/reacl-render (reacl/bind this)
-                                                                    x)))]
-    (reacl/render-component node wr "start")
-    (inject! node (constantly (c/return :state "ok2")))
-    (is (= "ok2" (text (.-firstChild (.-firstChild node)))))))
-
-(deftest full-reacl-test
-  ;; render and lift also work in combination.
-  (is (passes-actions (fn [x]
-                        (browser/lift-reacl (reacl/class "foo" this state []
-                                                         render (browser/reacl-render (reacl/bind this) x))))))
-  (is (passes-messages (fn [x]
-                         (browser/lift-reacl (reacl/class "foo" this state []
-                                                          refs [child]
-                                                          handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
-                                                          render (-> (browser/reacl-render (reacl/bind this) x)
-                                                                     (reacl/refer child)))))))
-  )
-
 (deftest bubbling-events-test
   ;; state consitency upon a bubbling event.
   (let [last-c1-local (atom nil)
@@ -427,7 +418,7 @@
                                  (dom/div {:onclick (fn [state ev]
                                                       (conj state :new-local-1))}))))
         host (js/document.createElement "div")
-        cc (browser/run host c1 [])]
+        cc (main/run host c1 [])]
     
     (let [inner-div (.-firstChild (.-firstChild host))]
       (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))

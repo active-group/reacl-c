@@ -1,4 +1,4 @@
-(defproject de.active-group/reacl-c "0.9.0-SNAPSHOT"
+(defproject de.active-group/reacl-c "0.9.1-SNAPSHOT"
   :description "Compositional and declarative user interface library for Clojure and Clojurescript."
   :url "http://github.com/active-group/reacl-c"
   
@@ -6,12 +6,11 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
 
   :dependencies [[org.clojure/clojure "1.9.0" :scope "provided"]
-                 [org.clojure/clojurescript "1.10.238" :scope "provided"]
+                 [org.clojure/clojurescript "1.10.439" :scope "provided"]
                  [de.active-group/active-clojure "0.35.0"]
                  [org.clojure/test.check "0.10.0" :scope "provided"]
                  [prismatic/schema "1.1.12"]
-                 [reacl "2.2.7-SNAPSHOT"]
-                 #_[reacl "2.2.6"]]
+                 [reacl "2.2.9-SNAPSHOT"]]
 
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]

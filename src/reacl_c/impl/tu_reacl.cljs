@@ -71,7 +71,7 @@
     (reset! this-env (r-tu/env class options))
     @this-env))
 
-(defn- get-root-component [env]
+(defn get-root-component [env]
   (r-tu/get-component env))
 
 (defn get-components [env]

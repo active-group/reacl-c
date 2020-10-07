@@ -2,7 +2,8 @@
     (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
               #?(:clj [active.clojure.record :as r])
               [active.clojure.functions :as f]
-              [schema.core :as s]))
+              [schema.core :as s]
+              #?(:cljs [reacl2.core :as reacl])))
 
 (defprotocol E
   (-is-dynamic? [this] "If the item depends on the state in rendering or behaviour. Some optimizations can be applied if false."))
@@ -129,11 +130,11 @@
   E
   (-is-dynamic? [{e :e}] true))
 
-(r/define-record-type SetRef
-  (make-set-ref e ref)
-  set-ref?
-  [e set-ref-e
-   ref set-ref-ref]
+(r/define-record-type Refer
+  (make-refer e ref)
+  refer?
+  [e refer-e
+   ref refer-ref]
   E
   (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
@@ -186,14 +187,23 @@
   E
   (-is-dynamic? [_] true))
 
+#?(:cljs
+   (r/define-record-type LiftReacl
+     (make-lift-reacl class args)
+     lift-reacl?
+     [class lift-reacl-class
+      args lift-reacl-args]
+     E
+     (-is-dynamic? [this]
+                   (and (reacl/reacl-class? class) (reacl/has-app-state? class)))))
 
 (defn message-target? [v]
   (or (ref? v)
-      (set-ref? v)))
+      (refer? v)))
 
 (defn deref-message-target [target]
-  (-deref-ref (if (set-ref? target)
-                (set-ref-ref target)
+  (-deref-ref (if (refer? target)
+                (refer-ref target)
                 target)))
 
 (defrecord KeepState [])
@@ -232,7 +242,8 @@
         (recur rm (rest rs))))))
 
 (defprotocol Application
-  (-send-message! [this msg]))
+  (-component [this])
+  (-send-message! [this msg callback]))
 
 (r/define-record-type Effect
   (make-effect f args)
