@@ -7,23 +7,26 @@
 ;; webcomponent(hybrids.js?), 
 ;; hmtl/hiccup ?
 
-(let [h (fn [_ eff]
+(let [h (fn [recursion-limit monitor _ eff]
           (loop [effs (list eff)
                  res (core/return)
                  n 0]
             (cond
               (empty? effs) res
-              ;; bail out if an effects keeps on returning new effects. (TODO: make configurable)
-              (> n 1000) (throw (ex-info "Maximum recursion limit exceeded in handling effects." {}))
+              ;; bail out if an effects keeps on returning new effects over and over.
+              (> n recursion-limit) (throw (ex-info "Maximum recursion limit exceeded in handling effects." {}))
               :else
-              (let [[_ ret] (base/run-effect! eff)
+              (let [[res ret] (base/run-effect! eff)
                     {more-effs true more-acts false} (group-by base/effect? (base/returned-actions ret))
                     msgs (base/returned-messages ret)]
+                (when monitor (monitor eff res ret))
                 (recur (concat (rest effs) more-effs)
                        (base/merge-returned res (base/make-returned base/keep-state more-acts msgs))
                        (inc n))))))]
-  (defn execute-effects [item] ;; + optional monitor for basic effects?
-    (core/handle-effect item h)))
+  (defn execute-effects [item & [options]]
+    (core/handle-effect item (f/partial h
+                                        (or (:recursion-limit options) 1000)
+                                        (:monitor options)))))
 
 (defn ^:no-doc state-error [_]
   ;; TODO or a warning?
