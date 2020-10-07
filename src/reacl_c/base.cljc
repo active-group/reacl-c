@@ -243,7 +243,7 @@
 
 (defprotocol Application
   (-component [this])
-  (-send-message! [this msg]))
+  (-send-message! [this msg callback]))
 
 (r/define-record-type Effect
   (make-effect f args)

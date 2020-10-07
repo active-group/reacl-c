@@ -1,6 +1,6 @@
 (ns reacl-c.main-reacl-test
   "Test interop with Reacl"
-  (:require [reacl-c.main :as main]
+  (:require [reacl-c.main.reacl :as main]
             [reacl-c.main-browser-test :as btest]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
