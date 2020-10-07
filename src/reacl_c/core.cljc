@@ -337,7 +337,7 @@ be specified multiple times.
   {:pre [(string? s)]}
   (base/make-name-id s))
 
-(defn- named*
+(defn ^:no-doc named*
   [name-id validate-state! item]
   {:pre [(base/item? item)
          (base/name-id? name-id)
@@ -844,7 +844,7 @@ be specified multiple times.
     (list* (list candidate (first more) (second more)) (rest (rest more)))
     (list* (list candidate) more)))
 
-(defn- subscription-from-defn [fn action-mapper f & args]
+(defn ^:no-doc subscription-from-defn [fn action-mapper f & args]
   (apply subscription*
          action-mapper
          fn
