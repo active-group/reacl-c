@@ -116,14 +116,14 @@
   (let [env (tu/env (c/with-ref (fn [ref]
                                   (c/with-async-messages
                                     (fn [send!]
-                                      (dom/div (-> (c/handle-message (fn [state msg]
-                                                                       (c/return :state msg))
-                                                                     (dom/div))
-                                                   (c/refer ref))
-                                               (-> (c/once (f/constantly (c/return :action ::test)))
-                                                   (c/handle-action (fn [_ _]
-                                                                      (send! ref :msg)
-                                                                      (c/return))))))))))]
+                                      (c/fragment (-> (c/handle-message (fn [state msg]
+                                                                          (c/return :state msg))
+                                                                        "foo")
+                                                      (c/refer ref))
+                                                  (-> (c/once (f/constantly (c/return :action ::test)))
+                                                      (c/handle-action (fn [_ _]
+                                                                         (send! ref :msg)
+                                                                         (c/return))))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
 
@@ -131,11 +131,11 @@
   (let [env (tu/env (c/with-ref (fn [ref]
                                   (c/with-async-messages
                                     (fn [send!]
-                                      (dom/div (-> (c/handle-message (fn [state msg]
-                                                                       (c/return :state msg))
-                                                                     (dom/div))
-                                                   (c/refer ref))
-                                               (c/once (f/constantly (c/return :message [ref :msg])))))))))]
+                                      (c/fragment (-> (c/handle-message (fn [state msg]
+                                                                          (c/return :state msg))
+                                                                        "foo")
+                                                      (c/refer ref))
+                                                  (c/once (f/constantly (c/return :message [ref :msg])))))))))]
     (is (= (c/return :state :msg)
            (tu/mount! env :st)))))
 
@@ -143,7 +143,7 @@
   (let [env (tu/env (c/map-messages (fn [msg] [:x msg])
                                     (c/handle-message (fn [state msg]
                                                         (c/return :state msg))
-                                                      (dom/div))))]
+                                                      "foo")))]
     (tu/mount! env :st)
     (is (= (c/return :state [:x :msg])
            (tu/send-message! (tu/get-component env) :msg)))))
@@ -153,11 +153,11 @@
                       (fn [ref]
                         (c/fragment
                          (c/redirect-messages ref
-                                              (dom/div (dom/div)
-                                                       (-> (c/handle-message (fn [state msg]
-                                                                               (c/return :state msg))
-                                                                             (dom/div))
-                                                           (c/refer ref))))))))]
+                                              (c/fragment "foo"
+                                                          (-> (c/handle-message (fn [state msg]
+                                                                                  (c/return :state msg))
+                                                                                "bar")
+                                                              (c/refer ref))))))))]
     (tu/mount! env :st)
     (is (= (c/return :state :msg)
            (tu/send-message! (tu/get-component env) :msg)))))
@@ -259,7 +259,7 @@
                                   (if (odd? msg)
                                     (c/return :message [it-1 msg])
                                     (c/return :message [it-2 msg])))
-                                (dom/div it-1 it-2))))]
+                                (c/fragment it-1 it-2))))]
     (tu/mount! env nil)
     (is (= (c/return :state [:it-1 1])
            (tu/send-message! env 1)))
@@ -269,7 +269,7 @@
 (deftest handle-action-test
   (testing "basics"
     (let [foobar (c/name-id "foobar")
-          item (c/named foobar (dom/div))
+          item (c/named foobar "foo")
           env (tu/env (c/handle-action item
                                        (fn [state a]
                                          (c/return :state (conj state a)))))]
@@ -286,7 +286,7 @@
              (tu/inject-action! (tu/find env item)
                                 :b)))))
   (testing "plain state return"
-    (let [item (c/dynamic (f/constantly (dom/div)))
+    (let [item (c/dynamic (f/constantly "bar"))
           env (tu/env (c/handle-action item
                                        conj))]
       (tu/mount! env [])
@@ -298,62 +298,62 @@
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
                                                (throw (ex-info "Test" {:value :foo}))
-                                               (dom/div "Ok")))
+                                               "Ok"))
                                  (c/dynamic (fn [[state error]]
-                                              (dom/div "Error" (pr-str error)
-                                                       (if (:reset? state)
-                                                         (c/once (f/constantly (c/return :state [{} nil])))
-                                                         c/empty))))))]
+                                              (c/fragment "Error" (pr-str error)
+                                                          (if (:reset? state)
+                                                            (c/once (f/constantly (c/return :state [{} nil])))
+                                                            c/empty))))))]
     (tu/mount! env {})
-    (is (some? (tu/find env (dom/div "Ok"))))
+    (is (some? (tu/find env "Ok")))
 
     (tu/preventing-error-log
      (fn []
        (tu/update! env {:throw? true})))
-    (is (some? (tu/find env (dom/div "Error"))))
+    (is (some? (tu/find env "Error")))
 
     (is (= (c/return :state {})
            (tu/update! env {:throw? false :reset? true})))
-    (is (some? (tu/find env (dom/div "Ok"))))
+    (is (some? (tu/find env "Ok")))
     ))
 
 (deftest with-state-as-test
-  (let [env (tu/env (c/with-state-as foo (dom/div foo)))]
+  (let [env (tu/env (c/with-state-as foo foo))]
     (tu/mount! env "Ok")
-    (is (some? (tu/find env (dom/div "Ok")))))
+    (is (some? (tu/find env "Ok"))))
 
-  (let [env (tu/env (c/with-state-as foo :- s/Str (dom/div foo)))]
+  (let [env (tu/env (c/with-state-as foo :- s/Str foo))]
     (tu/mount! env "Ok")
-    (is (some? (tu/find env (dom/div "Ok")))))
+    (is (some? (tu/find env "Ok"))))
 
-  (let [env (tu/env (c/with-state-as [a b] (dom/div a b)))]
+  (let [env (tu/env (c/with-state-as [a b] (c/fragment a b)))]
     (tu/mount! env ["foo" "bar"])
-    (is (some? (tu/find env (dom/div "foo" "bar")))))
+    (is (some? (tu/find env (c/fragment "foo" "bar")))))
 
-  (let [env (tu/env (c/with-state-as [a b :local "bar"] (dom/div a b)))]
+  (let [env (tu/env (c/with-state-as [a b :local "bar"] (c/fragment a b)))]
     (tu/mount! env "foo")
-    (is (some? (tu/find env (dom/div "foo" "bar"))))))
+    (is (some? (tu/find env (c/fragment "foo" "bar"))))))
 
 (deftest defn-item-test
   (testing "simple items"
     (c/defn-item defn-test-1 "foo" [a :- s/Str]
-      (dom/div a))
+      a)
 
     (is (= "foo" (:doc (meta #'defn-test-1))))
   
     (let [env (tu/env (defn-test-1 "Ok"))]
       (tu/mount! env "Ok")
-      (is (some? (tu/find env (dom/div "Ok"))))))
+      (is (some? (tu/find env "Ok")))))
 
   (testing "dynamic items"
     (c/defn-item defn-test-2 [p]
       {:pre [(string? p)]}
       (c/with-state-as [a b :local "bar"]
-        (dom/div a b p)))
+        (c/fragment a b p)))
 
     (let [env (tu/env (defn-test-2 "baz"))]
       (tu/mount! env "foo")
-      (is (some? (tu/find env (dom/div "foo" "bar" "baz")))))
+      (is (some? (tu/find env (c/fragment "foo" "bar" "baz")))))
 
     ;; and with-state-as is optimized (made static)
     (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
@@ -361,12 +361,12 @@
   (testing "static items"
     (c/defn-item defn-test-4 :static [rendered?]
       (reset! rendered? true)
-      (dom/div))
+      "foo")
     
     (let [rendered? (atom false)
           env (tu/env (defn-test-4 rendered?))]
       (tu/mount! env :bar)
-      (is (some? (tu/find env (dom/div))))
+      (is (some? (tu/find env "foo")))
       (is @rendered?)
 
       (reset! rendered? false)
@@ -375,7 +375,7 @@
 
   (testing "schema validation"
     (c/defn-item ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
-      (dom/div (str a)))
+      (str a))
 
     (is (some? (defn-test-3 42)))
 
@@ -398,35 +398,34 @@
 
   (testing "regression with schemata"
     (c/defn-item defn-test-5 "foo" [x a :- s/Str y]
-      (c/with-state-as foo
-        (dom/div a)))
+      a)
 
     (let [env (tu/env (defn-test-5 1 "Ok" 2))]
       (tu/mount! env "Ok")
-      (is (some? (tu/find env (dom/div "Ok")))))
+      (is (some? (tu/find env "Ok"))))
     ))
 
 (deftest def-item-test
   (testing "simple items"
     (c/def-item def-test-1
-      (dom/div))
+      "foo")
 
     (let [env (tu/env def-test-1)]
       (tu/mount! env nil)
-      (is (some? (tu/find env (dom/div))))))
+      (is (some? (tu/find env "foo")))))
 
   (testing "dynamic items"
     (c/def-item def-test-2
       (c/with-state-as a
-        (dom/div a)))
+        a))
 
     (let [env (tu/env def-test-2)]
       (tu/mount! env "foo")
-      (is (some? (tu/find env (dom/div "foo"))))))
+      (is (some? (tu/find env "foo")))))
 
   (testing "state schema validation"
     (c/def-item ^:always-validate def-test-3 :- s/Str
-      (c/with-state-as a (dom/div a)))
+      (c/with-state-as a a))
 
     (is (some? (tu/mount! (tu/env def-test-3) "foo")))
 
