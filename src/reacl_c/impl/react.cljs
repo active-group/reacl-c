@@ -14,12 +14,14 @@
 
 (defrecord Binding [state ;; to be used for rendering only.
                     store ;; to be used for state transitions.
-                    action-target ;; for action handling and message emission.
+                    action-target ;; for action handling
+                    process-messages ;; for message delivery
                     ])
 
 (def ^:private $handle-message "reacl_c__handleMessage")
 
-(defn- send-message! [comp msg]
+(defn- send-message! [comp msg & [callback]]
+  ;; TODO: callback non-optional -> handle-message
   (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
   (assert (some? (aget comp $handle-message)) (pr-str comp))
   ((aget comp $handle-message) msg))
@@ -33,29 +35,27 @@
   ;; TODO: exn if ref not set.
   (send-message! (base/deref-message-target target) msg))
 
-(defn- send-message-effect [[target msg]]
-  (base/make-effect send-message-base-ref! [target msg]))
-
-(defn- send-actions [action-target actions]
-  (action-target actions))
-
-(defn- call-event-handler*! [state action-target handler & args]
+(defn- call-event-handler*! [state action-target process-messages handler & args]
   (let [r (apply handler state args)
         new-state (if (base/returned? r)
                     (let [s (base/returned-state r)]
                       (if (= base/keep-state s) state s))
                     r)
         actions (if (base/returned? r)
-                  (not-empty (concat (base/returned-actions r)
-                                     (map send-message-effect (base/returned-messages r))))
-                  nil)]
-    [new-state (when actions
-                 (f/partial send-actions action-target actions))]))
+                  (not-empty (base/returned-actions r))
+                  nil)
+        messages (when (base/returned? r)
+                   (not-empty (base/returned-messages r)))]
+    [new-state (when (or actions messages)
+                 (fn []
+                   ;; Note: defines the order or processing actions and messages
+                   (when actions (action-target actions))
+                   (when messages (process-messages messages))))]))
 
 (defn- call-event-handler! [binding handler & args]
   (let [store (:store binding)
         [new-state callback] (apply call-event-handler*! (stores/store-get store)
-                                    (:action-target binding) handler args)]
+                                    (:action-target binding) (:process-messages binding) handler args)]
     (stores/store-set! store new-state)
     (when callback (callback))))
 
@@ -79,24 +79,20 @@
     :else
     (render item binding nil)))
 
-(defn- toplevel-actions [this actions]
+(defn- toplevel-actions [onaction actions]
   (loop [actions actions]
     (when-not (empty? actions)
       (let [action (first actions)]
-        (if (base/effect? action)
-          (let [[_ r] (base/run-effect! action)]
-            (assert (= base/keep-state (base/returned-state r)))
-            (recur (concat (rest actions)
-                           (base/returned-actions r)
-                           (map send-message-effect (base/returned-messages r)))))
-          (utils/warn "Unhandled action:" action))))))
+        (onaction action))
+      (recur (rest actions)))))
 
-(defn- new-state [this init]
-  {:store (stores/resettable-store init (fn [new-state]
-                                          (r0/set-state this (fn [s] (assoc s :state new-state)))))
+(defn- make-new-state! [this init]
+  {:store (stores/make-resettable-store!
+           init (fn [new-state]
+                  (r0/set-state this (fn [s] (assoc s :state new-state)))))
    :state init})
 
-(defn- new-state-reinit [args-initial-state]
+(defn- new-state-reinit! [args-initial-state]
   (fn [props state]
     (let [initial-state (args-initial-state (r0/extract-args props))
           state (r0/extract-state state)
@@ -108,27 +104,35 @@
   (fn [msg]
     (send-message-react-ref! (or ref (r0/child-ref this)) msg)))
 
-(r0/defclass toplevel this [item initial-state]
-  "getInitialState" (fn [] (new-state this initial-state))
-  
+(defn- toplevel-process-messages [messages]
+  (doseq [[target msg] messages]
+    (send-message-base-ref! target msg)))
+
+(r0/defclass toplevel-controlled this [item state onchange onaction]
   "render" (fn []
              (render item
-                     (Binding. (:state (r0/get-state this))
-                               (:store (r0/get-state this))
-                               (f/partial toplevel-actions this))
+                     (Binding. state
+                               (stores/delegate-store state onchange)
+                               (f/partial toplevel-actions onaction)
+                               toplevel-process-messages)
                      (r0/child-ref this)))
   
-  $handle-message (forward-messages this)
-
-  [:static "getDerivedStateFromProps"] (new-state-reinit second))
+  $handle-message (forward-messages this))
 
 (defrecord ^:private ReactApplication [comp]
   base/Application  
-  (-send-message! [this msg]
-    (send-message! comp msg)))
+  (-send-message! [this msg callback]
+    (send-message! comp msg callback)))
 
-(defn run [dom item initial-state]
-  (ReactApplication. (r0/render-component (r0/elem toplevel nil [item initial-state])
+(defn react-send-message!
+  [comp msg & [callback]]
+  (send-message! comp msg callback))
+
+(defn react-run [item state onchange onaction]
+  (r0/elem toplevel-controlled nil [item state onchange onaction]))
+
+(defn run [dom item state onchange onaction]
+  (ReactApplication. (r0/render-component (react-run item state onchange onaction)
                                           dom)))
 
 ;; items
@@ -162,7 +166,7 @@
 (r0/defclass local-state this [binding e initial]
   $handle-message (forward-messages this)
 
-  "getInitialState" (fn [] (new-state this initial))
+  "getInitialState" (fn [] (make-new-state! this initial))
 
   "render" (fn [] (render e 
                           (assoc binding
@@ -171,7 +175,7 @@
                                                            (:store (r0/get-state this))))
                           (r0/child-ref this)))
   
-  [:static "getDerivedStateFromProps"] (new-state-reinit #(nth % 2)))
+  [:static "getDerivedStateFromProps"] (new-state-reinit! #(nth % 2)))
 
 (extend-type base/LocalState
   IReact
@@ -225,7 +229,7 @@
     (r0/elem lifecycle ref [binding init finish])))
 
 (let [upd (fn [binding f old-state new-state]
-            (call-event-handler*! old-state (:action-target binding) f new-state))]
+            (call-event-handler*! old-state (:action-target binding) (:process-messages binding) f new-state))]
   (r0/defclass handle-state-change this [binding e f]
     $handle-message (forward-messages this)
     
@@ -367,7 +371,7 @@
   
   "render" (fn [] (render e binding (:ref ref))))
 
-(extend-type base/SetRef
+(extend-type base/Refer
   IReact
   (-instantiate-react [{e :e ref :ref} binding ref2]
     (r0/elem set-ref ref2 [binding e ref])))
@@ -391,128 +395,32 @@
 
 ;; Reacl compat
 
-(defrecord PassState [v])
-(defrecord PassActions [v])
-
-(def ^{:private true
-       :dynamic true}
-  *in-reacl-cycle* nil)
-
-(defn- reacl-queue-message [comp msg]
-  ;; Requires new reacl version that allows send-message all the time.
-  (reacl/send-message! comp msg)
-  ;; if we are in a reacl cycle, we must pipe the update through to some reacl handler higher on the stack
-  #_(if *in-reacl-cycle*
-    (swap! *in-reacl-cycle* conj [comp msg])
-    (loop [msgs [msg]]
-      (when-not (empty? msgs)
-        (let [new-msgs (atom [])]
-          (binding [*in-reacl-cycle* new-msgs]
-            (reacl/send-message! comp (first msgs)))
-          (recur (concat (rest msgs) @new-msgs)))))))
-
-(defn- capture-reacl-messages [thunk]
-  (let [msgs (atom [])]
-    (binding [*in-reacl-cycle* msgs]
-      (thunk))
-    (reduce reacl/merge-returned
-            (reacl/return)
-            (map #(reacl/return :message %)
-                 @msgs))))
-
-(defn- capture-reacl-messages_ [thunk]
-  (thunk)
-  (reacl/return))
-
-;; runs a (class args) component in the context of the given 'reacl-c/react binding'
-(reacl/defclass reacl-wrapper this [binding class args]
-  refs [child]
+(let [set-app-state!
+      (fn [binding state callback]
+        (when-not (reacl/keep-state? state)
+          (call-event-handler! binding (fn [_]
+                                         (core/return :state state))))
+        (when callback (callback)))
+      handle-action!
+      (fn [binding action]
+        (call-event-handler! binding (fn [state]
+                                       (base/make-returned base/keep-state [action] nil))))]
+  (r0/defclass lifted-reacl this [binding class args]
+    "render"
+    (fn []
+      (reacl/react-element class {:args args :app-state (:state binding)
+                                  :set-app-state! (f/partial set-app-state! binding)
+                                  :handle-action! (f/partial handle-action! binding)
+                                  :ref (r0/child-ref this)}))
   
-  render
-  (-> (if (reacl/has-app-state? class)
-        (apply class (reacl/use-reaction (:state binding)
-                                         (reacl/reaction this ->PassState))
-               args)
-        (apply class args))
-      (reacl/reduce-action (fn [_ a]
-                             (reacl/return :message [this (PassActions. [a])])))
-      (reacl/refer child))
+    $handle-message
+    (fn [msg]
+      ;; TODO: callback?!
+      (let [comp (.-current (r0/child-ref this))]
+        (assert comp this)
+        (reacl/send-message! comp msg)))))
 
-  handle-message
-  (fn [msg]
-    (cond
-      (instance? PassState msg)
-      (capture-reacl-messages ;; OPT: is the capturing really needed here? write a test case for it.
-       (fn []
-         (call-event-handler! binding (fn [state]
-                                        (core/return :state (:v msg))))))
-
-      (instance? PassActions msg)
-      (capture-reacl-messages
-       (fn []
-         (call-event-handler! binding (fn [state]
-                                        (base/make-returned base/keep-state (:v msg) nil)))))
-
-      ;; pass down
-      :else (reacl/return :message [(reacl/get-dom child) msg]))))
-
-(r0/defclass lifted-reacl this [binding class args]
-  "render"
-  (fn []
-    (-> (reacl/instantiate-toplevel reacl-wrapper binding class args)
-        (reacl/refer (r0/child-ref this))))
-  
-  $handle-message
-  (fn [msg]
-    (reacl/send-message! (.-current (r0/child-ref this)) msg)))
-
-(defrecord LiftedReacl [class args]
-  base/E
-  (-is-dynamic? [this] (reacl/has-app-state? class))
-
+(extend-type base/LiftReacl
   IReact
-  (-instantiate-react [this binding ref]
+  (-instantiate-react [{class :class args :args} binding ref]
     (r0/elem lifted-reacl ref [binding class args])))
-
-(defn lift-reacl [reacl-class & args]
-  (LiftedReacl. reacl-class args))
-
-(defrecord ReaclStore [state comp]
-  stores/IStore
-  (-get [this] state)
-  (-set [this v]
-    ;; Note: really important here to not make infinite update loops:
-    (when (not= v state)
-      (reacl-queue-message comp (PassState. v)))))
-
-(defn- reacl-action-target [comp actions]
-  (reacl-queue-message comp (PassActions. actions)))
-
-;; runs item in the context of a Reacl component.
-(reacl/defclass reacl-item this state [item]
-  refs [child]
-  
-  render (-> (render item (Binding. state
-                                    (ReaclStore. state this)
-                                    (f/partial reacl-action-target this))
-                     nil)
-             (reacl/refer child))
-
-  handle-message
-  (fn [msg]
-    (cond
-      (instance? PassState msg)
-      (reacl/return :app-state (:v msg))
-
-      (instance? PassActions msg)
-      (reduce reacl/merge-returned
-              (reacl/return)
-              (map #(reacl/return :action %) (:v msg)))
-
-      :else ;; pass msg
-      (capture-reacl-messages
-       (fn []
-         (send-message! (reacl/get-dom child) msg))))))
-
-(defn reacl-render [reacl-binding item]
-  (reacl-item reacl-binding item))

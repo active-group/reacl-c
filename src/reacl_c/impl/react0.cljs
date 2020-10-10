@@ -40,7 +40,7 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
-(defn- make-class [name decls]
+(defn make-class [name decls]
   (let [method-decls (remove static? decls)
         static-decls (map (fn [[[_ k] v]] [k v]) (filter static? decls))]
     (doto (createReactClass

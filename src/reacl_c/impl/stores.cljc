@@ -10,13 +10,24 @@
 (defn store-get [s]
   (-get s))
 
-(defn store-set! [s v]
+(defn store-set! [s v] ;; TODO: + callback?
   (-set s v))
 
 (defn store-update! [s f]
   (let [[v x] (f (store-get s))]
     (store-set! s v)
     x))
+
+(defrecord DelegateStore [state set-state!]
+  IStore
+  (-get [_] state)
+  (-set [_ v]
+    ;; nil=callback - TODO: use?
+    (when (not= v state)
+      (set-state! v nil))))
+
+(defn delegate-store [state set-state!]
+  (DelegateStore. state set-state!))
 
 (defrecord ^:private BaseStore [init-a a watcher]
   IStore
@@ -27,7 +38,7 @@
       (reset! a v)
       (watcher v))))
 
-(defn resettable-store [init watcher]
+(defn make-resettable-store! [init watcher]
   (BaseStore. (atom init) (atom init) watcher))
 
 (defn maybe-reset-store! [store init]

@@ -5,8 +5,6 @@
             [clojure.string :as str]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
-            [reacl2.core :as reacl :include-macros true]
-            [reacl2.dom :as rdom]
             [schema.core :as s]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
@@ -116,10 +114,17 @@
     (is (= "bar" (text (.-firstChild host))))))
 
 (deftest effects-test
-  (testing "running and handling result"
-    (let [eff (c/effect (fn [a]
-                          (:res a))
-                        {:res "ok"})
+  (testing "executing effects"
+    (let [executed (atom false)
+          eff (c/effect (fn [a]
+                          (reset! executed a)
+                          nil)
+                        true)
+          n (renders-as (dom/div (c/init (c/return :action eff))))]
+      (is @executed)))
+
+  (testing "handling result"
+    (let [eff (c/effect (fn [] "ok"))
           n (renders-as (dom/div (c/dynamic str)
                                  (c/handle-effect-result (fn [st res]
                                                            res)
@@ -140,7 +145,9 @@
     (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
       "err")
     
-    (try (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))
+    (try (tu/preventing-error-log
+          (fn []
+            (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))))
          (is false)
          (catch :default e
            (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))
