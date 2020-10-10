@@ -29,13 +29,13 @@
                                         (or (:recursion-limit options) 1000)
                                         (:monitor options)))))
 
-(defn ^:no-doc state-error [_]
+(defn ^:no-doc state-error [st]
   ;; TODO or a warning?
-  (throw (ex-info "Unhandled state change at toplevel." {})))
+  (throw (ex-info "Unhandled state change at toplevel." {:state st})))
 
-(defn ^:no-doc action-error [_]
+(defn ^:no-doc action-error [a]
   ;; TODO: warning is enough (utils/warn "Unhandled action:" action)
-  (throw (ex-info "Unhandled action at toplevel." {})))
+  (throw (ex-info "Unhandled action at toplevel." {:action a})))
 
 #?(:cljs
    (defn run-controlled
@@ -56,7 +56,9 @@
   native `dom` node, and with the given `initial-state`."
      [dom item initial-state & [handle-action!]]
      (run-controlled dom
-                     (core/local-state initial-state (core/focus lens/second (execute-effects item)))
+                     (-> (core/local-state initial-state (core/focus lens/second item))
+                         ;; should be 'toplevel':
+                         (execute-effects))
                      ;; the item's state is fully local; to toplevel state can be nil and should never change:
                      nil
                      state-error

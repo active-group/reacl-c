@@ -1,6 +1,7 @@
 (ns reacl-c.main.reacl
   "Functions for using reacl-c within a Reacl application or library."
-  (:require [reacl-c.main.react :as main]
+  (:require [reacl-c.main :as main]
+            [reacl-c.main.react :as main-react]
             [reacl-c.core :as core]
             [active.clojure.functions :as f]
             [reacl2.core :as reacl :include-macros true]))
@@ -13,7 +14,7 @@
     refs [self]
     
     render
-    (-> (main/react-controlled item state (f/partial set-state this) (f/partial handle-action this))
+    (-> (main-react/react-controlled item state (f/partial set-state this) (f/partial handle-action this))
         (reacl/refer self))
 
     handle-message
@@ -31,8 +32,10 @@
         ;; implementation), we cannot pass messages down via
         ;; 'return :message' here:
         #_(reacl/return :message [(reacl/resolve-component (reacl/get-dom self)) msg])
-        (do (reacl/send-message! (reacl/get-dom self) msg) ;; TODO: callback?
-            (reacl/return))))))
+        (let [comp (reacl/get-dom self)]
+          (assert comp msg)
+          (main/send-message! comp msg) ;; TODO: callback?
+          (reacl/return))))))
 
 ;; previously named reacl-render
 (defn reacl
