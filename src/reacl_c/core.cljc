@@ -588,7 +588,7 @@ be specified multiple times.
 
 (let [wr (fn [ref eff]
            (init (return :action (seq-effects eff (f/partial effect send-effect-result ref)))))]
-  (defn handle-effect-result
+  (defn handle-effect-result ;; TODO: could have a shorter name (and flipped args).
     "Runs the given effect once, feeding its result into `(f state
   result)`, which must return a [[return]] value."
     [f eff]
