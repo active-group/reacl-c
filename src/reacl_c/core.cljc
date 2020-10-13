@@ -39,6 +39,7 @@
 
 #?(:cljs
    ;; previously named lift-reacl
+   ;; TODO: allow items as children?
    (defn reacl
      "Returns an item implemented by the given Reacl class and arguments."
      [class & args]
@@ -48,6 +49,7 @@
    (defn react
      "Returns an item implemented by the given React class and props."
      [class props]
+     ;; TODO: allow items as children?
      (base/make-lift-react class props)))
 
 #_(:cljs

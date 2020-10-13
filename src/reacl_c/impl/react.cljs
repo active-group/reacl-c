@@ -104,6 +104,11 @@
   (fn [msg]
     (send-message-react-ref! (or ref (r0/child-ref this)) msg)))
 
+(defn- message-deadend [elem]
+  (fn [msg]
+    ;; TODO: exn?
+    (assert false (str "Can't send message to a " elem " element: " (pr-str msg) "."))))
+
 (defn- toplevel-process-messages [messages]
   (doseq [[target msg] messages]
     (send-message-base-ref! target msg)))
@@ -216,7 +221,7 @@
 (r0/defclass lifecycle this [binding init finish]
   "render" (fn [] (r0/fragment nil))
 
-  $handle-message (fn [msg] (assert false)) ;; TODO: exn?
+  $handle-message (message-deadend "lifecycle")
   
   ;; OPT: shouldUpdate could ignore the finish fn.
   "componentDidMount" (fn [] (call-event-handler! binding init))
@@ -293,7 +298,7 @@
 
 (defn- event-handler [this]
   (fn [ev]
-    (let [[binding attrs events children] (r0/extract-args (.-props this))
+    (let [[binding attrs ref events children] (r0/extract-args (.-props this))
           f (find-event events (.-type ev))]
       (call-event-handler! binding f ev))))
 
@@ -304,29 +309,32 @@
                  [k handler])
                events))))
 
+(defn- native-dom [type binding attrs ref children]
+  (apply r0/dom-elem type (assoc attrs :ref ref) (map #(render-child % binding) children)))
+
 (def dom-class
   (memoize (fn [type]
-             (r0/class type this [binding attrs events children]
-                       $handle-message (fn [msg] (assert false)) ;; TODO: exn
+             (r0/class (str "reacl-c.dom/" type) this [binding attrs ref events children]
+                       $handle-message (message-deadend type)
                        "getInitialState" (fn [] {:event-handler (event-handler this)})
                        "render" (fn []
-                                  (apply r0/dom-elem type
-                                         (-> attrs
-                                             (assoc :ref (r0/child-ref this))
-                                             (merge (event-fns this events)))
-                                         (map #(render-child % binding) children)))))))
+                                  (native-dom type
+                                              binding
+                                              (-> attrs
+                                                  (merge (event-fns this events)))
+                                              ref
+                                              children))))))
 
 (extend-type dom/Element
   IReact
-  (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding ref]
+  (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref]
     ;; TODO: optimize away some classes? (add base/E -might-receive-messages?)
-    ;; TODO: what would a :ref in attrs refer to?
     (if (empty? events)
-      (apply r0/dom-elem type attrs (map #(render-child % binding) children)) ;; TODO: ref?
-      (r0/elem (dom-class type) ref [binding attrs events children]))))
+      (native-dom type binding attrs ref children) ;; FIXME: c-ref?
+      (r0/elem (dom-class type) c-ref [binding attrs ref events children]))))
 
 (r0/defclass fragment this [binding children]
-  $handle-message (fn [msg] (assert false)) ;; TODO: exn
+  $handle-message (message-deadend "fragment")
   "render" (fn [] (apply r0/fragment (map #(render-child % binding)
                                           children))))
 

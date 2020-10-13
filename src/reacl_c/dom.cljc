@@ -77,6 +77,8 @@
   (fn [& args]
     (apply dom-element type args)))
 
+;; TODO: add generic fn (also for web components?)
+
 ;; The following HTML elements are supported by react (http://facebook.github.io/react/docs/tags-and-attributes.html)
 (defdom a)
 (defdom abbr)
