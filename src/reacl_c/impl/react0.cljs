@@ -19,6 +19,9 @@
 (defn get-state [this]
   (extract-state (.-state this)))
 
+(defn get-args [this]
+  (extract-args (.-props this)))
+
 (defn set-state [this f & [cb]]
   (.setState this
              (fn [state props]
@@ -42,10 +45,16 @@
 
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
-        static-decls (map (fn [[[_ k] v]] [k v]) (filter static? decls))]
+        static-decls (map (fn [[[_ k] v]] [k v])
+                          (filter static? decls))]
     (doto (createReactClass
            (apply js-obj (mapcat identity
-                                 (-> (into {} method-decls)
+                                 (-> (into {}
+                                           (map (fn [[n f]]
+                                                  [n (fn [& args]
+                                                       (this-as this
+                                                                (apply f this args)))])
+                                                method-decls))
                                      (assoc "displayName" name)
                                      (update "getInitialState"
                                              (fn [f]
@@ -59,23 +68,14 @@
                                                  (fn [new-props new-state]
                                                    (this-as this
                                                             (.call p this (extract-args new-props) (when (some? new-state) (extract-state new-state)))))
+                                                 ;; default:
                                                  (fn [new-props new-state]
                                                    (this-as this
-                                                            (let [res (or (and (some? new-state) ;; class has no local-state...
-                                                                               (not= (extract-state new-state)
-                                                                                     (get-state this)))
-                                                                          (not= (extract-args new-props)
-                                                                                (extract-args (.-props this))))]
-                                                              #_(js/console.log name (if res "will rerender" "will not rerender")
-                                                                              (if res
-                                                                                [(some? new-state)
-                                                                                 (and (some? new-state) ;; class has no local-state...
-                                                                                      (not= (extract-state new-state)
-                                                                                            (get-state this)))
-                                                                                 (not= (extract-args new-props)
-                                                                                       (extract-args (.-props this)))]
-                                                                                []))
-                                                              res))))))
+                                                            (or (and (some? new-state) ;; class has no local-state...
+                                                                     (not= (extract-state new-state)
+                                                                           (get-state this)))
+                                                                (not= (extract-args new-props)
+                                                                      (get-args this))))))))
                                      ))))
       (set-statics! static-decls))))
 

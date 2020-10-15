@@ -18,13 +18,13 @@
                     process-messages ;; for message delivery
                     ])
 
-(def ^:private $handle-message "reacl_c__handleMessage")
+(def ^:private $handle-message "handleMessage")
 
 (defn- send-message! [comp msg & [callback]]
   ;; TODO: callback non-optional -> handle-message
   (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
   (assert (some? (aget comp $handle-message)) (pr-str comp))
-  ((aget comp $handle-message) msg))
+  (.call (aget comp $handle-message) comp msg))
 
 (defn- send-message-react-ref! [target msg]
   ;; TODO: exn if ref not set.
@@ -70,8 +70,9 @@
     (string? item) (r0/fragment item)
     (nil? item) (r0/fragment)
     :else
-    (do (when-not (satisfies? IReact item) (js/console.log "no implementation of" item))
-        (-instantiate-react item binding ref))))
+    (do (if-not (satisfies? IReact item)
+          (throw (ex-info (str "No implementation of: " item) {:item item}))
+          (-instantiate-react item binding ref)))))
 
 (defn- render-child [item binding]
   (cond
@@ -100,12 +101,12 @@
       (when (stores/maybe-reset-store! store initial-state)
         (r0/mk-state (assoc state :state initial-state))))))
 
-(defn- forward-messages [this & [ref]]
-  (fn [msg]
-    (send-message-react-ref! (or ref (r0/child-ref this)) msg)))
+(def ^:private message-forward
+  (fn [this msg]
+    (send-message-react-ref! (r0/child-ref this) msg)))
 
 (defn- message-deadend [elem]
-  (fn [msg]
+  (fn [this msg]
     ;; TODO: exn?
     (assert false (str "Can't send message to a " elem " element: " (pr-str msg) "."))))
 
@@ -113,16 +114,17 @@
   (doseq [[target msg] messages]
     (send-message-base-ref! target msg)))
 
-(r0/defclass toplevel-controlled this [item state onchange onaction]
-  "render" (fn []
-             (render item
-                     (Binding. state
-                               (stores/delegate-store state onchange)
-                               (f/partial toplevel-actions onaction)
-                               toplevel-process-messages)
-                     (r0/child-ref this)))
+(r0/defclass toplevel
+  "render" (fn [this]
+             (let [[item state onchange onaction] (r0/get-args this)]
+               (render item
+                       (Binding. state
+                                 (stores/delegate-store state onchange)
+                                 (f/partial toplevel-actions onaction)
+                                 toplevel-process-messages)
+                       (r0/child-ref this))))
   
-  $handle-message (forward-messages this))
+  $handle-message message-forward)
 
 (defrecord ^:private ReactApplication [comp]
   base/Application  
@@ -134,7 +136,7 @@
   (send-message! comp msg callback))
 
 (defn react-run [item state onchange onaction]
-  (r0/elem toplevel-controlled nil [item state onchange onaction]))
+  (r0/elem toplevel nil [item state onchange onaction]))
 
 (defn run [dom item state onchange onaction]
   (ReactApplication. (r0/render-component (react-run item state onchange onaction)
@@ -142,25 +144,29 @@
 
 ;; items
 
-(r0/defclass dynamic this [binding f & args]
-  $handle-message (forward-messages this)
-  "render" (fn [] (render (apply f (:state binding) args)
-                          binding
-                          (r0/child-ref this))))
+(r0/defclass dynamic
+  $handle-message message-forward
+  "render" (fn [this]
+             (let [[binding f & args] (r0/get-args this)]
+               (render (apply f (:state binding) args)
+                       binding
+                       (r0/child-ref this)))))
 
 (extend-type base/Dynamic
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
     (r0/elem dynamic ref (list* binding f args))))
 
-(r0/defclass focus this [binding e lens]
-  $handle-message (forward-messages this)
+(r0/defclass focus
+  $handle-message message-forward
   
-  "render" (fn [] (render e
-                          (assoc binding
-                                 :state (lens/yank (:state binding) lens)
-                                 :store (stores/focus-store (:store binding) lens))
-                          (r0/child-ref this))))
+  "render" (fn [this]
+             (let [[binding e lens] (r0/get-args this)]
+               (render e
+                       (assoc binding
+                              :state (lens/yank (:state binding) lens)
+                              :store (stores/focus-store (:store binding) lens))
+                       (r0/child-ref this)))))
 
 (extend-type base/Focus
   IReact
@@ -168,17 +174,21 @@
     ;; TODO use id class?
     (r0/elem focus ref [binding e lens])))
 
-(r0/defclass local-state this [binding e initial]
-  $handle-message (forward-messages this)
+(r0/defclass local-state
+  $handle-message message-forward
 
-  "getInitialState" (fn [] (make-new-state! this initial))
+  "getInitialState" (fn [this]
+                      (let [[_ _ initial] (r0/get-args this)]
+                        (make-new-state! this initial)))
 
-  "render" (fn [] (render e 
-                          (assoc binding
-                                 :state [(:state binding) (:state (r0/get-state this))]
-                                 :store (stores/conc-store (:store binding)
-                                                           (:store (r0/get-state this))))
-                          (r0/child-ref this)))
+  "render" (fn [this]
+             (let [[binding e _] (r0/get-args this)]
+               (render e 
+                       (assoc binding
+                              :state [(:state binding) (:state (r0/get-state this))]
+                              :store (stores/conc-store (:store binding)
+                                                        (:store (r0/get-state this))))
+                       (r0/child-ref this))))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! #(nth % 2)))
 
@@ -192,12 +202,14 @@
             (doseq [action handle]
               (call-event-handler! binding f action))
             ((:action-target binding) pass)))]
-  (r0/defclass handle-action this [binding e f pred]
-    $handle-message (forward-messages this)
+  (r0/defclass handle-action
+    $handle-message message-forward
     
-    "render" (fn [] (render e
-                            (assoc binding :action-target (f/partial h binding f pred))
-                            (r0/child-ref this)))))
+    "render" (fn [this]
+               (let [[binding e f pred] (r0/get-args this)]
+                 (render e
+                         (assoc binding :action-target (f/partial h binding f pred))
+                         (r0/child-ref this))))))
 
 (extend-type base/HandleAction
   IReact
@@ -206,27 +218,35 @@
 
 (let [send! (fn [binding r]
               (call-event-handler! binding (constantly r)))]
-  (r0/defclass with-async-return this [binding f & args]
-    $handle-message (forward-messages this)
+  (r0/defclass with-async-return
+    $handle-message message-forward
     
-    "render" (fn [] (render (apply f (f/partial send! binding) args)
-                            binding
-                            (r0/child-ref this)))))
+    "render" (fn [this]
+               (let [[binding f & args] (r0/get-args this)]
+                 (render (apply f (f/partial send! binding) args)
+                         binding
+                         (r0/child-ref this))))))
 
 (extend-type base/WithAsyncReturn
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
     (r0/elem with-async-return ref (list* binding f args))))
 
-(r0/defclass lifecycle this [binding init finish]
-  "render" (fn [] (r0/fragment nil))
+(r0/defclass lifecycle
+  "render" (fn [this] (r0/fragment nil))
 
   $handle-message (message-deadend "lifecycle")
   
   ;; OPT: shouldUpdate could ignore the finish fn.
-  "componentDidMount" (fn [] (call-event-handler! binding init))
-  "componentDidUpdate" (fn [] (call-event-handler! binding init))
-  "componentWillUnmount" (fn [] (call-event-handler! binding finish)))
+  "componentDidMount" (fn [this]
+                        (let [[binding init finish] (r0/get-args this)]
+                          (call-event-handler! binding init)))
+  "componentDidUpdate" (fn [this]
+                         (let [[binding init finish] (r0/get-args this)]
+                           (call-event-handler! binding init)))
+  "componentWillUnmount" (fn [this]
+                           (let [[binding init finish] (r0/get-args this)]
+                             (call-event-handler! binding finish))))
 
 (extend-type base/Lifecycle
   IReact
@@ -235,23 +255,29 @@
 
 (let [upd (fn [binding f old-state new-state]
             (call-event-handler*! old-state (:action-target binding) (:process-messages binding) f new-state))]
-  (r0/defclass handle-state-change this [binding e f]
-    $handle-message (forward-messages this)
+  (r0/defclass handle-state-change
+    $handle-message message-forward
     
-    "render" (fn [] (render e
-                            (assoc binding
-                                   :store (stores/handle-store-updates (:store binding) (f/partial upd binding f)))
-                            (r0/child-ref this)))))
+    "render" (fn [this]
+               (let [[binding e f] (r0/get-args this)]
+                 (render e
+                         (assoc binding
+                                :store (stores/handle-store-updates (:store binding) (f/partial upd binding f)))
+                         (r0/child-ref this))))))
 
 (extend-type base/HandleStateChange
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
     (r0/elem handle-state-change ref [binding e f])))
 
-(r0/defclass handle-message this [binding e f]
-  "render" (fn [] (render e binding nil))
+(r0/defclass handle-message
+  "render" (fn [this]
+             (let [[binding e f] (r0/get-args this)]
+               (render e binding nil)))
   
-  $handle-message (fn [msg] (call-event-handler! binding f msg)))
+  $handle-message (fn [this msg]
+                    (let [[binding e f] (r0/get-args this)]
+                      (call-event-handler! binding f msg))))
 
 (extend-type base/HandleMessage
   IReact
@@ -259,13 +285,16 @@
     (r0/elem handle-message ref [binding e f])))
 
 (defn- gen-named [name]
-  (r0/class name this [binding e validate-state!]
+  (r0/class name
             [:state "getDerivedStateFromProps"] (fn [state props]
-                                                  (when validate-state!
-                                                    (validate-state! (r0/extract-state state)))
+                                                  (let [[_ _ validate-state!] (r0/extract-args props)]
+                                                    (when validate-state!
+                                                      (validate-state! (r0/extract-state state))))
                                                   nil)
-            $handle-message (forward-messages this)
-            "render" (fn [] (render e binding (r0/child-ref this)))))
+            $handle-message message-forward
+            "render" (fn [this]
+                       (let [[binding e _] (r0/get-args this)]
+                         (render e binding (r0/child-ref this))))))
 
 (def named (utils/named-generator gen-named))
 
@@ -274,12 +303,14 @@
   (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref]
     (r0/elem (named name-id) ref [binding e validate-state!])))
 
-(r0/defclass static this [binding f args]
-  "render" (fn [] (render (apply f args)
-                          binding
-                          (r0/child-ref this)))
+(r0/defclass static
+  "render" (fn [this]
+             (let [[binding f args] (r0/get-args this)]
+               (render (apply f args)
+                       binding
+                       (r0/child-ref this))))
 
-  $handle-message (forward-messages this))
+  $handle-message message-forward)
 
 (extend-type base/Static
   IReact
@@ -314,16 +345,17 @@
 
 (def dom-class
   (memoize (fn [type]
-             (r0/class (str "reacl-c.dom/" type) this [binding attrs ref events children]
+             (r0/class (str "reacl-c.dom/" type)
                        $handle-message (message-deadend type)
-                       "getInitialState" (fn [] {:event-handler (event-handler this)})
-                       "render" (fn []
-                                  (native-dom type
-                                              binding
-                                              (-> attrs
-                                                  (merge (event-fns this events)))
-                                              ref
-                                              children))))))
+                       "getInitialState" (fn [this] {:event-handler (event-handler this)})
+                       "render" (fn [this]
+                                  (let [[binding attrs ref events children] (r0/get-args this)]
+                                    (native-dom type
+                                                binding
+                                                (-> attrs
+                                                    (merge (event-fns this events)))
+                                                ref
+                                                children)))))))
 
 (extend-type dom/Element
   IReact
@@ -333,10 +365,12 @@
       (native-dom type binding attrs ref children) ;; FIXME: c-ref?
       (r0/elem (dom-class type) c-ref [binding attrs ref events children]))))
 
-(r0/defclass fragment this [binding children]
+(r0/defclass fragment
   $handle-message (message-deadend "fragment")
-  "render" (fn [] (apply r0/fragment (map #(render-child % binding)
-                                          children))))
+  "render" (fn [this]
+             (let [[binding children] (r0/get-args this)]
+               (apply r0/fragment (map #(render-child % binding)
+                                       children)))))
 
 (extend-type base/Fragment
   IReact
@@ -347,10 +381,12 @@
     ;; TODO: get rid of this; no one whould event try to set a ref on a fragment.
     #_(r0/elem fragment ref [binding children])))
 
-(r0/defclass id this [binding e]
-  $handle-message (forward-messages this)
+(r0/defclass id
+  $handle-message message-forward
   
-  "render" (fn [] (render e binding (r0/child-ref this))))
+  "render" (fn [this]
+             (let [[binding e] (r0/get-args this)]
+               (render e binding (r0/child-ref this)))))
 
 (extend-type base/Keyed
   IReact
@@ -361,39 +397,48 @@
   base/Ref
   (-deref-ref [_] (.-current ref)))
 
-(r0/defclass with-ref this [binding f args]
-  $handle-message (forward-messages this)
+(r0/defclass with-ref
+  $handle-message message-forward
 
-  "getInitialState" (fn [] {:ref (RRef. (r0/create-ref))})
+  "getInitialState" (fn [this] {:ref (RRef. (r0/create-ref))})
   
-  "render" (fn [] (render (apply f (:ref (r0/get-state this)) args)
-                          binding (r0/child-ref this))))
+  "render" (fn [this]
+             (let [[binding f args] (r0/get-args this)]
+               (render (apply f (:ref (r0/get-state this)) args)
+                       binding (r0/child-ref this)))))
 
 (extend-type base/WithRef
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
     (r0/elem with-ref ref [binding f args])))
 
-(r0/defclass set-ref this [binding e ^RRef ref]
-  $handle-message (forward-messages this (:ref ref))
+(r0/defclass set-ref
+  $handle-message (fn [this msg]
+                    (let [[_ _ ^RRef ref] (r0/get-args this)]
+                      (send-message-react-ref! (:ref ref) msg)))
   
-  "render" (fn [] (render e binding (:ref ref))))
+  "render" (fn [this]
+             (let [[binding e ^RRef ref] (r0/get-args this)]
+               (render e binding (:ref ref)))))
 
 (extend-type base/Refer
   IReact
   (-instantiate-react [{e :e ref :ref} binding ref2]
     (r0/elem set-ref ref2 [binding e ref])))
 
-(r0/defclass handle-error this [binding e f]
+(r0/defclass handle-error
   
-  $handle-message (forward-messages this)
+  $handle-message message-forward
   
-  "render" (fn [] (render e binding (r0/child-ref this)))
+  "render" (fn [this]
+             (let [[binding e f] (r0/get-args this)]
+               (render e binding (r0/child-ref this))))
 
   ;; [:static "getDerivedStateFromError"] (fn [error])
   
-  "componentDidCatch" (fn [error info]
-                        (call-event-handler! binding f error)))
+  "componentDidCatch" (fn [this error info]
+                        (let [[binding e f] (r0/get-args this)]
+                          (call-event-handler! binding f error))))
 
 (extend-type base/HandleError
   IReact
@@ -413,16 +458,17 @@
       (fn [binding action]
         (call-event-handler! binding (fn [state]
                                        (base/make-returned base/keep-state [action] nil))))]
-  (r0/defclass lifted-reacl this [binding class args]
+  (r0/defclass lifted-reacl
     "render"
-    (fn []
-      (reacl/react-element class {:args args :app-state (:state binding)
-                                  :set-app-state! (f/partial set-app-state! binding)
-                                  :handle-action! (f/partial handle-action! binding)
-                                  :ref (r0/child-ref this)}))
+    (fn [this]
+      (let [[binding class args] (r0/get-args this)]
+        (reacl/react-element class {:args args :app-state (:state binding)
+                                    :set-app-state! (f/partial set-app-state! binding)
+                                    :handle-action! (f/partial handle-action! binding)
+                                    :ref (r0/child-ref this)})))
   
     $handle-message
-    (fn [msg]
+    (fn [this msg]
       ;; TODO: callback?!
       (let [comp (.-current (r0/child-ref this))]
         (assert comp this)
