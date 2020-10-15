@@ -1,7 +1,7 @@
 (ns reacl-c.impl.react0
-  (:require [create-react-class :as createReactClass]
-            [react :as react]
-            [react-dom :as react-dom]
+  (:require ["create-react-class" :as createReactClass]
+            ["react" :as react]
+            ["react-dom" :as react-dom]
             [clojure.string :as str]))
 
 (defn- mk-props [args]
