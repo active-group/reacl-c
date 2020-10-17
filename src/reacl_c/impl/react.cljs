@@ -5,6 +5,7 @@
             [reacl-c.base :as base]
             [reacl-c.core :as core]
             [reacl-c.dom :as dom]
+            [reacl-c.impl.dom0 :as dom0]
             [reacl2.core :as reacl :include-macros true]
             [clojure.string :as str]
             [active.clojure.functions :as f]
@@ -319,43 +320,44 @@
                                 :state nil
                                 :store stores/void-store) f args])))
 
-(defn- find-event [events type]
-  ;; OPT: not really efficient
-  (let [on-e (str "on" type)]
-    (second (first (filter (fn [[k v]]
-                             (= (str/lower-case (name k))
-                                on-e))
-                           events)))))
-
-(defn- event-handler [this]
-  (fn [ev]
-    (let [[binding attrs ref events children] (r0/extract-args (.-props this))
-          f (find-event events (.-type ev))]
-      (call-event-handler! binding f ev))))
-
-(defn- event-fns [this events]
-  (let [handler (:event-handler (r0/get-state this))]
-    (into {}
-          (map (fn [[k _]]
-                 [k handler])
-               events))))
-
 (defn- native-dom [type binding attrs ref children]
   (apply r0/dom-elem type (assoc attrs :ref ref) (map #(render-child % binding) children)))
 
+(defn- event-handler [current-events call-event-handler! capture?]
+  (fn [ev]
+    (let [f (dom0/find-event-handler (current-events) capture? ev)]
+      (call-event-handler! f ev))))
+
+(defn- event-handlers [current-events call-event-handler!]
+  [(event-handler current-events call-event-handler! false)
+   (event-handler current-events call-event-handler! true)])
+
 (def dom-class
-  (memoize (fn [type]
-             (r0/class (str "reacl-c.dom/" type)
-                       $handle-message (message-deadend type)
-                       "getInitialState" (fn [this] {:event-handler (event-handler this)})
-                       "render" (fn [this]
-                                  (let [[binding attrs ref events children] (r0/get-args this)]
-                                    (native-dom type
-                                                binding
-                                                (-> attrs
-                                                    (merge (event-fns this events)))
-                                                ref
-                                                children)))))))
+  (let [dom-events (fn [this]
+                     (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
+                       events))
+        call! (fn [this f ev]
+                (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
+                  (call-event-handler! binding f ev)))
+        event-fns (fn [this events]
+                    (let [[handler capture-handler] (:event-handlers (r0/get-state this))]
+                      (into {}
+                            (map (fn [[k _]]
+                                   [k (if (dom0/capture-event? k) capture-handler handler)])
+                                 events))))]
+    (memoize (fn [type]
+               (r0/class (str "reacl-c.dom/" type)
+                         $handle-message (message-deadend type)
+                         "getInitialState" (fn [this] {:event-handlers (event-handlers (f/partial dom-events this)
+                                                                                       (f/partial call! this))})
+                         "render" (fn [this]
+                                    (let [[binding attrs ref events children] (r0/get-args this)]
+                                      (native-dom type
+                                                  binding
+                                                  (-> attrs
+                                                      (merge (event-fns this events)))
+                                                  ref
+                                                  children))))))))
 
 (extend-type dom/Element
   IReact

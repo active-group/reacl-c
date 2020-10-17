@@ -5,6 +5,7 @@
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
+            [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str])
   (:refer-clojure :exclude [refer]))
 
@@ -224,38 +225,27 @@
   (-instantiate-reacl [{f :f args :args} binding]
     [(apply static static-binding f args)]))
 
-(defrecord ^:private EventMessage [ev])
-
-(defn- find-event-handler [ev events]
-  (when-not (.-type ev)
-    (throw (ex-info "Expected a JavaScript event object, with a property 'type'." {:value ev})))
-  (let [en (str/lower-case (.-type ev))]
-    ;; OPT: could be done a little faster - try a lookup, or prepare a different map. But it can be 'onchange' and 'onChange'.
-    (some (fn [[n f]]
-            ;; "change" = :onChange ?
-            ;; FIXME: are things like onChangeCapture possible? how to handle them?
-            (and (= en (str/lower-case (subs (name n) 2)))
-                 f))
-          events)))
+(defrecord ^:private EventMessage [ev capture?])
 
 (defn- dom-message-to-action [state msg events]
   (cond
     (instance? EventMessage msg)
-    (let [{ev :ev} msg
-          f (find-event-handler ev events)]
+    (let [{capture? :capture? ev :ev} msg
+          f (dom0/find-event-handler events capture? ev)]
       (transform-return (f state ev)))
 
     :else
     (message-deadend "dom" msg)))
 
-(defn- dom-event-handler [target]
+(defn- dom-event-handler [target capture?]
   (fn [ev]
-    (rcore/send-message! target (EventMessage. ev))))
+    (rcore/send-message! target (EventMessage. ev capture?))))
 
-(defn- merge-dom-attrs [attrs events handler self-ref]
+(defn- merge-dom-attrs [attrs events [handler capture-handler] self-ref]
   ;; Note: events are non-empty here.
   (-> (reduce (fn [attrs k]
-                (assoc! attrs k handler))
+                (assoc! attrs k
+                        (if (dom0/capture-event? k) capture-handler handler)))
               (cond-> (transient attrs)
                 self-ref (assoc! :ref (reacl-ref self-ref)))
               events)
@@ -276,7 +266,8 @@
    (fn [type]
      (rcore/class (str "reacl-c.dom/" type) this state [attrs events ref & children]
                   ;; dom with action events and children.
-                  local-state [handler (dom-event-handler this)]
+                  local-state [handlers [(dom-event-handler this false)
+                                         (dom-event-handler this true)]]
   
                   handle-message
                   (fn [msg]
@@ -284,7 +275,9 @@
 
                   ;; Note that we could exclude updates when only event-handler functions have changed (if it's worth it to check?)
                   render
-                  (apply native-dom (rcore/bind this) type (merge-dom-attrs attrs (keys events) handler ref)
+                  (apply native-dom (rcore/bind this) type (merge-dom-attrs attrs (keys events)
+                                                                            handlers
+                                                                            ref)
                          children)))))
 
 (defn- dom-class [binding type events ref & children]
