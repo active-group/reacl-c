@@ -38,10 +38,10 @@
 (defn find [env item]
   (ensure-some (find-all env item)))
 
-(defn find-all-named [env thing]
+(defn find-all-named [env thing] ;; TODO: remove?
   (impl/find-all-named env thing))
 
-(defn find-named [env thing]
+(defn find-named [env thing] ;; TODO: remove?
   (ensure-some (find-all-named env thing)))
 
 (defn describe-failed-find [env item]
@@ -308,7 +308,7 @@
     ([item subs]
      (core/map-effects item (f/partial disable-subs subs)))))
 
-(defn preventing-error-log
+(defn preventing-error-log ;; TODO: -> other namespace; add a test fixture for it?
   "Prevents a log message about an exception during the evaluation of
   `thunk`, which occurs even when the error is handled in an error
   boundary."
