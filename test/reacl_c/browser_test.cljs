@@ -6,6 +6,7 @@
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
             [reacl2.core :as reacl :include-macros true]
+            ["react-dom/test-utils" :as react-tu]
             [reacl2.dom :as rdom]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
@@ -51,7 +52,7 @@
             (reset! ret f)
             (let [n (first (array-seq (.getElementsByClassName host class)))]
               (assert (some? n) "injector item not found")
-              (js/ReactTestUtils.Simulate.click n))
+              (react-tu/Simulate.click n))
             (reset! ret nil))]))
 
 (defn tag [node]
@@ -129,7 +130,7 @@
                         0)]
       (is (= "0" (text (.-firstChild n))))
 
-      (js/ReactTestUtils.Simulate.click n)
+      (react-tu/Simulate.click n)
       (is (= "1" (text (.-firstChild n)))))))
 
 (deftest fragment-test
