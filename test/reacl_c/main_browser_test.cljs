@@ -174,16 +174,20 @@
       (is (= "1" (text (.-firstChild n))))))
 
   (testing "dom capture events"
-    (let [n (renders-as (dom/div {:onClick (fn [state ev]
-                                             (conj state :clickp))
+    (let [res (atom [])
+          n (renders-as (dom/div {:onClick (fn [state ev]
+                                             (swap! res conj :clickp)
+                                             state)
                                   :onClickCapture (fn [state ev]
-                                                    (conj state :capture))}
+                                                    (swap! res conj :capture)
+                                                    state)}
                                  (dom/div {:onClick (fn [state ev]
-                                                      (conj state :clickc))}
+                                                      (swap! res conj :clickc)
+                                                      state)}
                                           (c/dynamic pr-str)))
                         [])]
       (react-tu/Simulate.click (.-firstChild n))
-      (is (= "[:capture :clickc :clickp]" (text (.-firstChild (.-firstChild n))))))))
+      (is (= [:capture :clickc :clickp] @res)))))
 
 (deftest fragment-test
   (is (passes-actions c/fragment))
