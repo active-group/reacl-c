@@ -5,6 +5,7 @@
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
             [reacl2.dom :as rdom]
+            [reacl-c.impl.reacl0 :as reacl0]
             [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str])
   (:refer-clojure :exclude [refer]))
@@ -134,7 +135,7 @@
   base/Application
   (-component [this] comp)
   (-send-message! [this msg callback]
-    (rcore/send-message! comp msg callback)))
+    (reacl0/send-message! comp msg callback)))
 
 (defn run
   [dom item state onchange onaction]
@@ -146,7 +147,7 @@
 (defn react-send-message!
   "Send a message to the component created by [[react-run]]."
   [comp msg & [callback]]
-  (rcore/send-message! comp msg callback))
+  (reacl0/send-message! comp msg callback))
 
 (defn react-run
   [item state onchange onaction]
@@ -239,7 +240,7 @@
 
 (defn- dom-event-handler [target capture?]
   (fn [ev]
-    (rcore/send-message! target (EventMessage. ev capture?))))
+    (reacl0/send-message! target (EventMessage. ev capture?))))
 
 (defn- merge-dom-attrs [attrs events [handler capture-handler] self-ref]
   ;; Note: events are non-empty here.
@@ -530,7 +531,7 @@
   local-state [send! (fn [v]
                        ;; Note: if v only contains a message, we might want to optimize and send directly?
                        ;; (didn't work for some unknown reasons though)
-                       (rcore/send-message! this (AsyncReturn. v))
+                       (reacl0/send-message! this (AsyncReturn. v))
                        nil)]
   refs [child]
   
