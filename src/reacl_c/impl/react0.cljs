@@ -133,4 +133,5 @@
     (apply react/createElement type aobj children)))
 
 (defn fragment [& children]
+  ;; Note: fragments can have a key! (but no ref)
   (apply react/createElement react/Fragment #js {} children))

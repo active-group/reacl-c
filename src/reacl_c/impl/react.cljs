@@ -21,6 +21,11 @@
 
 (def ^:private $handle-message "handleMessage")
 
+;; Note: assume 'elide asserts' => release mode.
+(def dev-mode? (try (do (assert false) false)
+                    (catch :default e
+                      true)))
+
 (defn- send-message! [comp msg & [callback]]
   ;; TODO: callback non-optional -> handle-message
   (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
@@ -65,18 +70,44 @@
 (defprotocol ^:private IReact
   (-instantiate-react [this binding ref] "Returns a React element"))
 
-(defn- render [item binding ref]
+;; Note: strings, nil and fragments can't have refs. We don't really
+;; need them, but using a class can make better error
+;; messages. That's done for fragments in dev-mode:
+(let [empty (base/really-make-fragment nil)]
+  (defn- render-nil [binding ref]
+    (if dev-mode?
+      (-instantiate-react empty binding ref)
+      nil)))
+
+(defn- render-string [v binding ref]
+  (if dev-mode?
+    (-instantiate-react (base/really-make-fragment (list v))
+                        binding ref)
+    v))
+
+#_(defn- can-message-ref? [v]
+  (not (or (nil? v)
+           (string? v)
+           (base/fragment? v)
+           (dom/element? v))))
+
+
+(defn- render
+  "Render to something that can be the result of a React 'render' method."
+  [item binding ref]
   (cond
-    ;; TODO: fragments can't have refs... what does that mean for us? Maybe we should throw, because react ignores is silently...
-    (string? item) (r0/fragment item)
-    (nil? item) (r0/fragment)
+    (nil? item) (render-nil binding ref)
+    (string? item) (render-string item binding ref)
     :else
     (do (if-not (satisfies? IReact item)
           (throw (ex-info (str "No implementation of: " item) {:item item}))
           (-instantiate-react item binding ref)))))
 
-(defn- render-child [item binding]
+(defn- render-child
+  "Render to something that can be in the child array of a React element (dom or fragment)."
+  [item binding]
   (cond
+    (nil? item) item
     (string? item) item
     :else
     (render item binding nil)))
@@ -223,7 +254,7 @@
     (r0/elem with-async-return nil (list* binding ref f args))))
 
 (r0/defclass lifecycle
-  "render" (fn [this] (r0/fragment nil))
+  "render" (fn [this] nil)
 
   $handle-message (message-deadend "lifecycle")
   
@@ -349,10 +380,12 @@
 (extend-type dom/Element
   IReact
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref]
-    ;; TODO: optimize away some classes? (add base/E -might-receive-messages?)
-    (if (empty? events)
-      (native-dom type binding attrs ref children) ;; FIXME: c-ref?  (assert (nil? c-ref)) ?
-      (r0/elem (dom-class type) c-ref [binding attrs ref events children]))))
+    ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
+    ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
+    (if (or (not (empty? events))
+            (and dev-mode? (some? c-ref)))
+      (r0/elem (dom-class type) c-ref [binding attrs ref events children])
+      (native-dom type binding attrs ref children))))
 
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")
@@ -364,12 +397,11 @@
 (extend-type base/Fragment
   IReact
   (-instantiate-react [{children :children} binding ref]
-    ;; (assert (nil? ref)) or not ??
-    ;; TODO: needs the class for messages (only if base/E -might-receive-messages?). TODO: ref
-    (apply r0/fragment (map #(render-child % binding)
-                              children))
-    ;; TODO: get rid of this; no one whould event try to set a ref on a fragment.
-    #_(r0/elem fragment ref [binding children])))
+    ;; Note: React fragments can't have a ref. We don't really need them, except to make better error messages - do that only in dev-mode:
+    (if (and dev-mode? (some? ref))
+      (r0/elem fragment ref [binding children])
+      (apply r0/fragment (map #(render-child % binding)
+                              children)))))
 
 (r0/defclass id
   "render" (fn [this]
