@@ -146,57 +146,50 @@
 ;; items
 
 (r0/defclass dynamic
-  $handle-message message-forward
   "render" (fn [this]
-             (let [[binding f & args] (r0/get-args this)]
+             (let [[binding ref f & args] (r0/get-args this)]
                (render (apply f (:state binding) args)
-                       binding
-                       (r0/child-ref this)))))
+                       binding ref))))
 
 (extend-type base/Dynamic
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem dynamic ref (list* binding f args))))
+    (r0/elem dynamic nil (list* binding ref f args))))
 
 (r0/defclass focus
-  $handle-message message-forward
-  
   "render" (fn [this]
-             (let [[binding e lens] (r0/get-args this)]
+             (let [[binding ref e lens] (r0/get-args this)]
                (render e
                        (assoc binding
                               :state (lens/yank (:state binding) lens)
                               :store (stores/focus-store (:store binding) lens))
-                       (r0/child-ref this)))))
+                       ref))))
 
 (extend-type base/Focus
   IReact
   (-instantiate-react [{e :e lens :lens} binding ref]
-    ;; TODO use id class?
-    (r0/elem focus ref [binding e lens])))
+    (r0/elem focus nil [binding ref e lens])))
 
 (r0/defclass local-state
-  $handle-message message-forward
-
   "getInitialState" (fn [this]
-                      (let [[_ _ initial] (r0/get-args this)]
+                      (let [[_ _ _ initial] (r0/get-args this)]
                         (make-new-state! this initial)))
 
   "render" (fn [this]
-             (let [[binding e _] (r0/get-args this)]
+             (let [[binding ref e _] (r0/get-args this)]
                (render e 
                        (assoc binding
                               :state [(:state binding) (:state (r0/get-state this))]
                               :store (stores/conc-store (:store binding)
                                                         (:store (r0/get-state this))))
-                       (r0/child-ref this))))
+                       ref)))
   
-  [:static "getDerivedStateFromProps"] (new-state-reinit! #(nth % 2)))
+  [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [[_ _ _ initial]] initial)))
 
 (extend-type base/LocalState
   IReact
   (-instantiate-react [{e :e initial :initial} binding ref]
-    (r0/elem local-state ref [binding e initial])))
+    (r0/elem local-state nil [binding ref e initial])))
 
 (let [h (fn [binding f pred actions]
           (let [{handle true pass false} (group-by pred actions)]
@@ -204,34 +197,30 @@
               (call-event-handler! binding f action))
             ((:action-target binding) pass)))]
   (r0/defclass handle-action
-    $handle-message message-forward
-    
     "render" (fn [this]
-               (let [[binding e f pred] (r0/get-args this)]
+               (let [[binding ref e f pred] (r0/get-args this)]
                  (render e
                          (assoc binding :action-target (f/partial h binding f pred))
-                         (r0/child-ref this))))))
+                         ref)))))
 
 (extend-type base/HandleAction
   IReact
   (-instantiate-react [{e :e f :f pred :pred} binding ref]
-    (r0/elem handle-action ref [binding e f pred])))
+    (r0/elem handle-action nil [binding ref e f pred])))
 
 (let [send! (fn [binding r]
               (call-event-handler! binding (constantly r)))]
   (r0/defclass with-async-return
-    $handle-message message-forward
-    
     "render" (fn [this]
-               (let [[binding f & args] (r0/get-args this)]
+               (let [[binding ref f & args] (r0/get-args this)]
                  (render (apply f (f/partial send! binding) args)
                          binding
-                         (r0/child-ref this))))))
+                         ref)))))
 
 (extend-type base/WithAsyncReturn
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-async-return ref (list* binding f args))))
+    (r0/elem with-async-return nil (list* binding ref f args))))
 
 (r0/defclass lifecycle
   "render" (fn [this] (r0/fragment nil))
@@ -257,19 +246,17 @@
 (let [upd (fn [binding f old-state new-state]
             (call-event-handler*! old-state (:action-target binding) (:process-messages binding) f new-state))]
   (r0/defclass handle-state-change
-    $handle-message message-forward
-    
     "render" (fn [this]
-               (let [[binding e f] (r0/get-args this)]
+               (let [[binding ref e f] (r0/get-args this)]
                  (render e
                          (assoc binding
                                 :store (stores/handle-store-updates (:store binding) (f/partial upd binding f)))
-                         (r0/child-ref this))))))
+                         ref)))))
 
 (extend-type base/HandleStateChange
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-state-change ref [binding e f])))
+    (r0/elem handle-state-change nil [binding ref e f])))
 
 (r0/defclass handle-message
   "render" (fn [this]
@@ -288,37 +275,37 @@
 (defn- gen-named [name]
   (r0/class name
             [:state "getDerivedStateFromProps"] (fn [state props]
-                                                  (let [[_ _ validate-state!] (r0/extract-args props)]
+                                                  (let [[_ _ _ validate-state!] (r0/extract-args props)]
                                                     (when validate-state!
                                                       (validate-state! (r0/extract-state state))))
                                                   nil)
-            $handle-message message-forward
+
             "render" (fn [this]
-                       (let [[binding e _] (r0/get-args this)]
-                         (render e binding (r0/child-ref this))))))
+                       (let [[binding ref e _] (r0/get-args this)]
+                         (render e binding ref)))))
 
 (def named (utils/named-generator gen-named))
 
 (extend-type base/Named
   IReact
   (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref]
-    (r0/elem (named name-id) ref [binding e validate-state!])))
+    (r0/elem (named name-id) nil [binding ref e validate-state!])))
 
 (r0/defclass static
   "render" (fn [this]
-             (let [[binding f args] (r0/get-args this)]
+             (let [[binding ref f args] (r0/get-args this)]
                (render (apply f args)
                        binding
-                       (r0/child-ref this))))
-
-  $handle-message message-forward)
+                       ref))))
 
 (extend-type base/Static
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem static ref [(assoc binding
+    (r0/elem static nil [(assoc binding
                                 :state nil
-                                :store stores/void-store) f args])))
+                                :store stores/void-store)
+                         ref
+                         f args])))
 
 (defn- native-dom [type binding attrs ref children]
   (apply r0/dom-elem type (assoc attrs :ref ref) (map #(render-child % binding) children)))
@@ -364,7 +351,7 @@
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref]
     ;; TODO: optimize away some classes? (add base/E -might-receive-messages?)
     (if (empty? events)
-      (native-dom type binding attrs ref children) ;; FIXME: c-ref?
+      (native-dom type binding attrs ref children) ;; FIXME: c-ref?  (assert (nil? c-ref)) ?
       (r0/elem (dom-class type) c-ref [binding attrs ref events children]))))
 
 (r0/defclass fragment
@@ -377,6 +364,7 @@
 (extend-type base/Fragment
   IReact
   (-instantiate-react [{children :children} binding ref]
+    ;; (assert (nil? ref)) or not ??
     ;; TODO: needs the class for messages (only if base/E -might-receive-messages?). TODO: ref
     (apply r0/fragment (map #(render-child % binding)
                               children))
@@ -384,35 +372,31 @@
     #_(r0/elem fragment ref [binding children])))
 
 (r0/defclass id
-  $handle-message message-forward
-  
   "render" (fn [this]
-             (let [[binding e] (r0/get-args this)]
-               (render e binding (r0/child-ref this)))))
+             (let [[binding ref e] (r0/get-args this)]
+               (render e binding ref))))
 
 (extend-type base/Keyed
   IReact
   (-instantiate-react [{e :e key :key} binding ref]
-    (r0/elem id key ref [binding e key])))
+    (r0/elem id key nil [binding ref e])))
 
 (defrecord RRef [ref]
   base/Ref
   (-deref-ref [_] (.-current ref)))
 
 (r0/defclass with-ref
-  $handle-message message-forward
-
   "getInitialState" (fn [this] {:ref (RRef. (r0/create-ref))})
   
   "render" (fn [this]
-             (let [[binding f args] (r0/get-args this)]
+             (let [[binding ref f args] (r0/get-args this)]
                (render (apply f (:ref (r0/get-state this)) args)
-                       binding (r0/child-ref this)))))
+                       binding ref))))
 
 (extend-type base/WithRef
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-ref ref [binding f args])))
+    (r0/elem with-ref nil [binding ref f args])))
 
 (r0/defclass set-ref
   $handle-message (fn [this msg]
@@ -430,22 +414,20 @@
 
 (r0/defclass handle-error
   
-  $handle-message message-forward
-  
   "render" (fn [this]
-             (let [[binding e f] (r0/get-args this)]
-               (render e binding (r0/child-ref this))))
+             (let [[binding ref e _] (r0/get-args this)]
+               (render e binding ref)))
 
   ;; [:static "getDerivedStateFromError"] (fn [error])
   
   "componentDidCatch" (fn [this error info]
-                        (let [[binding e f] (r0/get-args this)]
+                        (let [[binding _ _ f] (r0/get-args this)]
                           (call-event-handler! binding f error))))
 
 (extend-type base/HandleError
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-error ref [binding e f])))
+    (r0/elem handle-error nil [binding ref e f])))
 
 
 ;; Reacl compat
