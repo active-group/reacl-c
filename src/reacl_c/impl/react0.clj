@@ -1,4 +1,4 @@
-(ns reacl-c.impl.react0
+(ns ^:no-doc reacl-c.impl.react0
   (:refer-clojure :exclude [class]))
 
 (defmacro class [name & decls]

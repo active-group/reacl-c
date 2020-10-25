@@ -1,4 +1,4 @@
-(ns reacl-c.impl.dom0
+(ns ^:no-doc reacl-c.impl.dom0
   (:require [clojure.string :as str]))
 
 (defn capture-event? [k]

@@ -1,4 +1,4 @@
-(ns reacl-c.impl.tu-reacl
+(ns ^:no-doc reacl-c.impl.tu-reacl
   "Implementation of test-utils with Reacl test-utils, reusing the Reacl implementation of items."
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]

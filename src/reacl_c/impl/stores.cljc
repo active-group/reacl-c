@@ -1,4 +1,4 @@
-(ns reacl-c.impl.stores
+(ns ^:no-doc reacl-c.impl.stores
   (:require [active.clojure.lens :as lens]))
 
 ;; TODO: rethink where comparisons = are really meaningful.

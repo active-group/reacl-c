@@ -1,4 +1,4 @@
-(ns reacl-c.impl.utils
+(ns ^:no-doc reacl-c.impl.utils
   (:require [reacl-c.base :as base]))
 
 #?(:cljs

@@ -1,4 +1,4 @@
-(ns reacl-c.impl.react
+(ns ^:no-doc reacl-c.impl.react
   (:require [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl-c.impl.utils :as utils]
             [reacl-c.impl.stores :as stores]

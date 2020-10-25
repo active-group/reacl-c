@@ -1,4 +1,5 @@
 (ns reacl-c.core
+  "Functions, primitive values and some macros to define new items."
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [clojure.set :as set]
@@ -6,9 +7,7 @@
             #?(:clj [schema.macros :as sm])
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
-            [cljs.analyzer :as ana]
-            #?(:clj [clojure.core :as clj])
-            #?(:cljs [cljs.core :as clj] :include-macros true))
+            [cljs.analyzer :as ana])
   
   (:refer-clojure :exclude [deref empty refer]))
 

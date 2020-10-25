@@ -1,4 +1,5 @@
 (ns reacl-c.main
+  "Functions for using reacl-c within a browser application."
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
@@ -24,7 +25,16 @@
                 (recur (concat (rest effs) more-effs)
                        (base/merge-returned ret (base/make-returned base/keep-state more-acts msgs))
                        (inc n))))))]
-  (defn execute-effects [item & [options]]
+  (defn execute-effects
+    "Returns an item that will intercept and executes all effects
+  emitted by the given `item`. This is automatically wrapped around
+  the toplevel item when using [[run]], but not when
+  using [[run-controlled]].
+  
+  Options can a map with the following settings:
+  :recursion-limit  When effects continue to return new effects, and exception is when thrown when this limit is reached (defaults to 1000),
+  :monitor  A function called with the effect, its result value and a [[core/return]] value of actions and messages emitted by that effect."
+    [item & [options]]
     (core/handle-effect item (f/partial h
                                         (or (:recursion-limit options) 1000)
                                         (:monitor options)))))

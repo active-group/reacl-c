@@ -1,4 +1,4 @@
-(ns reacl-c.impl.reacl0
+(ns ^:no-doc reacl-c.impl.reacl0
   (:require [reacl2.core :as reacl :include-macros true]))
 
 (defn send-message! [target msg & [callback]]

@@ -1,4 +1,4 @@
-(ns reacl-c.impl.reacl
+(ns ^:no-doc reacl-c.impl.reacl
   (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [reacl-c.impl.utils :as utils]
