@@ -74,8 +74,4 @@
   framework. The optional callback is invoked when any update
   triggered by the message is completed."
   [app msg & [callback]]
-  #?(:clj (do (assert (satisfies? base/Application app) app)
-              (base/-send-message! app msg callback)))
-  #?(:cljs (if (satisfies? base/Application app)
-             (base/-send-message! app msg callback)
-             (impl/react-send-message! app msg callback))))
+  (base/-send-message! app msg callback))

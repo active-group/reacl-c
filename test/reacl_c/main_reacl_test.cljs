@@ -65,7 +65,7 @@
     (is (= "ok2" (btest/text (.-firstChild (.-firstChild node)))))))
 
 (deftest full-reacl-test
-  ;; render and lift also work in combination.
+  ;; c/reacl and main/reacl also work in combination.
   (is (btest/passes-actions
        (fn [x]
          (c/reacl (reacl/class "foo" this state []

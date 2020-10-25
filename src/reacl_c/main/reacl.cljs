@@ -1,7 +1,6 @@
 (ns reacl-c.main.reacl
   "Functions for using reacl-c within a Reacl application or library."
-  (:require [reacl-c.main :as main]
-            [reacl-c.main.react :as main-react]
+  (:require [reacl-c.main.react :as main-react]
             [reacl-c.core :as core]
             [reacl-c.impl.reacl0 :as reacl0]
             [active.clojure.functions :as f]
@@ -28,14 +27,8 @@
         (reacl/return :action (second msg))
 
         :else
-        ;; Note: because this outer 'reacl' is indepandant from the
-        ;; 'inner reacl' that runs the item (if using the Reacl
-        ;; implementation), we cannot pass messages down via
-        ;; 'return :message' here:
-        #_(reacl/return :message [(reacl/resolve-component (reacl/get-dom self)) msg])
         (let [comp (reacl/get-dom self)]
-          (assert comp msg)
-          (main/send-message! comp msg) ;; TODO: callback?
+          (main-react/send-message! comp msg)  ;; TODO: callback?
           (reacl/return))))))
 
 ;; previously named reacl-render

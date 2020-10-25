@@ -141,7 +141,7 @@ The optional `init-fn` is called on the created dom node, to add
   a description of references."
   [ref]
   ;; TODO: needs more to access to actually access the native dom; move this to 'main namespace'?
-  ;; TODO: allow for refer items?
+  ;; TODO: move to dom.cljs? Should at least be clear that it makes only sense for dom elements.
   (base/-deref-ref ref))
 
 (defn dynamic

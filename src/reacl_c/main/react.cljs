@@ -6,7 +6,12 @@
             [active.clojure.lens :as lens]
             [reacl-c.impl.reacl :as impl]))
 
-;; om, reagent, etc.?
+(defn send-message!
+  "Sends a message to the instance of a react element returned
+  by [[react-controlled]] or [[react-uncontrolled]], i.e. the current
+  value of reference set on them."
+  [comp msg & [callback]]
+  (impl/react-send-message! comp msg callback))
 
 ;; TODO: refs, keys. (take 'props'?)
 
