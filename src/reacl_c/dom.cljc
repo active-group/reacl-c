@@ -74,10 +74,15 @@
 (defn- dom-function [type]
   {:pre [(string? type)]}
   ;; Note: could also use (with-async-actions (fn [deliver! ])) and event handlers that call deliver! - but then they aren't pure anymore (at least after a translation)
+  ;; Note: DOM uses upper-case for the type (.nodeName), but React enforces lower-case :-/
+  ;; (assert (= type (str/lower-case type)) type)  -- TODO: what about clipPath ?
   (fn [& args]
     (apply dom-element type args)))
 
-;; TODO: add generic fn (also for web components?)
+(defn h
+  "Returns a DOM item of the specified `type`, like \"div\" for example. Arguments are the same as the specific DOM functions, like [[div]]."
+  [type & args]
+  (apply (dom-function type) args))
 
 ;; The following HTML elements are supported by react (http://facebook.github.io/react/docs/tags-and-attributes.html)
 (defdom a)

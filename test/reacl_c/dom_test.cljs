@@ -10,3 +10,8 @@
     (is (= (dom/div "a") (dom/div "a")))
     (is (= (dom/div {:onclick identity}) (dom/div {:onclick identity})))
     (is (= (dom/div (dom/div "a")) (dom/div (dom/div "a"))))))
+
+
+(deftest generic-fn-test
+  (is (= (dom/h "div" {:width 10})
+         (dom/div {:width 10}))))
