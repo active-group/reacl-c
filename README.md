@@ -11,7 +11,7 @@ programming paradigm of Clojure.
 
 An introduction to the main concepts can be found [here](doc/intro.md)
 
-The latests API documentation [here](https://cljdoc.xyz/d/reacl/reacl/CURRENT).
+The latests API documentation [here](https://cljdoc.xyz/d/reacl-c/reacl-c/CURRENT).
 
 ## License
 
