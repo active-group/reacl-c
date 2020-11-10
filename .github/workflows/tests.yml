@@ -1,0 +1,26 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install karma
+      run: |
+          sudo npm install -g karma
+          sudo npm install -g karma-cljs-test
+          sudo npm install -g karma-firefox-launcher
+          sudo npm install -g karma-chrome-launcher
+    - name: Install dependencies
+      run: |
+        lein deps
+        npm install
+    - name: Run tests 
+      run: |
+        lein build-test
+        npx karma start --single-run
+        lein test

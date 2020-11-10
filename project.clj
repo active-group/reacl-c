@@ -15,15 +15,17 @@
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
 
-  :profiles {:dev {:dependencies [[codox-theme-rdash "0.1.2"]
-                                  [thheller/shadow-cljs "2.11.1"]
-                                  [binaryage/devtools "1.0.2"]]
-                   :source-paths ["src" "test" "examples"]
-                   :resource-paths ["target" "resources"]}}
+  :profiles {:shadow {:dependencies [[thheller/shadow-cljs "2.11.1"]
+                                     [binaryage/devtools "1.0.2"]]
+                      :source-paths ["src" "test" "examples"]
+                      :resource-paths ["target" "resources"]}
+             
+             :codox {:dependencies [[codox-theme-rdash "0.1.2"]]}}
 
   :clean-targets ^{:protect false} [:target-path]
 
-  :aliases {"fig" ["run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]}
+  :aliases {"fig" ["run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
+            "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "test"]}
 
   :codox {:language :clojure ;; :clojurescript
           :metadata {:doc/format :markdown}

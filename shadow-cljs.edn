@@ -1,6 +1,6 @@
 {
  ;; use source-paths and dependencies from leiningen project.clj:
- :lein {:profiles "+dev"}
+ :lein {:profiles "shadow"}
  :builds {:test {:target :browser-test
                  :test-dir "target/public/test"
                  :devtools {:hud #{:errors :warnings :progress}
