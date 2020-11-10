@@ -132,7 +132,7 @@ items, and they pass any changed state from a child upwards. They also
 pass actions from any child upwards, and raise an error if a message
 is sent to them.
 
-Things get interesting, when adding event handler to DOM
+Things get interactive, when adding event handlers to DOM
 elements. Resembling HTML, event handlers are functions that can be
 attached to an element via attributes that start with `:on`, like
 `:onclick`:
@@ -178,8 +178,7 @@ trigger or react to discrete events in the application.
 
 ### Working with state
 
-With the items described so far, your application will be quite static
-and always look the same. Change over time is introduced by *dynamic*
+Reacting to state changes over time is introduced by *dynamic*
 items:
 
 ```clojure
@@ -209,9 +208,9 @@ Reacl-c also offers a convenient macro to create dynamic items called
 (greeting "de")   ;; is an item
 ```
 
-Note that in the `defn-item` macro of Reacl-c was used here to define a
+Note that the `defn-item` macro of Reacl-c was used here to define a
 function that returns an item. That macro is basically like an
-enhanced variant of Clojure's `defn`, but must only be used to
+enhanced variant of Clojure's `defn`, but can only be used to
 define abstractions over items. See below for more features of the
 `defn-item` and `def-item` macro.
 
@@ -233,11 +232,10 @@ passes all actions from the inner item upwards and forwards all
 messages sent to it down.
 
 The possible values for the first argument to `focus` are not
-restricted to keywords. If you pass an integer value, then the item
-focuses on the n-th item of a vector. And you can also pass any
-function of two arities: The single arity is used to extract the inner
-state from the outer state, and the two-argument arity is used to
-embed a new inner state in the current outer state:
+restricted to keywords. You can also pass any function of two arities:
+The single arity is used to extract the inner state from the outer
+state, and the two-argument arity is used to embed a new inner state
+in the current outer state:
 
 ```clojure
 (fn
@@ -246,9 +244,9 @@ embed a new inner state in the current outer state:
 ```
 
 This conforms to the functional programming concept of a *lens*. All
-functions like this can be used, as well as keywords and integers with
-the aforementioned meaning. Look at a large collection of useful
-lenses and lens combinators in
+functions like this can be used, as well as keywords with the
+aforementioned meaning. Look at a large collection of useful lenses
+and lens combinators in
 [`active.clojure.lens`](https://github.com/active-group/active-clojure).
 
 The next thing concerning the state of items, is introducing new state
@@ -271,8 +269,8 @@ Note that this depends on the position of the item in the tree. If you
 'move' that item to a different position, it might 'restart' with the
 initial state again. Actually, as most primitive items in Reacl-c are
 referentially transparent values, using the the created item multiple
-times is possible, and at each place it will start with `42` intially,
-but then store updated states independantly from each other.
+times is possible, but at each place it will start with `42` intially,
+and then store updated states independantly from each other.
 
 One way to allow an item to 'move' in a limited way, is adding a *key*
 on it:
@@ -283,11 +281,11 @@ on it:
 
 Within a list of child items (in a fragment or DOM item), a keyed item
 may change its position over time and still keep the same local state
-and will not be reset to the initial state. The keys within the same
-child list must of course be unique for that.
+without being reset to the initial state. The keys within the same
+child list must of course be unique.
 
 Because it's often convenient to use the current value of the local
-state to change the returned item, new state can also be intrudoced
+state to change the returned item, new state can also be introduced
 directly with the `with-state-as` macro:
 
 ```clojure
@@ -321,8 +319,8 @@ again, given the same function. Static items are mainly a way to
 increase the performance of your application, by 'cutting off' larger
 item branches from any state update. Note that it is important that
 you pass the *same* function to `static` each time. In Clojure,
-anonymous functions are different objects each time then `fn` form is
-evaluated. So when used as an optimization, one should use the `defn-item`
+anonymous functions are different objects each time the `fn` form is
+evaluated. So when used as an optimization, you should use the `defn-item`
 macros of Reacl-c, which can define abstract static items in the
 following way:
 
@@ -337,7 +335,7 @@ used with same arguments.
 
 ### Working with actions
 
-Actions emitted by an item, should be handled somewhere up in the item
+Actions emitted by an item should be handled somewhere up in the item
 tree. The `c/handle-action` creates an item that does this:
 
 ```clojure
@@ -372,16 +370,16 @@ To create an item that accepts messages, the function
 ```
 
 Just like always, the resulting item looks like `some-other-item`, has
-the same state as it, and passes all actions emitted by it upwards.
+the same state that, and passes all actions emitted by it upwards.
 
 The other task regarding messages, is of course sending messages to
-items, either in reaction to an action or to a message received, for
+items, either in reaction to an action or to a received message, for
 example. The key concept to this are *references*. Messages can be
 targeted indirectly to a reference, which resolve to a concrete item
-at a place in the item tree, or to an item that a reference was
-assigned to. There are low-level utilities to do that (`c/with-ref`
-and `c/set-ref`), but the most convenient way for the common use
-cases is the `c/ref-let` macro:
+at a place in the item tree, or directly to an item to which a reference
+was assigned to. There are low-level utilities to do that
+(`c/with-ref` and `c/set-ref`), but the most convenient way for the
+common use cases is the `c/ref-let` macro:
 
 ```clojure
 (c/ref-let [child some-other-item]
@@ -398,7 +396,8 @@ use `child` at both places in this code - it is also just an item, but
 it contains the reference information that is needed to identify the
 target for the message. As usual, `ref-let` passes any state down and
 up unchanged, as well as any action upwards. Messages sent to the
-`ref-let` item are forwarded to the item defined in the body.
+`ref-let` item are forwarded to the item bound - `some-other-item` in
+this case.
 
 Note that an item with a reference assigned (`child` in this case),
 can only be used once in the body of `ref-let`.
@@ -409,10 +408,12 @@ not be be equal as of Clojure's `=` function. When optimizing an
 application for performance, you can use the functional equivalent
 `c/ref-let*` to create referntially transparent items.
 
+### Unexpected errors
+
 Sometimes, items may fail at runtime, for example dynamic items that
 make wrong assumptions on the state they get, or are being used on the
 wrong state of course. There is one primitive way to handle such
-errors, `c/error-boundary`, and a slightly more convenient way, the
+errors, `c/error-boundary`, and a slightly more convenient way: the
 items created by the `try-catch` function:
 
 ```clojure
@@ -423,7 +424,7 @@ items created by the `try-catch` function:
 ```
 
 The item returned by `c/try-catch` will initially look and behave like
-the item given as the first argument - `try-item`. After that causes a
+the item given as the first argument - the `try-item`. After that causes a
 runtime exception, the `catch-item` will be shown instead. The state
 of the `catch-item` will be a tuple of the outer state and the
 exception value. The `catch-item` may then, automatically or after a
@@ -431,7 +432,7 @@ user interaction, change the second part of the tuple state to
 `nil`. That causes the error to be cleared, and the `try-catch` item
 shows the `try-item` again. Sometimes, you may also want to reset the
 left part of the tuple, the main state, to something that might
-prevent the error from happening.
+prevent the error from happening again.
 
 Note that these utilities will not catch errors in message, action or
 event handlers, but only those during the creation or update of the item
@@ -461,11 +462,11 @@ The first such items are those created by the `c/init` and `c/finalize` function
   (c/finalize (c/return :action "I'm not in use anymore")))
 ```
 
-In this example the first action is emitted from the resulting item
-when that is used at some place in the tree, and the second action
+In this example the first action is emitted by the resulting item
+when it is used at some place in the tree, and the second action
 when it is not used anymore there.
 
-For more advaned reactions to lifecycle events, there are the `c/once`
+For more advanced reactions to lifecycle events, there are the `c/once`
 and the `c/lifecycle` items.
 
 Note that you can easily combine these items with others in a
@@ -478,7 +479,7 @@ fragment item, which is then equivalent to *their* lifetime:
 ## The outside world
 
 There are hardly any applications that do not interact with the
-outside world and be useful at the same time. So most of time, you
+outside world and be useful at the same time. So most of the time, you
 will want to modify the browser's session store, retrieve or push data
 to a server, or modify the browser history. In this chapter we go
 through the utilities that Reacl-c offers to do this in a safe,
@@ -488,11 +489,11 @@ functional and fully testable way.
 
 Another concept of Reacl-c is that of *effects*. You should
 encapsulate all side effects of your application in effects - be it
-the communication with a server, creating random number or just
+the communication with a server, creating a random number or just
 looking up the current time. Effects are a special kind of action,
 which can not be captured by `c/handle-action`, but are implicitly
-handled on the toplevel, by *executing* them. Effects can be created
-by `c/effect`, but more conveniently by the `c/defn-effect` macro:
+handled at the toplevel, by *executing* them. Effects can be created
+by `c/effect`, but more conveniently with the `c/defn-effect` macro:
 
 ```clojure
 (c/defn-effect reload! [force?]
@@ -560,11 +561,11 @@ which is called when an item creted from it is removed from the item
 tree. The subscription definition must make sure that the `deliver!`
 function is not called again, after the stop function has been called.
 
-There are also primitive items that can be used to attach asynchronous
-sources of events or data (`c/with-async-return` and variants of it),
-but they are more difficult to use, as you must take care that they
-stop emitting events when the receiving item is removed from the item
-tree.
+There are also more primitive items that can be used to attach
+asynchronous sources of events or data (`c/with-async-return` and
+variants of it), but they are more difficult to use, as you must take
+care that they stop emitting events when the receiving item is removed
+from the item tree. Subscription items are the most convenient way.
 
 ### External control
 
