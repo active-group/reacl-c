@@ -6,5 +6,7 @@
                  :devtools {:hud #{:errors :warnings :progress}
                             :http-port          9500
                             :http-root          "target/public/test"}}
+          :ci {:target :karma
+               :output-to "target/ci.js"}
           }
  }
