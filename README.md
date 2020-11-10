@@ -1,7 +1,7 @@
 # Reacl-c
 
 This is a web programming library for ClojureScript, founding
-Facebook's React. It's highly composable and embraces the functional
+on Facebook's React. It's highly composable and embraces the functional
 programming paradigm of Clojure.
 
 [![Latest Version](https://img.shields.io/clojars/v/de.active-group/reacl-c.svg)](https://clojars.org/de.active-group/reacl-c)
@@ -9,9 +9,9 @@ programming paradigm of Clojure.
 
 ## Documentation
 
-An introduction to the main concepts can be found [here](doc/intro.md)
+An introduction to the main concepts can be found [here](doc/intro.md).
 
-The latests API documentation [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
+The API documentation for the latest release are available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
 
 ## Utilities
 

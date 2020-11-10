@@ -17,9 +17,9 @@ In the following, a `:require` clause like this is assumed:
 
 ## Basic concepts
 
-In Reacl-c, the user interface is defined by an /Item/.
+In Reacl-c, the user interface is defined by an *Item*.
 
-All items have an optional /visual appearance/, consisting of one or
+All items have an optional *visual appearance*, consisting of one or
 more DOM nodes (elements or text). Items without a visual appearance,
 are called invisible.
 
@@ -31,16 +31,16 @@ are usually invisible themself.
 Just like in the DOM, some items can have child items. So together
 they form a tree, with one item at the top.
 
-All items may emit /actions/, which propagate upwards in the item
+All items may emit *actions*, which propagate upwards in the item
 tree, until they are handled.
 
-All items may be sent /messages/ to. Those can be handled, but some
+All items may be sent *messages* to. Those can be handled, but some
 items forward such a message down to a child item, while others always
 raise an error.
 
-All items have a /state/, which may change over time, as the user
+All items have a *state*, which may change over time, as the user
 interacts with the user interface. That state however, is not stored
-or mutated /inside/ an item. It can instead be thought of as an
+or mutated *inside* an item. It can instead be thought of as an
 implicit argument the item, which can be passed to it multiple
 times. Also, a change of the state can be though of as an implicit
 return value from the item.
@@ -49,12 +49,12 @@ Most items just pass the state they get down to all their child items,
 and propagate any changed state from any of their children upwards in
 the item tree. A state change that reaches the toplevel, is then
 actually stored by the Reacl-C runtime, and passed back to the root
-item as its new state. Like that, the state becomes an /application
-state/, as all items share the same state, and all of them can update
+item as its new state. Like that, the state becomes an *application
+state*, as all items share the same state, and all of them can update
 any part of it. But of course, there are ways to break this basic
 model up at certain points in the item tree - by either making a child
-item /work/ on just a part of the state, or by introducting new state,
-that is stored at a lower part in the tree as so called /local state/.
+item *work* on just a part of the state, or by introducting new state,
+that is stored at a lower part in the tree as so called *local state*.
 
 Finally, an item can be run in a browser, underneath a specific DOM
 node, by calling `reacl-c.browser/run`, specifying an initial state
