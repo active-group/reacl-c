@@ -87,22 +87,25 @@
              (defn-subscription-test-1 :arg)))))
 
   (testing "synchronous delivery, and schema validation"
-    (c/defn-subscription defn-subscription-test-2 ^:always-validate deliver! :- s/Int [arg]
-      (deliver! arg)
-      (fn [] nil))
+    (let [res (atom false)]
+      (c/defn-subscription defn-subscription-test-2 ^:always-validate deliver! :- s/Int [arg]
+        (reset! res nil)
+        (try (tu/preventing-error-log
+              #(deliver! arg))
+             (catch :default e
+               (reset! res e)))
+        (fn [] nil))
 
-    (is (= (c/return :action 42)
-           (-> (tu/env (defn-subscription-test-2 42))
-               (tu/mount!! nil))))
+      (is (= (c/return :action 42)
+             (-> (tu/env (defn-subscription-test-2 42))
+                 (tu/mount!! nil))))
+      (is (nil? @res))
 
-    (tu/preventing-error-log
-     (fn []
-       (try (-> (tu/env (defn-subscription-test-2 "42"))
-                (tu/mount! nil))
-            (is false)
-            (catch :default e
-              (is (str/starts-with? (.-message e)
-                                    "Input to deliver! does not match schema: \n\n\t [0;33m  [(named (not (integer? \"42\"))")))))))
+      (-> (tu/env (defn-subscription-test-2 "42"))
+          (tu/mount! nil))
+      (let [e @res]
+        (is (str/starts-with? (.-message e)
+                              "Input to deliver! does not match schema:")))))
   )
 
 
