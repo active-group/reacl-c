@@ -24,7 +24,7 @@
 
   :clean-targets ^{:protect false} [:target-path]
 
-  :aliases {"fig" ["run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
+  :aliases {"fig" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
             "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]}
 
   :codox {:language :clojure ;; :clojurescript
