@@ -8,3 +8,4 @@ scala
 _scratch
 node_modules
 .shadow-cljs
+.lein-failures
