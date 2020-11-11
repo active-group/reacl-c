@@ -15,7 +15,7 @@
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
 
-  :profiles {:shadow {:dependencies [[thheller/shadow-cljs "2.11.1"]
+  :profiles {:shadow {:dependencies [[thheller/shadow-cljs "2.11.7"]
                                      [binaryage/devtools "1.0.2"]]
                       :source-paths ["src" "test" "examples"]
                       :resource-paths ["target" "resources"]}
