@@ -1,6 +1,8 @@
 (ns reacl-c.test-util.dom-testing
   (:require [reacl-c.main.react :as main]
+            [active.clojure.functions :as f]
             [cljs-async.core :as async]
+            ["@testing-library/dom" :as dom-tu]
             ["@testing-library/react" :as react-tu])
   (:refer-clojure :exclude [get find]
                   :rename {get map-get}))
@@ -176,9 +178,19 @@
         (throw (js/Error (str "Query " how " not defined in custom query " q ".")))))
     (apply f args)))
 
-(defn- q-runner [q args]
-  (fn [where how] ;; TODO: statify?
-    (apply run-q where how q args)))
+(let [h (fn [q args args-to-js where how]
+          (apply run-q where how q (args-to-js args)))]
+  (defn- q-runner [q args & [args-to-js]]
+    (f/partial h q args (or args-to-js identity))))
+
+(defn build-js-query
+  [query-all make-multi-error make-missing-error & [args-to-js]]
+  (let [r (react-tu/buildQueries query-all
+                                 make-multi-error make-missing-error)]
+    ;; buildQuery does not return the query-all, but we want that to have all in one binding.
+    (let [qs (vec (cons query-all (array-seq r)))]
+      (fn [& args]
+        (q-runner qs args)))))
 
 (defn build-query
   "Creates a custom query like [[by-label-text]], via a function that
@@ -196,68 +208,78 @@
 
   See https://testing-library.com/docs/react-testing-library/setup#add-custom-queries for some additional notes."
   [query-all make-multi-error make-missing-error]
-  (let [r (react-tu/buildQueries (fn [& args]
-                                   ;; array or js interable?
-                                   (to-array (apply query-all args)))
-                                 make-multi-error make-missing-error)]
-    ;; buildQuery does not return the query-all, but we want that to have all in one binding.
-    (let [qs (vec (cons query-all (array-seq r)))]
-      (fn [& args]
-        (q-runner qs args)))))
+  (build-js-query (fn [& args]
+                    ;; array or js interable?
+                    (to-array (apply query-all args)))
+                  make-multi-error make-missing-error))
 
-(defn- std-q-runner [q text options]
-  (q-runner q (list text
-                    ;; TODO: do js later, to make 'by-*' result referentially transparent.
-                    (clj->js (apply hash-map options)))))
+(let [to-js (fn [[text options]]
+              [text (clj->js options)])]
+  (defn- std-q-runner [q text options]
+    (q-runner q
+              [text (apply hash-map options)]
+              to-js)))
 
 (defn by-label-text
-  "https://testing-library.com/docs/dom-testing-library/api-queries#bylabeltext"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#bylabeltext"
   [text & options]
   (std-q-runner "ByLabelText"
                 text options))
 
 (defn by-placeholder-text
-  "https://testing-library.com/docs/dom-testing-library/api-queries#byplaceholdertext"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#byplaceholdertext"
   [text & options]
   (std-q-runner "ByPlaceholderText"
                 text options))
 
 (defn by-text
-  "https://testing-library.com/docs/dom-testing-library/api-queries#bytext"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#bytext"
   [text & options]
   (std-q-runner "ByText"
                 text options))
 
 (defn by-alt-text
-  "https://testing-library.com/docs/dom-testing-library/api-queries#byalttext"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#byalttext"
   [text & options]
   (std-q-runner "ByAltText"
                 text options))
 
 (defn by-title
-  "https://testing-library.com/docs/dom-testing-library/api-queries#bytitle"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#bytitle"
   [text & options]
   (std-q-runner "ByTitle"
                 text options))
 
 (defn by-display-value
-  "https://testing-library.com/docs/dom-testing-library/api-queries#bydisplayvalue"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#bydisplayvalue"
   [text & options]
   (std-q-runner "ByDisplayValue"
                 text options))
 
 (defn by-role
-  "https://testing-library.com/docs/dom-testing-library/api-queries#byrole"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#byrole"
   [text & options]
   (std-q-runner "ByRole"
                 text options))
 
 (defn by-test-id
-  "https://testing-library.com/docs/dom-testing-library/api-queries#bytestid"
+  "See https://testing-library.com/docs/dom-testing-library/api-queries#bytestid"
   [text & options]
   (std-q-runner "ByTestId"
                 text options))
 
+(let [q (build-js-query (fn [where attribute text & options]
+                          (dom-tu/queryHelpers.queryAllByAttribute attribute (container where) text
+                                                                   (clj->js (apply hash-map options))))
+                        ;; TODO: if text is a predicate? (not string nor regex)
+                        (fn [where attribute text & options]
+                          (str "Found multiple elements with: [" attribute "=" text "]"))
+                        (fn [where attribute text & options]
+                          (str "Unable to find an element by: [" attribute "=" text "]")))]
+  (defn by-attribute
+    [attribute text & options]
+    ;; Note: text here (and in all other standard queries, can be a predicate fn too.
+    (apply q attribute text options)))
 
 (defn- fire-event* [node event]
   (react-tu/fireEvent node event))

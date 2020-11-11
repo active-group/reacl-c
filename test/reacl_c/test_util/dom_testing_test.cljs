@@ -39,6 +39,21 @@
          (dom-t/fire-event node :click)
          (await (dom-t/find env (dom-t/by-title "World"))))))))
 
+(deftest query-equality-test
+  ;; referential transparency... might be helpful
+  (is (= (dom-t/by-text "foo")
+         (dom-t/by-text "foo")))
+
+  (is (= (dom-t/by-attribute "data-id" "124")
+         (dom-t/by-attribute "data-id" "124")))
+
+  (let [by-color (dom-t/build-query
+                  (fn [where col] nil)
+                  (fn [where col] "")
+                  (fn [where col] ""))]
+    (is (= (by-color "white")
+           (by-color "white")))))
+
 (deftest build-query-test
   (let [by-color (dom-t/build-query
                   (fn [where col]
@@ -50,7 +65,9 @@
                   (fn [where col]
                     (str "No node with color: " col)))]
     (dom-t/rendering
-     (dom/div {:style {:color "black"}})
+     (c/fragment (dom/div {:style {:color "black"}})
+                 (dom/div {:style {:color "blue"}})
+                 (dom/div {:style {:color "blue"}}))
      :state false
      (fn [env]
        (is (some? (dom-t/query env (by-color "black"))))
@@ -61,4 +78,18 @@
        (is (string/starts-with? (try (dom-t/get env (by-color "pink"))
                                      (catch :default e
                                        (.-message e)))
-                                (str "No node with color: " "pink")))))))
+                                (str "No node with color: " "pink")))
+
+       (is (string/starts-with? (try (dom-t/get env (by-color "blue"))
+                                     (catch :default e
+                                       (.-message e)))
+                                (str "More than one node with color: " "blue")))))))
+
+(deftest by-attribute-test
+  (dom-t/rendering
+   (dom/div {:width "100px"})
+   :state false
+   (fn [env]
+     (is (some? (dom-t/query env (dom-t/by-attribute "width" "100px"))))
+
+     (is (not-empty (dom-t/query-all env (dom-t/by-attribute "width" (fn [v] (= v "100px")))))))))
