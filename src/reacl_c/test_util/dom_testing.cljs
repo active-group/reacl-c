@@ -1,0 +1,286 @@
+(ns reacl-c.test-util.dom-testing
+  (:require [reacl-c.main.react :as main]
+            [cljs-async.core :as async]
+            ["@testing-library/react" :as react-tu])
+  (:refer-clojure :exclude [get find]
+                  :rename {get map-get}))
+
+;; effects and subscriptions are execute by default.
+
+(defn- finally* [f g]
+  (let [async? (atom false)]
+    (try (let [res (f)]
+           (if (async/promise? res)
+             (do (reset! async? true)
+                 (async/finally res g))
+             res))
+         (finally (when-not @async?
+                    (g))))))
+
+(defn- with-config [config f]
+  (let [previous (atom nil)]
+    (react-tu/configure (fn [current]
+                          (reset! previous current)
+                          (clj->js config)))
+    (finally* f
+              #(react-tu/configure @previous))))
+
+(defn- pretty-nodes [document nodes]
+  (let [d (.createDocumentFragment document)]
+    (doseq [x nodes]
+      (.appendChild d (.cloneNode x true)))
+    (react-tu/prettyDOM d)))
+
+(defn- default-get-element-error [message container]
+  ;; React-Testing shows the markup of the container element itself; I don't like that
+  (let [container (if (instance? js/Node container)
+                    container
+                    (.-container container))]
+    (doto (js/Error (str message "\n\n"
+                         (react-tu/prettyDOM container)
+                         ;; TODO: this does not work; appending the markup of each child might not be so pretty anymore (do it if's a single one?)
+                         #_(pretty-nodes (.-ownerDocument container) (.-childNodes container))))
+      (aset "name" "TestingLibraryElementError"))))
+
+(defn ^{:arglists '[(item options... f)]
+        :doc "options: :state :container :baseElement :hydrate :wrapper :visible?"}
+  rendering
+  [item & args]
+  (let [f (last args)
+        options (apply hash-map (drop-last args))]
+    (assert (not-empty args))
+    (assert (ifn? f))
+    (let [container (map-get options :container
+                             ;; by default, hide the container if the document is visible.
+                             ;; Note: visibility changes when putting tabs in foreground/background (in Chrome)
+                             (let [visible? (map-get options :visible? (.-hidden js/document))]
+                               (let [e (js/document.createElement "DIV")
+                                     body js/document.body]
+                                 (when (not visible?) (set! (.-visibility (.-style e)) "hidden"))
+                                 (.appendChild body e)
+                                 e)))
+
+          initial-state (:state options)
+
+          r (react-tu/render (main/react-uncontrolled item initial-state
+                                                      (:handle-action! options))
+                             (clj->js (-> options
+                                          (dissoc :handle-action!
+                                                  :visible?
+                                                  :state
+                                                  :configuration)
+                                          (assoc :container container))))]
+      (with-config (merge {:getElementError default-get-element-error}
+                          (:configuration options))
+        (fn []
+          (finally* (fn []
+                      (f r))
+                    (fn []
+                      (react-tu/cleanup r))))))))
+
+(defn ^:no-doc as-fragment [env]
+  (.-asFragment env))
+
+(defn ^:no-doc act [env & args]
+  (apply (.-act env) args))
+
+(defn unmount! [env]
+  (.unmount env))
+
+(defn update! [env item state]
+  ;; FIXME: need to recover :handle-action! ?!
+  (.rerender env (main/react-uncontrolled item state
+                                          #_(:handle-action! options))))
+
+(defn container [env]
+  (.-container env))
+
+(defn base-element [env]
+  (.-baseElement env))
+
+(defn pretty-dom [node]
+  (react-tu/prettyDOM node))
+
+(defn within
+  [base node]
+  ;; Note: does not need base/env yet; but we might use it to copy
+  ;; 'custom queries' from there to here; which imho is a flaw in
+  ;; testing-library they are not inherited. 'within' has a second
+  ;; argument to add new custom queries...
+  (react-tu/within node))
+
+(defn query
+  "Returns matching node or nil, but throws if more than one node matches."
+  [where what]
+  (what where "query"))
+
+(defn query-all
+  "Returns all matching nodes."
+  [where what]
+  (what where "queryAll"))
+
+(defn get
+  "Returns matching node, and throws if none or more than one node matches."
+  [where what]
+  (what where "get"))
+
+(defn get-all
+  "Returns all matching nodes, but throws if no nodes match."
+  [where what]
+  (what where "getAll"))
+
+(def ^:private default-wait-for-options
+  ;; Note: the default onTimeout appends the markus of 'container' again to the
+  ;; messages generated by getBy*. Terrible, as it's often even the whole document.
+  ;; TODO: printing the wait time would be nice though. (default 1s)
+  {:onTimeout identity})
+
+(defn wait-for* [f & options]
+  (react-tu/waitFor f (clj->js (merge default-wait-for-options (apply hash-map options)))))
+
+(defn wait-for-removal* [f & options]
+  (react-tu/waitForElementToBeRemoved f (clj->js (merge default-wait-for-options (apply hash-map options)))))
+
+(defn- find* [f where what options]
+  (apply wait-for* (fn [] (f where what))
+         options))
+
+(defn find [where what & options]
+  (find* get where what options))
+
+(defn find-all [where what & options]
+  (find* get-all where what options))
+
+(defn- query-fn [where how q]
+  ;; how = find|get|query|findAll|getAll|queryAll
+  ;; q = ByName|ByLabel etc.
+  ;; or
+  ;; q = a vector of [queryAll, query, getAll, get, findAll, find], as returned by build-queries
+  (if (string? q)
+    (aget where (str how q))
+    (let [[qa q ga g fa f] q]
+      (partial (case how
+                 "queryAll" qa
+                 "query" q
+                 "getAll" ga
+                 "get" g
+                 "findAll" fa
+                 "find" f)
+               where))))
+
+(defn- run-q [where how q & args]
+  (let [f (query-fn where how q)]
+    (when (nil? f)
+      (if (string? q)
+        (throw (js/Error (str "Query " how q " not found in " where ".")))
+        (throw (js/Error (str "Query " how " not defined in custom query " q ".")))))
+    (apply f args)))
+
+(defn- q-runner [q args]
+  (fn [where how] ;; TODO: statify?
+    (apply run-q where how q args)))
+
+(defn build-query
+  "Creates a custom query like [[by-label-text]], via a function that
+  implements the 'query-all' logic, which should return a sequence of
+  all matching nodes, and two functions that return an error message
+  for the cases of finding more than one, resp. nothing at all.
+
+  For example:
+
+```
+  (def by-my-property (build-queries (fn [env v1] ...) (fn [env v1] \"Error\") (fn [env v1] \"Error\")))
+
+  (find node (by-my-property \"foo\"))
+```
+
+  See https://testing-library.com/docs/react-testing-library/setup#add-custom-queries for some additional notes."
+  [query-all make-multi-error make-missing-error]
+  (let [r (react-tu/buildQueries (fn [& args]
+                                   ;; array or js interable?
+                                   (to-array (apply query-all args)))
+                                 make-multi-error make-missing-error)]
+    ;; buildQuery does not return the query-all, but we want that to have all in one binding.
+    (let [qs (vec (cons query-all (array-seq r)))]
+      (fn [& args]
+        (q-runner qs args)))))
+
+(defn- std-q-runner [q text options]
+  (q-runner q (list text
+                    ;; TODO: do js later, to make 'by-*' result referentially transparent.
+                    (clj->js (apply hash-map options)))))
+
+(defn by-label-text
+  "https://testing-library.com/docs/dom-testing-library/api-queries#bylabeltext"
+  [text & options]
+  (std-q-runner "ByLabelText"
+                text options))
+
+(defn by-placeholder-text
+  "https://testing-library.com/docs/dom-testing-library/api-queries#byplaceholdertext"
+  [text & options]
+  (std-q-runner "ByPlaceholderText"
+                text options))
+
+(defn by-text
+  "https://testing-library.com/docs/dom-testing-library/api-queries#bytext"
+  [text & options]
+  (std-q-runner "ByText"
+                text options))
+
+(defn by-alt-text
+  "https://testing-library.com/docs/dom-testing-library/api-queries#byalttext"
+  [text & options]
+  (std-q-runner "ByAltText"
+                text options))
+
+(defn by-title
+  "https://testing-library.com/docs/dom-testing-library/api-queries#bytitle"
+  [text & options]
+  (std-q-runner "ByTitle"
+                text options))
+
+(defn by-display-value
+  "https://testing-library.com/docs/dom-testing-library/api-queries#bydisplayvalue"
+  [text & options]
+  (std-q-runner "ByDisplayValue"
+                text options))
+
+(defn by-role
+  "https://testing-library.com/docs/dom-testing-library/api-queries#byrole"
+  [text & options]
+  (std-q-runner "ByRole"
+                text options))
+
+(defn by-test-id
+  "https://testing-library.com/docs/dom-testing-library/api-queries#bytestid"
+  [text & options]
+  (std-q-runner "ByTestId"
+                text options))
+
+
+(defn- fire-event* [node event]
+  (react-tu/fireEvent node event))
+
+(defn fire-event
+  "`event` can be a DOM Event object, or a keywork like :click for
+  standard events. See
+  https://github.com/testing-library/dom-testing-library/blob/master/src/event-map.js
+  for a list."
+  [node event & [event-properties]]
+  (fire-event* node
+               (if (instance? js/Event event)
+                 (do (assert (nil? event-properties))
+                     event)
+                 ;; Note: createElemnt.click() uses default properties, but createEvent("click") doesn't :-/ damn!
+                 ;; How can we distinguish it? Let's use: keyword event => default; string event => generic.
+                 (let [f (if (string? event)
+                           (partial react-tu/createEvent event)
+                           (or (aget react-tu/createEvent (name event))
+                               (throw (js/Error (str "Not a known standard event: " (pr-str event) ".")))))]
+                   (f node (clj->js event-properties))))))
+
+;; TODO: https://github.com/testing-library/user-event ?
+
+;; TODO: custom queries; ...by-attribute ? queryHelpers.queryByAttribute, queryHelpers.getElementError
+;; TODO: getNodeText, getRoles, isInaccessible, prettyDOM

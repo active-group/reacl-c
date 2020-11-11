@@ -1,9 +1,10 @@
 {
   "dependencies": {
-    "create-react-class": "^15.7.0"
     "react": "^16.13.1",
     "react-dom": "^16.13.1",
     "react-test-renderer": "^16.13.1",
+    "create-react-class": "^15.7.0",
+    "@testing-library/react": "^11.1.1"
   },
   "devDependencies": {
     "karma": "^5.2.1",
