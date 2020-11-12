@@ -34,9 +34,6 @@
 (defn current-ref [r]
   (.-current r))
 
-(defn child-ref [this]
-  (aget this "child_ref"))
-
 (defn- static? [[k v]] (and (vector? k) (= :static (first k))))
 
 (defn set-statics! [class decls]
@@ -60,7 +57,6 @@
                                              (fn [f]
                                                (fn []
                                                  (this-as this
-                                                          (aset this "child_ref" (create-ref))
                                                           (when f (mk-state (.call f this)))))))
                                      (update "shouldComponentUpdate"
                                              (fn [p]

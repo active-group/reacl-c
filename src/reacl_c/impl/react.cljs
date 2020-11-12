@@ -121,10 +121,6 @@
         (onaction action))
       (recur (rest actions)))))
 
-(def ^:private message-forward
-  (fn [this msg]
-    (send-message-react-ref! (r0/child-ref this) msg)))
-
 (defn- message-deadend [elem]
   (fn [this msg]
     ;; TODO: exn?
@@ -135,16 +131,22 @@
     (send-message-base-ref! target msg)))
 
 (r0/defclass toplevel
-  "render" (fn [this]
-             (let [[item state onchange onaction] (r0/get-args this)]
-               (render item
-                       (Binding. state
-                                 (stores/delegate-store state onchange)
-                                 (f/partial toplevel-actions onaction)
-                                 toplevel-process-messages)
-                       (r0/child-ref this))))
+  "getInitialState"
+  (fn [this]
+    {:ref (r0/create-ref)})
+  "render"
+  (fn [this]
+    (let [[item state onchange onaction] (r0/get-args this)]
+      (render item
+              (Binding. state
+                        (stores/delegate-store state onchange)
+                        (f/partial toplevel-actions onaction)
+                        toplevel-process-messages)
+              (:ref (r0/get-state this)))))
   
-  $handle-message message-forward)
+  $handle-message
+  (fn [this msg]
+    (send-message-react-ref! (:ref (r0/get-state this)) msg)))
 
 (defrecord ^:private ReactApplication [comp]
   base/Application  
