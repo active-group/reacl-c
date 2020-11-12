@@ -121,20 +121,6 @@
         (onaction action))
       (recur (rest actions)))))
 
-(defn- make-new-state! [this init]
-  {:store (stores/make-resettable-store!
-           init (fn [new-state]
-                  (r0/set-state this (fn [s] (assoc s :state new-state)))))
-   :state init})
-
-(defn- new-state-reinit! [args-initial-state]
-  (fn [props state]
-    (let [initial-state (args-initial-state (r0/extract-args props))
-          state (r0/extract-state state)
-          store (:store state)]
-      (when (stores/maybe-reset-store! store initial-state)
-        (r0/mk-state (assoc state :state initial-state))))))
-
 (def ^:private message-forward
   (fn [this msg]
     (send-message-react-ref! (r0/child-ref this) msg)))
@@ -202,6 +188,26 @@
   IReact
   (-instantiate-react [{e :e lens :lens} binding ref]
     (r0/elem focus nil [binding ref e lens])))
+
+(defn- eval-local-state-init [init]
+  init)
+
+(defn- make-new-state! [this init]
+  (let [store (stores/make-resettable-store!
+               init
+               eval-local-state-init
+               (fn [new-state]
+                 (r0/set-state this (fn [s] (assoc s :state new-state)))))]
+    {:store store
+     :state (stores/store-get store)}))
+
+(defn- new-state-reinit! [args-initial-state]
+  (fn [props state]
+    (let [init (args-initial-state (r0/extract-args props))
+          state (r0/extract-state state)
+          store (:store state)]
+      (when (stores/maybe-reset-store! store init eval-local-state-init)
+        (r0/mk-state (assoc state :state (stores/store-get store)))))))
 
 (r0/defclass local-state
   "getInitialState" (fn [this]
