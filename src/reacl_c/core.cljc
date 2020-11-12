@@ -406,18 +406,22 @@ be specified multiple times.
          (ifn? finish)]}
   (base/make-lifecycle init finish))
 
+(defrecord ^:private DoReturn [r])
+(defn- do-return? [v] (instance? DoReturn v))
+
 (let [init (fn [init-f [state local]]
              (let [r (init-f state)
                    new (assoc local :init r)]
                (if (= local new)
                  (return)
                  (return :state [state new]
-                         :action r))))
+                         :action (DoReturn. r)))))
       finish (fn [cleanup-f [state local]]
                (return :state [state {}]
-                       :action (cleanup-f state)))
+                       :action (DoReturn. (cleanup-f state))))
       pass-act (fn [state act]
-                 act)
+                 (assert (do-return? act))
+                 (:r act))
       no-cleanup (f/constantly (return))]
   (defn once
     "Returns an item that evaluates `(f state)` and emits the [[return]]
@@ -437,7 +441,7 @@ be specified multiple times.
                                 (if cleanup-f
                                   (f/partial finish cleanup-f)
                                   no-cleanup)))
-        (handle-action pass-act))))
+        (base/make-handle-action pass-act do-return?))))
 
 (defn init
   "An invisible item that 'emits' the given [[return]] value once as
