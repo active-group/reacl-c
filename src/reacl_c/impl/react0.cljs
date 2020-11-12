@@ -4,7 +4,7 @@
             ["react-dom" :as react-dom]
             [clojure.string :as str]))
 
-(defn- mk-props [args]
+(defn mk-props [args]
   #js {"args" args})
 
 (defn extract-args [props]

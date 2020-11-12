@@ -3,6 +3,7 @@
   (:require [reacl-c.main.reacl :as main]
             [reacl-c.main-browser-test :as btest]
             [reacl-c.core :as c]
+            [reacl-c.interop.reacl :as i]
             [reacl-c.dom :as dom]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
@@ -12,17 +13,17 @@
   ;; TODO: maybe this should use only reacl-c/test-utils?
   ;; using Reacl classes in reacl-c
   (testing "syncs state"
-    (let [it (c/reacl (reacl/class "foo" this state []
+    (let [it (i/reacl (reacl/class "foo" this state []
                                    render (rdom/div (str state))))]
       (is (= "ok1" (btest/text (.-firstChild (btest/renders-as it "ok1"))))))
     
-    (let [it (c/reacl (reacl/class "foo" this state []
+    (let [it (i/reacl (reacl/class "foo" this state []
                                    component-did-mount (fn [] (reacl/return :app-state "ok11"))
                                    render (rdom/div (str state))))]
       (is (= "ok11" (btest/text (.-firstChild (btest/renders-as it "start")))))))
   
   (testing "emits actions"
-    (let [it (c/reacl (reacl/class "foo" this state [v]
+    (let [it (i/reacl (reacl/class "foo" this state [v]
                                    component-did-mount (fn [] (reacl/return :action v))
                                    render (rdom/div (str state)))
                       "ok2")]
@@ -30,7 +31,7 @@
                                                                    (c/handle-action (fn [state a] a)))
                                                                "start")))))))
   (testing "forwards messages"
-    (let [it (c/reacl (reacl/class "foo3" this state []
+    (let [it (i/reacl (reacl/class "foo3" this state []
                                    handle-message (fn [msg]
                                                     (reacl/return :app-state msg))
                                    render (rdom/span)))
@@ -65,14 +66,14 @@
     (is (= "ok2" (btest/text (.-firstChild (.-firstChild node)))))))
 
 (deftest full-reacl-test
-  ;; c/reacl and main/reacl also work in combination.
+  ;; i/reacl and main/reacl also work in combination.
   (is (btest/passes-actions
        (fn [x]
-         (c/reacl (reacl/class "foo" this state []
+         (i/reacl (reacl/class "foo" this state []
                                render (main/reacl (reacl/bind this) x))))))
   (is (btest/passes-messages
        (fn [x]
-         (c/reacl (reacl/class "foo" this state []
+         (i/reacl (reacl/class "foo" this state []
                                refs [child]
                                handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
                                render (-> (main/reacl (reacl/bind this) x)

@@ -2,8 +2,7 @@
     (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
               #?(:clj [active.clojure.record :as r])
               [active.clojure.functions :as f]
-              [schema.core :as s]
-              #?(:cljs [reacl2.core :as reacl])))
+              [schema.core :as s]))
 
 (defprotocol E
   (-is-dynamic? [this] "If the item depends on the state in rendering or behaviour. Some optimizations can be applied if false."))
@@ -186,16 +185,6 @@
    finish lifecycle-finish]
   E
   (-is-dynamic? [_] true))
-
-#?(:cljs
-   (r/define-record-type LiftReacl
-     (make-lift-reacl class args)
-     lift-reacl?
-     [class lift-reacl-class
-      args lift-reacl-args]
-     E
-     (-is-dynamic? [this]
-                   (and (reacl/reacl-class? class) (reacl/has-app-state? class)))))
 
 (defn message-target? [v]
   (or (ref? v)
