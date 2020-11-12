@@ -38,14 +38,14 @@
       (reset! a v)
       (watcher v))))
 
-(defn make-resettable-store! [init watcher]
-  (BaseStore. (atom init) (atom init) watcher))
+(defn make-resettable-store! [init-expr value-f watcher]
+  (BaseStore. (atom init-expr) (atom (value-f init-expr)) watcher))
 
-(defn maybe-reset-store! [store init]
+(defn maybe-reset-store! [store init-expr value-f]
   (assert (instance? BaseStore store))
-  (if (not= init @(:init-a store))
-    (do (reset! (:init-a store) init)
-        (reset! (:a store) init)
+  (if (not= init-expr @(:init-a store))
+    (do (reset! (:init-a store) init-expr)
+        (reset! (:a store) (value-f init-expr))
         ;; watcher not called intentionally.
         true)
     false))

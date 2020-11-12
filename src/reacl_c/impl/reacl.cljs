@@ -7,7 +7,9 @@
             [reacl2.dom :as rdom]
             [reacl-c.impl.reacl0 :as reacl0]
             [reacl-c.impl.dom0 :as dom0]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            ["react" :as react]
+            [reacl-c.interop.react :as interop])
   (:refer-clojure :exclude [refer]))
 
 (defprotocol ^:private IReacl
@@ -44,14 +46,14 @@
            ;; TODO: exactly one child or not?
            (xp/where (xp/comp xp/children (xpath-pattern e)))))
 
-(extend-type base/LiftReacl
+(extend-type interop/LiftReact
   IReacl
-  (-xpath-pattern [{class :class args :args}]
-    (class-args-pattern class [args]))
-  (-instantiate-reacl [{class :class args :args} binding]
-    [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
-       (apply class binding args)
-       (apply class args))]))
+  (-xpath-pattern [{class :class props :props}]
+    ;; TODO: if it's a wrapper class for a reacl item (see interop/reacl) it would be great to match on the args; but hard to make a general match on the arbitrary props, isn't it?
+    #_(class-args-pattern class [args])
+    (xp/type class))
+  (-instantiate-reacl [{class :class props :props} binding]
+    [(react/createElement class props)]))
 
 (def ^:private non-dynamic-binding (rcore/use-app-state nil))
 
@@ -488,15 +490,18 @@
     rcore-keep-state
     st2))
 
+(defn- eval-local-state-init [init]
+  init)
+
 (rcore/defclass ^:private local-state this astate [e initial]
-  local-state [lstate {:initial initial
-                       :current initial}]
+  local-state [lstate {:initial-expr initial
+                       :current (eval-local-state-init initial)}]
 
   component-will-receive-args
   (fn [new-e new-initial]
-    (if (not= (:initial lstate) new-initial)
-      (rcore/return :local-state {:initial new-initial
-                                  :current new-initial})
+    (if (not= (:initial-expr lstate) new-initial)
+      (rcore/return :local-state {:initial-expr new-initial
+                                  :current (eval-local-state-init new-initial)})
       (rcore/return)))
 
   refs [child]

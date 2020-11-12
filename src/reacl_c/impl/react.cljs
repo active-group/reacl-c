@@ -1,12 +1,14 @@
 (ns ^:no-doc reacl-c.impl.react
   (:require [reacl-c.impl.react0 :as r0 :include-macros true]
+            ["react" :as react]
+            [reacl-c.interop.react :as interop]
             [reacl-c.impl.utils :as utils]
             [reacl-c.impl.stores :as stores]
             [reacl-c.base :as base]
             [reacl-c.core :as core]
             [reacl-c.dom :as dom]
             [reacl-c.impl.dom0 :as dom0]
-            [reacl2.core :as reacl :include-macros true]
+            #_[reacl2.core :as reacl :include-macros true]
             [clojure.string :as str]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
@@ -119,24 +121,6 @@
         (onaction action))
       (recur (rest actions)))))
 
-(defn- make-new-state! [this init]
-  {:store (stores/make-resettable-store!
-           init (fn [new-state]
-                  (r0/set-state this (fn [s] (assoc s :state new-state)))))
-   :state init})
-
-(defn- new-state-reinit! [args-initial-state]
-  (fn [props state]
-    (let [initial-state (args-initial-state (r0/extract-args props))
-          state (r0/extract-state state)
-          store (:store state)]
-      (when (stores/maybe-reset-store! store initial-state)
-        (r0/mk-state (assoc state :state initial-state))))))
-
-(def ^:private message-forward
-  (fn [this msg]
-    (send-message-react-ref! (r0/child-ref this) msg)))
-
 (defn- message-deadend [elem]
   (fn [this msg]
     ;; TODO: exn?
@@ -147,16 +131,22 @@
     (send-message-base-ref! target msg)))
 
 (r0/defclass toplevel
-  "render" (fn [this]
-             (let [[item state onchange onaction] (r0/get-args this)]
-               (render item
-                       (Binding. state
-                                 (stores/delegate-store state onchange)
-                                 (f/partial toplevel-actions onaction)
-                                 toplevel-process-messages)
-                       (r0/child-ref this))))
+  "getInitialState"
+  (fn [this]
+    {:ref (r0/create-ref)})
+  "render"
+  (fn [this]
+    (let [[item state onchange onaction] (r0/get-args this)]
+      (render item
+              (Binding. state
+                        (stores/delegate-store state onchange)
+                        (f/partial toplevel-actions onaction)
+                        toplevel-process-messages)
+              (:ref (r0/get-state this)))))
   
-  $handle-message message-forward)
+  $handle-message
+  (fn [this msg]
+    (send-message-react-ref! (:ref (r0/get-state this)) msg)))
 
 (defrecord ^:private ReactApplication [comp]
   base/Application  
@@ -200,6 +190,26 @@
   IReact
   (-instantiate-react [{e :e lens :lens} binding ref]
     (r0/elem focus nil [binding ref e lens])))
+
+(defn- eval-local-state-init [init]
+  init)
+
+(defn- make-new-state! [this init]
+  (let [store (stores/make-resettable-store!
+               init
+               eval-local-state-init
+               (fn [new-state]
+                 (r0/set-state this (fn [s] (assoc s :state new-state)))))]
+    {:store store
+     :state (stores/store-get store)}))
+
+(defn- new-state-reinit! [args-initial-state]
+  (fn [props state]
+    (let [init (args-initial-state (r0/extract-args props))
+          state (r0/extract-state state)
+          store (:store state)]
+      (when (stores/maybe-reset-store! store init eval-local-state-init)
+        (r0/mk-state (assoc state :state (stores/store-get store)))))))
 
 (r0/defclass local-state
   "getInitialState" (fn [this]
@@ -464,7 +474,7 @@
 
 ;; Reacl compat
 
-(let [set-app-state!
+#_(let [set-app-state!
       (fn [binding state callback]
         (when-not (reacl/keep-state? state)
           (call-event-handler! binding (fn [_]
@@ -490,7 +500,13 @@
         (assert comp this)
         (reacl/send-message! comp msg)))))
 
-(extend-type base/LiftReacl
+#_(extend-type base/LiftReacl
   IReact
   (-instantiate-react [{class :class args :args} binding ref]
     (r0/elem lifted-reacl ref [binding class args])))
+
+(extend-type interop/LiftReact
+  IReact
+  (-instantiate-react [{class :class props :props} binding ref]
+    ;; FIXME: ref + a ref in props?
+    (react/createElement class props)))

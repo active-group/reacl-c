@@ -36,29 +36,6 @@
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
-#?(:cljs
-   ;; previously named lift-reacl
-   ;; TODO: allow items as children?
-   (defn reacl
-     "Returns an item implemented by the given Reacl class and arguments."
-     [class & args]
-     (base/make-lift-reacl class args)))
-
-#_(:cljs
-   (defn react
-     "Returns an item implemented by the given React class and props."
-     [class props]
-     ;; TODO: allow items as children?
-     (base/make-lift-react class props)))
-
-#_(:cljs
-   (defn element
-     "Returns an item implemented by the a dom node of the given type, e.g. a web component.
-The optional `init-fn` is called on the created dom node, to add
-  attributes or children to it."
-     [node-type & [init-fn]]
-     (base/make-lift-dom node-type init-fn)))
-
 (defn with-ref
   "Creates an item identical to the one returned from `(f ref &
   args)`, where `ref` is a fresh *reference*. A reference should be
