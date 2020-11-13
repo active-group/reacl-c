@@ -8,123 +8,119 @@
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
 
-(defn- reduce-item [f-leaf f-container f-wrapper f-dynamic f-other init item state]
-  (let [rec (fn [state init item]
-              (reduce-item f-leaf f-container f-wrapper f-dynamic f-other
-                           init item state))]
+(defn- reduce-item [mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other item state]
+  (let [rec (fn [state item]
+              (reduce-item mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other
+                           item state))]
     (cond
       (string? item)
-      (f-leaf init item state)
+      (f-leaf item state)
 
       (nil? item)
-      (f-leaf init item state)
+      (f-leaf item state)
 
       (base/lifecycle? item)
-      (f-leaf init item state)
+      (f-leaf item state)
 
       (base/dynamic? item)
-      (f-dynamic init item state)
+      (f-dynamic (rec state (apply (base/dynamic-f item) state (base/dynamic-args item))) item state)
 
       (base/fragment? item)
-      (f-container (reduce (partial rec state)
-                           init
+      (f-container (reduce (fn [r c]
+                             (conj r (rec state c)))
+                           []
                            (base/fragment-children item))
                    item state)
 
       (dom/element? item)
-      (f-container (reduce (partial rec state)
-                           init
+      (f-container (reduce (fn [r c]
+                             (conj r (rec state c)))
+                           []
                            (dom/element-children item))
                    item state)
 
       (base/static? item)
-      (f-dynamic init item state)
+      (f-dynamic (rec state (apply (base/static-f item) (base/static-args item))) item state)
 
       (base/with-ref? item)
-      (f-dynamic init item state)
+      (f-dynamic (rec state (apply (base/with-ref-f item) (mk-ref) (base/with-ref-args item))) item state)
 
       (base/with-async-return? item)
-      (f-dynamic init item state)
+      (f-dynamic (rec state (apply (base/with-async-return-f item) (mk-async-return) (base/with-async-return-args item))) item state)
 
       (base/focus? item)
       (f-wrapper (rec (lens/yank state (base/focus-lens item))
-                      init (base/focus-e item))
+                      (base/focus-e item))
                  item state)
 
       (base/local-state? item) ;; TODO: implement special local-state initializers
       (f-wrapper (rec [state (base/local-state-initial item)]
-                      init
                       (base/local-state-e item))
                  item state)
 
       (base/handle-action? item)
-      (f-wrapper (rec state init (base/handle-action-e item))
+      (f-wrapper (rec state (base/handle-action-e item))
                  item state)
 
       (base/refer? item)
-      (f-wrapper (rec state init (base/refer-e item))
+      (f-wrapper (rec state (base/refer-e item))
                  item state)
 
       (base/handle-state-change? item)
-      (f-wrapper (rec state init (base/handle-state-change-e item))
+      (f-wrapper (rec state (base/handle-state-change-e item))
                  item state)
 
       (base/handle-message? item)
-      (f-wrapper (rec state init (base/handle-message-e item))
+      (f-wrapper (rec state (base/handle-message-e item))
                  item state)
 
       (base/named? item)
-      (f-wrapper (rec state init (base/named-e item))
+      (f-wrapper (rec state (base/named-e item))
                  item state)
 
       (base/handle-error? item)
-      (f-wrapper (rec state init (base/handle-error-e item))
+      (f-wrapper (rec state (base/handle-error-e item))
                  item state)
 
       (base/keyed? item)
-      (f-wrapper (rec state init (base/keyed-e item))
+      (f-wrapper (rec state (base/keyed-e item))
                  item state)
 
-      #_(base/lift-reacl? item)
+      #_(base/lift-react? item)
       #_item
 
       :else
-      (f-other init item state))))
+      (f-other item state))))
 
 (defn resolve [item state]
-  (first (reduce-item (fn leaf [res item state]
-                        (conj res item))
-                      (fn container [res item state]
-                        (cond
-                          (base/fragment? item) [(lens/shove item base/fragment-children (vec res))]
-                          (dom/element? item) [(lens/shove item dom/element-children (vec res))]
-                          :else (assert false)))
-                      (fn wrapper [res item state]
-                        ;; TODO: explicit
-                        (assert (contains? item :e))
-                        (conj res (assoc item :e (first res))))
-                      (fn dynamic [res item state]
-                        (cond
-                          (base/dynamic? item)
-                          (conj res (resolve (apply (base/dynamic-f item) state (base/dynamic-args item))
-                                             state))
-                          
-                          (base/with-ref? item)
-                          (conj res (resolve (apply (base/with-ref-f item) :dummy-ref (base/with-ref-args item))
-                                             state))
-                          
-                          (base/with-async-return? item)
-                          (conj res (resolve (apply (base/with-async-return-f item) :dummy-return! (base/with-async-return-args item))
-                                             state))
-                          
-                          :else
-                          (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
-                      (fn other [res item state]
-                        ;; -> or an IResolveable?
-                        (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item})))
-                      []
-                      item
-                      state)))
+  (reduce-item (constantly :dummy-ref) ;; TODO: better dummies?
+               (constantly :dummy-return!)
+               (fn leaf [item state]
+                 ;; TODO: cond types explicitly
+                 item)
+               (fn container [c-res item state]
+                 (cond
+                   (base/fragment? item) (lens/shove item base/fragment-children (vec c-res))
+                   (dom/element? item) (lens/shove item dom/element-children (vec c-res))
+                   :else (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
+               (fn wrapper [res item state]
+                 ;; TODO: cond types explicitly
+                 (assert (contains? item :e))
+                 (assoc item :e res))
+               (fn dynamic [res item state]
+                 (cond
+                   (or (base/dynamic? item)
+                       (base/with-ref? item)
+                       (base/with-async-return? item))
+                   res
+
+                   :else
+                   (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
+               (fn other [item state]
+                 ;; -> or an IResolveable?
+                 (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item})))
+               item
+               state))
 
 
 #_(defn- contains-0? [item sub-item]
@@ -178,76 +174,74 @@
           :else
           false))))
 
+(defn- lift-returned [r]
+  ;; TODO: move all impls of it to one place?!
+  (if (base/returned? r) r (c/return :state r)))
+
 (defn- merge-returned [r1 r2]
   ;; TODO: need to lift plain states into (c/return) / or should merge-return do that? (at least define it in only one place accross all impls)
-  (let [r2 (if (base/returned? r2) r2 (c/return :state r2))]
-    (base/merge-returned r1 r2)))
+  (base/merge-returned r1 (lift-returned r2)))
 
-(defn init [item state] ;; TODO: or call mount?
+(defn init [item state] ;; TODO: or call mount? reuse for finish and message. (this is almost a 'run' fn)
+  ;; TODO: what about handling messages? does that make sense?
   ;; resolve, find all livecycle (with their state); call that.
-  (reduce-item (fn leaf [res item state]
+  (reduce-item (constantly :dummy-ref)
+               (constantly :dummy-return!)
+               (fn leaf [item state]
                  (cond
                    (base/lifecycle? item)
-                   ;; FIXME: would need to untangle returned states in 'focus'
-                   (merge-returned res ((base/lifecycle-init item) state))
+                   (lift-returned ((base/lifecycle-init item) state))
 
-                   :else
-                   res))
-               (fn container [res item state]
-                 res)
-               (fn wrapper [res item state]
+                   :else ;; TODO: list all
+                   (c/return)))
+               (fn container [c-res item state]
+                 (reduce merge-returned (c/return) c-res))
+               (fn wrapper [c-res item state]
                  (cond
                    (base/focus? item)
-                   (if (not= base/keep-state (base/returned-state res))
-                     (let [st (base/returned-state res)]
-                       (lens/shove res base/returned-state
+                   ;; merge changed state in subitem back into parent state:
+                   (if (not= base/keep-state (base/returned-state c-res))
+                     (let [st (base/returned-state c-res)]
+                       (lens/shove c-res base/returned-state
                                    (lens/shove state (base/focus-lens item) st)))
-                     res)
+                     c-res)
 
                    (base/local-state? item)
-                   (if (not= base/keep-state (base/returned-state res))
-                     (lens/overhaul res base/returned-state first)
-                     res)
+                   ;; remove local part of changed state:
+                   (if (not= base/keep-state (base/returned-state c-res))
+                     (lens/overhaul c-res base/returned-state first)
+                     c-res)
 
                    (base/handle-action? item)
+                   ;; do handle actions
                    (let [f (base/handle-action-f item)
                          {handle true pass false} (group-by (base/handle-action-pred item)
-                                                            (base/returned-actions res))]
+                                                            (base/returned-actions c-res))]
                      (reduce (fn [res a]
                                (let [state (if (not= base/keep-state (base/returned-state res))
                                              (base/returned-state res)
                                              state)]
                                  (merge-returned res
                                                  (f state a))))
-                             (lens/shove res base/returned-actions pass)
+                             (lens/shove c-res base/returned-actions (vec pass))
                              handle))
 
-                   :else
-                   res))
+                   :else ;; TODO: list all explicitly.
+                   c-res))
                (fn dynamic [res item state]
-                 ;; TODO: why this? (and same in resolve?) can't sub result be done in reduce-item?
                  (cond
-                   (base/dynamic? item)
-                   (merge-returned res (init (apply (base/dynamic-f item) state (base/dynamic-args item))
-                                             state))
-                          
-                   (base/with-ref? item)
-                   (merge-returned res (init (apply (base/with-ref-f item) :dummy-ref (base/with-ref-args item))
-                                             state))
-                          
-                   (base/with-async-return? item)
-                   (merge-returned res (init (apply (base/with-async-return-f item) :dummy-return! (base/with-async-return-args item))
-                                             state))
+                   (or (base/dynamic? item)
+                       (base/with-ref? item)
+                       (base/with-async-return? item))
+                   res
                           
                    :else
                    (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
-               (fn other [res item state]
+               (fn other [item state]
                  (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item})))
                
-               (c/return)
                item
-               state)
-  )
+               state))
 
 (defn finish [item state])
 
