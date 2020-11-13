@@ -16,27 +16,20 @@
       (string? item)
       (f-leaf item state)
 
-      (nil? item)
-      (f-leaf item state)
-
       (base/lifecycle? item)
       (f-leaf item state)
 
       (base/dynamic? item)
       (f-dynamic (rec state (apply (base/dynamic-f item) state (base/dynamic-args item))) item state)
 
-      (base/fragment? item)
-      (f-container (reduce (fn [r c]
-                             (conj r (rec state c)))
-                           []
-                           (base/fragment-children item))
+      (or (nil? item) (base/fragment? item))
+      (f-container (map #(rec state %)
+                        (if (nil? item) nil (base/fragment-children item)))
                    item state)
 
       (dom/element? item)
-      (f-container (reduce (fn [r c]
-                             (conj r (rec state c)))
-                           []
-                           (dom/element-children item))
+      (f-container (map #(rec state %)
+                        (dom/element-children item))
                    item state)
 
       (base/static? item)
@@ -86,27 +79,47 @@
       (f-wrapper (rec state (base/keyed-e item))
                  item state)
 
-      #_(base/lift-react? item)
+      ;; TODO:?
+      #_(interop/lift-react? item)
       #_item
 
       :else
       (f-other item state))))
 
+(defn- unknown-item-error [item]
+  (ex-info (str "Unknown item: " (pr-str item)) {:item item}))
+
 (defn resolve [item state]
   (reduce-item (constantly :dummy-ref) ;; TODO: better dummies?
                (constantly :dummy-return!)
                (fn leaf [item state]
-                 ;; TODO: cond types explicitly
-                 item)
+                 (cond
+                   (or (string? item)
+                       (base/fragment? item)
+                       (dom/element? item)
+                       (base/lifecycle? item))
+                   item
+                   :else (throw (unknown-item-error item))))
                (fn container [c-res item state]
                  (cond
+                   (nil? item) item
                    (base/fragment? item) (lens/shove item base/fragment-children (vec c-res))
                    (dom/element? item) (lens/shove item dom/element-children (vec c-res))
-                   :else (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
+                   :else (throw (unknown-item-error item))))
                (fn wrapper [res item state]
-                 ;; TODO: cond types explicitly
-                 (assert (contains? item :e))
-                 (assoc item :e res))
+                 (lens/shove item
+                             (cond
+                               (base/focus? item) base/focus-e
+                               (base/local-state? item) base/local-state-e
+                               (base/handle-action? item) base/handle-action-e
+                               (base/refer? item) base/refer-e
+                               (base/handle-state-change? item) base/handle-state-change-e
+                               (base/handle-message? item) base/handle-message-e
+                               (base/named? item) base/named-e
+                               (base/handle-error? item) base/handle-error-e
+                               (base/keyed? item) base/keyed-e
+                               :else (throw (unknown-item-error item)))
+                             res))
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
@@ -115,10 +128,10 @@
                    res
 
                    :else
-                   (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
+                   (throw (unknown-item-error item))))
                (fn other [item state]
-                 ;; -> or an IResolveable?
-                 (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item})))
+                 ;; -> or an IResolveable extension point?
+                 (throw (unknown-item-error item)))
                item
                state))
 
@@ -174,6 +187,8 @@
           :else
           false))))
 
+;; TODO: could/should some of these fns be shared with the 'real' implementations?
+
 (defn- lift-returned [r]
   ;; TODO: move all impls of it to one place?!
   (if (base/returned? r) r (c/return :state r)))
@@ -182,52 +197,86 @@
   ;; TODO: need to lift plain states into (c/return) / or should merge-return do that? (at least define it in only one place accross all impls)
   (base/merge-returned r1 (lift-returned r2)))
 
-(defn init [item state] ;; TODO: or call mount? reuse for finish and message. (this is almost a 'run' fn)
-  ;; TODO: what about handling messages? does that make sense?
+(defn- de-focus [res item state]
+  ;; merge changed state in subitem back into parent state:
+  (let [st (base/returned-state res)]
+    (if (not= base/keep-state st)
+      (lens/shove res base/returned-state
+                  (lens/shove state (base/focus-lens item) st))
+      res)))
+
+(defn- de-local-state [res item]
+  ;; remove local part of changed state:
+  (let [st (base/returned-state res)]
+    (if (not= base/keep-state st)
+      (lens/shove res base/returned-state (first st))
+      res)))
+
+(defn- do-handle-actions [res item state]
+  (let [f (base/handle-action-f item)
+        {handle true pass false} (group-by (base/handle-action-pred item)
+                                           (base/returned-actions res))]
+    (reduce (fn [res a]
+              (let [state (if (not= base/keep-state (base/returned-state res))
+                            (base/returned-state res)
+                            state)]
+                (merge-returned res
+                                (f state a))))
+            (lens/shove res base/returned-actions (vec pass))
+            handle)))
+
+(defn- do-handle-state-change [res item state]
+  (let [f (base/handle-state-change-f item)]
+    (let [st (base/returned-state res)]
+      (if (not= base/keep-state st)
+        (merge-returned res (f state st))
+        res))))
+
+(defn- run-lifecycle [item state f]
   ;; resolve, find all livecycle (with their state); call that.
   (reduce-item (constantly :dummy-ref)
                (constantly :dummy-return!)
                (fn leaf [item state]
                  (cond
                    (base/lifecycle? item)
-                   (lift-returned ((base/lifecycle-init item) state))
+                   (lift-returned (f item state))
 
-                   :else ;; TODO: list all
-                   (c/return)))
+                   (or (string? item)
+                       (base/fragment? item)
+                       (dom/element? item))
+                   (c/return)
+
+                   :else (throw (unknown-item-error item))))
                (fn container [c-res item state]
-                 (reduce merge-returned (c/return) c-res))
-               (fn wrapper [c-res item state]
+                 (cond
+                   (or (nil? item)
+                       (base/fragment? item)
+                       (dom/element? item))
+                   (reduce merge-returned (c/return) c-res)
+
+                   :else (throw (unknown-item-error item))))
+               (fn wrapper [res item state]
                  (cond
                    (base/focus? item)
-                   ;; merge changed state in subitem back into parent state:
-                   (if (not= base/keep-state (base/returned-state c-res))
-                     (let [st (base/returned-state c-res)]
-                       (lens/shove c-res base/returned-state
-                                   (lens/shove state (base/focus-lens item) st)))
-                     c-res)
+                   (de-focus res item state)
 
                    (base/local-state? item)
-                   ;; remove local part of changed state:
-                   (if (not= base/keep-state (base/returned-state c-res))
-                     (lens/overhaul c-res base/returned-state first)
-                     c-res)
+                   (de-local-state res item)
 
                    (base/handle-action? item)
-                   ;; do handle actions
-                   (let [f (base/handle-action-f item)
-                         {handle true pass false} (group-by (base/handle-action-pred item)
-                                                            (base/returned-actions c-res))]
-                     (reduce (fn [res a]
-                               (let [state (if (not= base/keep-state (base/returned-state res))
-                                             (base/returned-state res)
-                                             state)]
-                                 (merge-returned res
-                                                 (f state a))))
-                             (lens/shove c-res base/returned-actions (vec pass))
-                             handle))
+                   (do-handle-actions res item state)
 
-                   :else ;; TODO: list all explicitly.
-                   c-res))
+                   (base/handle-state-change? item)
+                   (do-handle-state-change res item state)
+                   
+                   (or (base/refer? item)
+                       (base/handle-message? item)
+                       (base/named? item)
+                       (base/handle-error? item)
+                       (base/keyed? item))
+                   res
+                   
+                   :else (throw (unknown-item-error item))))
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
@@ -236,19 +285,98 @@
                    res
                           
                    :else
-                   (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item}))))
+                   (throw (unknown-item-error item))))
                (fn other [item state]
-                 (throw (ex-info (str "Unknown item: " (pr-str item)) {:item item})))
+                 (throw (unknown-item-error item)))
                
                item
                state))
 
-(defn finish [item state])
+(defn init [item state]
+  (run-lifecycle item state
+                 (fn [it state]
+                   ((base/lifecycle-init it) state))))
+
+(defn finalize [item state]
+  (run-lifecycle item state
+                 (fn [it state]
+                   ((base/lifecycle-finish it) state))))
+
+(defn- r-comp [& fs]
+  (apply comp (reverse fs)))
+
+(defn- find-handle-message [item state]
+  (reduce-item (constantly :dummy-ref)
+               (constantly :dummy-return!)
+               (fn leaf [item state]
+                 (cond
+                   (or (string? item)
+                       (base/lifecycle? item)
+                       (base/fragment? item)
+                       (dom/element? item))
+                   nil
+
+                   :else (throw (unknown-item-error item))))
+               (fn container [c-res item state]
+                 (cond
+                   ;; containers don't pass messages; so we don't care.
+                   (or (nil? item)
+                       (base/fragment? item)
+                       (dom/element? item))
+                   nil
+
+                   :else (throw (unknown-item-error item))))
+               (fn wrapper [res item state]
+                 (cond
+                   (base/handle-message? item)
+                   {:f (base/handle-message-f item)
+                    :state state
+                    :post identity}
+
+                   (base/focus? item)
+                   (when res
+                     (update res :post r-comp #(de-focus % item state)))
+
+                   (base/local-state? item)
+                   (when res
+                     (update res :post r-comp #(de-local-state % item)))
+
+                   (base/handle-action? item)
+                   (when res
+                     (update res :post r-comp #(do-handle-actions % item state)))
+
+                   (base/handle-state-change? item)
+                   (when res
+                     (update res :post r-comp #(do-handle-state-change % item state)))
+                   
+                   (or (base/refer? item)
+                       (base/named? item)
+                       (base/handle-error? item)
+                       (base/keyed? item))
+                   res
+                   
+                   :else (throw (unknown-item-error item))))
+               (fn dynamic [res item state]
+                 (cond
+                   (or (base/dynamic? item)
+                       (base/with-ref? item)
+                       (base/with-async-return? item))
+                   res
+                          
+                   :else
+                   (throw (unknown-item-error item))))
+               (fn other [item state]
+                 (throw (unknown-item-error item)))
+               
+               item
+               state))
 
 (defn message [item state msg]
-  ;; find first handle-message, lensing state though and back, calling handler on msg
-  
-  )
+  ;; find applicable handle-message
+  (if-let [{f :f state :state post :post} (find-handle-message item state)]
+    (post (f state msg))
+    ;; message won't be processed... throw then?
+    nil))
 
 ;; (defn run-effect [eff])
 ;; (defn run-subscription [for-a-while])
