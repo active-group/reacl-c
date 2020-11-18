@@ -77,3 +77,25 @@
                      {:msg 22}))))
 
 
+(deftest contains-like?-test
+  (testing "basics"
+    (is (tu/contains-like? (dom/div "foo") nil "foo"))
+    (is (tu/contains-like? (dom/div "foo") nil "fo"))
+    (is (tu/contains-like? (dom/div "foo") nil (dom/div)))
+    (is (tu/contains-like? (dom/div {:width "100px" :height "100px"}) nil (dom/div {:width "100px"})))
+
+    (is (tu/contains-like? (c/dynamic (fn [st] (dom/div st)))
+                           "foo"
+                           (dom/div "foo")))
+    (is (not (tu/contains-like? (c/dynamic (fn [st] (dom/div st)))
+                                "bar"
+                                (dom/div "foo"))))
+    (let [f (fn [st] (dom/div st))]
+      (is (tu/contains-like? (dom/div (c/dynamic f))
+                             "foo"
+                             (c/dynamic f)))))
+
+  (testing "sub-item-state"
+    (is (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "foo"}))
+    (is (not (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "blubb"}))))
+  )

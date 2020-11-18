@@ -3,7 +3,8 @@
             [reacl-c.dom :as dom]
             [reacl-c.core :as c]
             [active.clojure.lens :as lens]
-            [clojure.string :as string])
+            [clojure.string :as string]
+            [clojure.set :as set])
   (:refer-clojure :exclude [resolve]))
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
@@ -95,8 +96,6 @@
                (fn leaf [item state]
                  (cond
                    (or (string? item)
-                       (base/fragment? item)
-                       (dom/element? item)
                        (base/lifecycle? item))
                    item
                    :else (throw (unknown-item-error item))))
@@ -135,57 +134,128 @@
                item
                state))
 
+(defn- dom-attrs-contains? [a1 a2]
+  (reduce-kv (fn [res k v]
+               (and res
+                    (or (= (get a1 k) v)
+                        ;; TODO: class/name subset?!
+                        (when (= :style k)
+                          (let [st1 (:style a1)]
+                            (reduce-kv (fn [res k v]
+                                         (and res (= (get st1 k) v)))
+                                       res
+                                       v))))))
+             true
+             a2))
 
-#_(defn- contains-0? [item sub-item]
-  (loop [item item]
-    (or (= item sub-item)
-        (cond
-          (string? item)
-          (and (string? sub-item)
-               (string/includes? item sub-item))
+(defn- item-empty? [item]
+  (or (nil? item) (and (base/fragment? item) (empty? (base/fragment-children item)))))
 
-          (nil? item)
-          (= item sub-item)
-    
-          (base/fragment? item)
-          (reduce #(or %1 %2)
-                  false
-                  (map #(contains? state % sub-item) (base/fragment-children item)))
+(declare like?)
 
-          (dom/element? item)
-          (reduce #(or %1 %2)
-                  false
-                  (map #(contains? state % sub-item) (dom/element-children item)))
+(defn- list-like? [lst sub-lst]
+  (let [[missing remaining]
+        (reduce (fn [[n remaining] c]
+                  (loop [remaining remaining]
+                    (if (empty? remaining)
+                      [n nil]
+                      (if (or (= (first remaining) c)
+                              (like? (first remaining) c))
+                        [(dec n) remaining]
+                        (recur (rest remaining))))))
+                [(count sub-lst) lst]
+                sub-lst)]
+    (zero? missing)))
 
-          (base/focus? item)
-          (recur (base/focus-e item))
+(defn- dom-like? [item sub-item]
+  (assert (dom/element? item) item)
+  (assert (dom/element? sub-item) sub-item)
+  
+  (and (= (dom/element-type item) (dom/element-type sub-item))
+       (dom-attrs-contains? (dom/element-attrs item) (dom/element-attrs sub-item))
+       ;; item has all events defined that sub-item has:
+       (set/subset? (set (keys (dom/element-events sub-item)))
+                    (set (keys (dom/element-events item))))
+       ;; TODO: maybe flatten out fragments in children? maybe concatenate strings?
+       (list-like? (dom/element-children item)
+                   (dom/element-children sub-item))))
 
-          (base/local-state? item)
-          (recur (base/local-state-e item))
+(defn like? [item sub-item]
+  ;; TODO: get 'nothing like anything' or 'anything like nothing' right (regarding recursion)
+  (cond
+    (string? item)
+    (and (string? sub-item)
+         (string/includes? item sub-item))
 
-          (base/handle-action? item)
-          (recur (base/handle-action-e item))
+    (item-empty? item)
+    (item-empty? sub-item)
 
-          (base/refer? item)
-          (recur (base/refer-e item))
+    (base/fragment? item)
+    (and (base/fragment? sub-item)
+         (list-like? (base/fragment-children item)
+                     (base/fragment-children sub-item)))
 
-          (base/handle-state-change? item)
-          (recur (base/handle-state-change-e item))
+    (dom/element? item)
+    (and (dom/element? sub-item)
+         (dom-like? item sub-item))
 
-          (base/handle-message? item)
-          (recur (base/handle-message-e item))
+    (or (base/lifecycle? item)
+        (base/dynamic? item)
+        (base/static? item)
+        (base/with-ref? item)
+        (base/with-async-return? item))
+    (= item sub-item)
 
-          (base/named? item)
-          (recur (base/named-e item))
+    (or (base/focus? item)
+        (base/local-state? item)
+        (base/handle-action? item)
+        (base/refer? item)
+        (base/handle-state-change? item)
+        (base/handle-message? item)
+        (base/named? item)
+        (base/handle-error? item)
+        (base/keyed? item))
+    ;; we could say the :e's must only be 'like?', but rest equal; but
+    ;; then again, that does not work for dynamics anyway.
+    (= item sub-item)
 
-          (base/handle-error? item)
-          (recur (base/handle-error-e item))
+    ;; TODO:?
+    #_(interop/lift-react? item)
 
-          (base/keyed? item)
-          (recur (base/keyed-e item))
+    :else
+    (throw (unknown-item-error item))))
 
-          :else
-          false))))
+(defn contains-by? [f item state sub-item & [options]]
+  (let [g (if (contains? options :sub-item-state)
+            (let [sub-item-state (:sub-item-state options)]
+              (fn [item sub-item state]
+                (and (= state sub-item-state)
+                     (f item sub-item))))
+            (fn [item sub-item state]
+              (f item sub-item)))]
+    (reduce-item (constantly :dummy-ref)
+                 (constantly :dummy-return!)
+                 (fn leaf [item state]
+                   (g item sub-item state))
+                 (fn container [c-res item state]
+                   (or (g item sub-item state)
+                       ;; one or more children of item 'contain' the sub-item
+                       (reduce #(or %1 %2) false c-res)))
+                 (fn wrapper [res item state]
+                   (or (g item sub-item state)
+                       res))
+                 (fn dynamic [res item state]
+                   (or (g item sub-item state)
+                       res))
+                 (fn other [item state]
+                   (throw (unknown-item-error item)))
+                 item state)))
+
+(defn contains-like? [item state sub-item & [options]]
+  (contains-by? like? item state sub-item options))
+
+(defn contains-exact? [item state sub-item & [options]]
+  (contains-by? = item state sub-item options))
 
 ;; TODO: could/should some of these fns be shared with the 'real' implementations?
 
