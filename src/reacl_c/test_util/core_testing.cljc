@@ -4,10 +4,15 @@
             [reacl-c.core :as c]
             [active.clojure.lens :as lens]
             [clojure.string :as string]
-            [clojure.set :as set])
-  (:refer-clojure :exclude [resolve]))
+            [clojure.set :as set]))
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
+
+
+;; TODO: ?
+;; (defn run-effect [eff])
+;; (defn run-subscription [for-a-while])
+
 
 (defn- reduce-item [mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other item state]
   (let [rec (fn [state item]
@@ -90,35 +95,47 @@
 (defn- unknown-item-error [item]
   (ex-info (str "Unknown item: " (pr-str item)) {:item item}))
 
-(defn resolve [item state]
-  (reduce-item (constantly :dummy-ref) ;; TODO: better dummies?
-               (constantly :dummy-return!)
+(defn- make-dummy-ref []
+  (reify base/Ref
+    (-deref-ref [this] (throw (ex-info "Cannot derefence in a test environment." {})))))
+
+(defn- dummy-return [r]
+  (throw (ex-info "Cannot do an async return in a test environment." {})))
+
+(defn render
+  "Returns how an item looks like in the given state. Returns a list
+  of only dom elements and strings."
+  [item state]
+  (reduce-item make-dummy-ref
+               (constantly dummy-return)
                (fn leaf [item state]
                  (cond
-                   (or (string? item)
-                       (base/lifecycle? item))
-                   item
+                   (string? item)
+                   (list item)
+
+                   (base/lifecycle? item) nil
+                   
                    :else (throw (unknown-item-error item))))
                (fn container [c-res item state]
                  (cond
-                   (nil? item) item
-                   (base/fragment? item) (lens/shove item base/fragment-children (vec c-res))
-                   (dom/element? item) (lens/shove item dom/element-children (vec c-res))
+                   (nil? item) nil
+                   (base/fragment? item) (apply concat c-res)
+                   (dom/element? item) (list (lens/shove item dom/element-children (apply concat c-res)))
                    :else (throw (unknown-item-error item))))
                (fn wrapper [res item state]
-                 (lens/shove item
-                             (cond
-                               (base/focus? item) base/focus-e
-                               (base/local-state? item) base/local-state-e
-                               (base/handle-action? item) base/handle-action-e
-                               (base/refer? item) base/refer-e
-                               (base/handle-state-change? item) base/handle-state-change-e
-                               (base/handle-message? item) base/handle-message-e
-                               (base/named? item) base/named-e
-                               (base/handle-error? item) base/handle-error-e
-                               (base/keyed? item) base/keyed-e
-                               :else (throw (unknown-item-error item)))
-                             res))
+                 (cond
+                   (or (base/focus? item)
+                       (base/local-state? item)
+                       (base/handle-action? item)
+                       (base/refer? item)
+                       (base/handle-state-change? item)
+                       (base/handle-message? item)
+                       (base/named? item)
+                       (base/handle-error? item)
+                       (base/keyed? item))
+                   res
+                   
+                   :else (throw (unknown-item-error item))))
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
@@ -129,7 +146,7 @@
                    :else
                    (throw (unknown-item-error item))))
                (fn other [item state]
-                 ;; -> or an IResolveable extension point?
+                 ;; -> or an IRenderable extension point?
                  (throw (unknown-item-error item)))
                item
                state))
@@ -180,17 +197,27 @@
        (list-like? (dom/element-children item)
                    (dom/element-children sub-item))))
 
-(defn like? [item sub-item]
-  ;; TODO: get 'nothing like anything' or 'anything like nothing' right (regarding recursion)
+(defn like?
+  "Returns if `sub-item` is like `item`, meaning:
+
+  - if both are a strings, then `sub-item` is a substring in `item`,
+  - if both are dom elements, then `sub-item` is the same type of dom element, but may contain less attributes or children,
+  - if both have children, then every child of `sub-item` is `like?` a child in `item`, and in the same order.
+"
+  [item sub-item]
+  ;; Note: (string/includes? "foo" "") is true, so we say 'nothing is like anything' too.
   (cond
     (string? item)
     (and (string? sub-item)
          (string/includes? item sub-item))
 
     (item-empty? item)
-    (item-empty? sub-item)
+    (or (nil? sub-item)
+        (and (base/fragment? sub-item)
+             (list-like? nil
+                         (base/fragment-children sub-item))))
 
-    (base/fragment? item)
+    (base/fragment? item) ;; always a non-empty fragment here
     (and (base/fragment? sub-item)
          (list-like? (base/fragment-children item)
                      (base/fragment-children sub-item)))
@@ -225,7 +252,9 @@
     :else
     (throw (unknown-item-error item))))
 
-(defn contains-by? [f item state sub-item & [options]]
+(defn- contains-by? [f item state sub-item & [options]]
+  (assert (every? #{:sub-item-state} (keys options)) (keys options))
+  
   (let [g (if (contains? options :sub-item-state)
             (let [sub-item-state (:sub-item-state options)]
               (fn [item sub-item state]
@@ -233,8 +262,8 @@
                      (f item sub-item))))
             (fn [item sub-item state]
               (f item sub-item)))]
-    (reduce-item (constantly :dummy-ref)
-                 (constantly :dummy-return!)
+    (reduce-item make-dummy-ref
+                 (constantly dummy-return)
                  (fn leaf [item state]
                    (g item sub-item state))
                  (fn container [c-res item state]
@@ -251,10 +280,21 @@
                    (throw (unknown-item-error item)))
                  item state)))
 
-(defn contains-like? [item state sub-item & [options]]
+(defn contains-like?
+  "Returns if `item`, or any item 'below' it, is [[like?]] `sub-item`
+  in the given state of `item`. Optionally, the `:sub-item-state` can
+  be specified, meaning that the sub item only matches if it would be
+  in that state initially."
+  [item state sub-item & [options]]
+  ;; TODO: testing dom with this is annoying - state can be nil/irrlevant then.
   (contains-by? like? item state sub-item options))
 
-(defn contains-exact? [item state sub-item & [options]]
+(defn contains-exact?
+  "Returns if `item`, or any item 'below' it, is equal to `sub-item`
+  in the given state of `item`. Optionally, the `:sub-item-state` can
+  be specified, meaning that the sub item only matches if it would be
+  in that state initially."
+  [item state sub-item & [options]]
   (contains-by? = item state sub-item options))
 
 ;; TODO: could/should some of these fns be shared with the 'real' implementations?
@@ -304,8 +344,8 @@
 
 (defn- run-lifecycle [item state f]
   ;; resolve, find all livecycle (with their state); call that.
-  (reduce-item (constantly :dummy-ref)
-               (constantly :dummy-return!)
+  (reduce-item make-dummy-ref
+               (constantly dummy-return)
                (fn leaf [item state]
                  (cond
                    (base/lifecycle? item)
@@ -362,12 +402,20 @@
                item
                state))
 
-(defn init [item state]
+(defn init
+  "Returns what happens when the given item is initialized in the
+  given state, which happens when it is first used in an item tree, or
+  if it is updated to a new state. Returns a [[core/return]] value."
+  [item state]
   (run-lifecycle item state
                  (fn [it state]
                    ((base/lifecycle-init it) state))))
 
-(defn finalize [item state]
+(defn finalize
+  "Returns what happens when the given item is finalized in the given
+  state, which happens when it is now longer used in an item
+  tree. Returns a [[core/return]] value."
+  [item state]
   (run-lifecycle item state
                  (fn [it state]
                    ((base/lifecycle-finish it) state))))
@@ -376,8 +424,8 @@
   (apply comp (reverse fs)))
 
 (defn- find-handle-message [item state]
-  (reduce-item (constantly :dummy-ref)
-               (constantly :dummy-return!)
+  (reduce-item make-dummy-ref
+               (constantly dummy-return)
                (fn leaf [item state]
                  (cond
                    (or (string? item)
@@ -441,14 +489,13 @@
                item
                state))
 
-(defn message [item state msg]
+(defn handle-message
+  "Returns what happens when the given message would be sent to that
+  item in the given state. Returns a [[core/return]] value or nil, if
+  the message would not be handled at all."
+  [item state msg]
   ;; find applicable handle-message
   (if-let [{f :f state :state post :post} (find-handle-message item state)]
     (post (f state msg))
     ;; message won't be processed... throw then?
     nil))
-
-;; (defn run-effect [eff])
-;; (defn run-subscription [for-a-while])
-
-
