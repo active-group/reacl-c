@@ -1,4 +1,4 @@
-(ns reacl-c.impl.react0
+(ns ^:no-doc reacl-c.impl.react0
   (:require ["create-react-class" :as createReactClass]
             ["react" :as react]
             ["react-dom" :as react-dom]

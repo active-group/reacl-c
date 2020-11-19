@@ -1,5 +1,7 @@
 (ns reacl-c.dom
-  "This namespace contains functions for all HTML and SVG tags, which all return dom items."
+  "This namespace contains functions for all HTML and SVG tags, which
+  all return corresponding dom items. Additionally it contains the
+  function [[h]], a generic function that creates dom items."
   (:require [reacl-c.base :as base]
             [clojure.string :as str]
             #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
@@ -79,7 +81,9 @@
   (fn [& args]
     (apply dom-element type args)))
 
-(defn h
+(defn ^{:arglists '([type attrs & children]
+                    [type & children])}
+  h
   "Returns a DOM item of the specified `type`, like \"div\" for example. Arguments are the same as the specific DOM functions, like [[div]]."
   [type & args]
   (apply (dom-function type) args))

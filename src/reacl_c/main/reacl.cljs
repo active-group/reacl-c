@@ -1,5 +1,5 @@
 (ns reacl-c.main.reacl
-  "Functions for using reacl-c within a Reacl application or library."
+  "Functions for using Reacl-c within a Reacl application or library."
   (:require [reacl-c.main.react :as main-react]
             [reacl-c.core :as core]
             [reacl-c.impl.reacl0 :as reacl0]
@@ -32,13 +32,13 @@
           (reacl/return))))))
 
 ;; previously named reacl-render
-(defn reacl
+(defn reacl ;; TODO: rename instantiate?
   "Returns a Reacl component running the given item with the given
   Reacl `state binding`.
 
   Messages sent to the returned component are passed to the given
   item. Actions emitted from the item are emitted from the returned
   component. Note that this includes effect actions. If you want
-  effects to be executed instead, use [[reacl-c.main.execute-effects]]."
+  effects to be executed instead, use [[reacl-c.main/execute-effects]]."
   [binding item]
   (runner binding item))

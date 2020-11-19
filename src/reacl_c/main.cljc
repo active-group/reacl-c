@@ -26,24 +26,25 @@
                        (base/merge-returned ret (base/make-returned base/keep-state more-acts msgs))
                        (inc n))))))]
   (defn execute-effects
-    "Returns an item that will intercept and executes all effects
+    "Returns an item that will intercept and execute all effects
   emitted by the given `item`. This is automatically wrapped around
   the toplevel item when using [[run]], but not when
   using [[run-controlled]].
   
-  Options can a map with the following settings:
-  :recursion-limit  When effects continue to return new effects, and exception is when thrown when this limit is reached (defaults to 1000),
-  :monitor  A function called with the effect, its result value and a [[core/return]] value of actions and messages emitted by that effect."
+  Options can be a map with the following settings:
+
+  - `:recursion-limit`  When effects continue to return new effects, and exception is when thrown when this limit is reached (defaults to 1000),
+  - `:monitor`  A function called with the effect, its result value and a [[reacl-c.core/return]] value of actions and messages emitted by that effect."
     [item & [options]]
     (core/handle-effect item (f/partial h
                                         (or (:recursion-limit options) 1000)
                                         (:monitor options)))))
 
 (defn ^:no-doc state-error [st]
-  ;; TODO or a warning?
+  ;; TODO or a warning?  TODO: no callback arg?
   (throw (ex-info "Unhandled state change at toplevel." {:state st})))
 
-(defn ^:no-doc action-error [a]
+(defn ^:no-doc action-error [a] ;; TODO: no callback arg?
   ;; TODO: warning is enough (utils/warn "Unhandled action:" action)
   (throw (ex-info "Unhandled action at toplevel." {:action a})))
 
@@ -77,10 +78,9 @@
 
 (defn send-message!
   "Sends a message to a running item, i.e. `app` must be the value
-  returned from [[run]] or the element returned
-  by [[main.react.run-controlled]] for example. This can be used
-  together with [[handle-message]] in situations where the application
-  is not running standalone, but integrated in a different
+  returned from [[run]] or [[run-controlled]]. This can be used together
+  with [[reacl-c.core/handle-message]] in situations where the
+  application is not running standalone, but integrated in a different
   framework. The optional callback is invoked when any update
   triggered by the message is completed."
   [app msg & [callback]]

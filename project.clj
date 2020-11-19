@@ -28,7 +28,7 @@
   :aliases {"fig" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
             "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]}
 
-  :codox {:language :clojure ;; :clojurescript
+  :codox {:language :clojurescript ;; :clojure
           :metadata {:doc/format :markdown}
           :themes [:rdash]
           :src-dir-uri "http://github.com/active-group/reacl-c/blob/master/"

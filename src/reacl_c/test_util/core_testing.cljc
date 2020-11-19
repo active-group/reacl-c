@@ -13,6 +13,7 @@
 ;; (defn run-effect [eff])
 ;; (defn run-subscription [for-a-while])
 
+;; TODO: the performance tools, reimplemented?
 
 (defn- reduce-item [mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other item state]
   (let [rec (fn [state item]
@@ -104,7 +105,7 @@
 
 (defn render
   "Returns how an item looks like in the given state. Returns a list
-  of only dom elements and strings."
+  of only dom elements and strings." ;; TODO: + react items?
   [item state]
   (reduce-item make-dummy-ref
                (constantly dummy-return)

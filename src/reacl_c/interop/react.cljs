@@ -2,7 +2,7 @@
   (:require [reacl-c.base :as base]
             [active.clojure.cljs.record :as r :include-macros true]))
 
-(r/define-record-type LiftReact
+(r/define-record-type ^:no-doc LiftReact
   (make-lift-react class props)
   lift-react?
   [class lift-react-class
