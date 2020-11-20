@@ -9,23 +9,13 @@
 
 ;; effects and subscriptions are execute by default.
 
-(defn- finally* [f g]
-  (let [async? (atom false)]
-    (try (let [res (f)]
-           (if (async/promise? res)
-             (do (reset! async? true)
-                 (async/finally res g))
-             res))
-         (finally (when-not @async?
-                    (g))))))
-
 (defn- with-config [config f]
   (let [previous (atom nil)]
     (react-tu/configure (fn [current]
                           (reset! previous current)
                           (clj->js config)))
-    (finally* f
-              #(react-tu/configure @previous))))
+    (async/try-finally f
+                       #(react-tu/configure @previous))))
 
 (defn- pretty-nodes [document nodes]
   (let [d (.createDocumentFragment document)]
@@ -75,10 +65,10 @@
       (with-config (merge {:getElementError default-get-element-error}
                           (:configuration options))
         (fn []
-          (finally* (fn []
-                      (f r))
-                    (fn []
-                      (react-tu/cleanup r))))))))
+          (async/try-finally (fn []
+                               (f r))
+                             (fn []
+                               (react-tu/cleanup r))))))))
 
 (defn ^:no-doc as-fragment [env]
   (.-asFragment env))

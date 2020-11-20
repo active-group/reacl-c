@@ -5,9 +5,13 @@
             [reacl-c.test-util.dom-testing :as dom-t :include-macros true]
             [clojure.string :as string]
             ["react-dom/test-utils" :as rt]
-            [cljs-async.core :refer (async await) :include-macros true]
+            [cljs-async.core :as a :refer (async await) :include-macros true]
             [cljs-async.test :refer (deftest) :include-macros true]
             [cljs.test :refer (is testing) :include-macros true]))
+
+(defn timeout [ms]
+  (a/promise (fn [f]
+               (js/setTimeout #(f true) ms))))
 
 (deftest get-query-test-1
   (dom-t/rendering
@@ -93,3 +97,45 @@
      (is (some? (dom-t/query env (dom-t/by-attribute "width" "100px"))))
 
      (is (not-empty (dom-t/query-all env (dom-t/by-attribute "width" (fn [v] (= v "100px")))))))))
+
+(c/defn-effect running-effects-test-effect [x]
+  (* x 2))
+
+(deftest running-effects-test
+  (let [eff-to-state #(c/dynamic (fn [st]
+                                   (dom/div (str st)
+                                            (dom/button {:onclick (constantly 1) :title "startup"})
+                                            (when-not (zero? st)
+                                              (c/handle-effect-result (fn [_ r] r)
+                                                                      (running-effects-test-effect 21))))))]
+    (async
+     (testing "running it"
+       (dom-t/rendering
+        (eff-to-state)
+        :state 1
+        (fn [env]
+          (is (some? (dom-t/query env (dom-t/by-text "42")))))))
+  
+     (testing "mocking an effect"
+       (with-redefs [running-effects-test-effect (fn [x]
+                                                     (c/effect (fn [] (* x 3))))]
+         (dom-t/rendering
+          (eff-to-state)
+          :state 1
+          (fn [env]
+            (is (some? (dom-t/query env (dom-t/by-text "63"))))))))
+
+     (await
+      (testing "mocking an effect, asynchronously"
+        (a/with-redefs [running-effects-test-effect (fn [x]
+                                                      (c/effect (fn [] (* x 4))))]
+          (dom-t/rendering
+           (eff-to-state)
+           :state 0
+           (fn [env]
+             (async
+              (await (timeout 1))
+              (dom-t/fire-event (dom-t/get env (dom-t/by-title "startup"))
+                                :click)
+              (is (some? (await (dom-t/find env (dom-t/by-text "84")))))))))))
+     )))
