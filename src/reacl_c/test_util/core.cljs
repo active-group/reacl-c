@@ -246,6 +246,16 @@
   (assert (subscribe-effect-1? eff))
   (second (effect-args eff)))
 
+(defn- subscribe-effect-subscription [eff]
+  (assert (subscribe-effect-1? eff))
+  (let [subs-f (subscribe-effect-fn eff)
+        subs-args (subscribe-effect-args eff)]
+
+    ;; but if subs if created via a call to to a defn-subscription fn, then it will look different
+    (if-let [f (core/subscription-from-defn-meta-key (meta eff))]
+      (= subs (apply f subs-args))
+      (apply core/subscription subs-f subs-args))))
+
 (defn subscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one on mount. This can be useful in unit tests."
@@ -268,6 +278,97 @@
   (assert (subscribe-effect? eff))
   (let [[_ _ _ host] (effect-args eff)]
     host))
+
+(defn- subscription-f-args [sub]
+  ;; this is quite hacky, because subscription are not first-class items, we match/extract the function and args from the items constructed in core/subscription.
+  ;; but as long as there is a test for it, we just have to keep that in sync with the impl.
+  (let [sub (if (base/named? sub)
+              ;; subs from defn-subscription are also named:
+              (base/named-e sub)
+              sub)]
+    (and (base/with-async-return? sub)
+         (let [[a1 _] (base/with-async-return-args sub) ;; async-actions => async-return
+               [_ _ f args] (:args a1)] ;; a1 = Partial fn with args [action-mapper defn-f f args]   (could replace it with some other Ifn to not depend on active-clojure internals)
+           (assert (ifn? f))
+           (when (ifn? f)
+             [f args])))))
+
+(defn- subscription-1?
+  [v]
+  (and (base/item? v)
+        (some? (subscription-f-args v))))
+
+(defn subscription-f
+  "Returns the function implementing the given subscription item."
+  [sub]
+  (assert (subscription-1? sub))
+  (first (subscription-f-args sub)))
+
+(defn subscription-args
+  "Returns extra arguments for the function implementing the given subscription item. See [[subscription-f]]"
+  [sub]
+  (assert (subscription-1? sub))
+  (second (subscription-f-args sub)))
+
+(defn subscription?
+  "Returns whether `item` is a subscription item, optinally also
+  checking if it was created by the given `defn-subscription` function
+  or with the given function `f` as its implementation."
+  ([v]
+   (and (base/item? v)
+        (some? (subscription-f-args v))))
+  ([v f]
+   (assert (ifn? f))
+   (and (subscription? v)
+        (or (= f (subscription-f v))
+            ;; uuuh, if f is acually a 'defn-subscription' fn, then calling is does no harm, but if it isn't?
+            ;; being pragmatic here, and just look if it is a 'named'
+            ;; thingy too and that nobody passes something very different in as `f`.
+            (and (some? (core/meta-name-id f))
+                 (= v (apply f (subscription-args v))))))))
+
+
+(defn ^{:arglists '([subscribe-effect f & args]
+                    [subscribe-effect subscription])
+        :no-doc true   ;; or even private? map-subscription should cover all usecases.
+        }
+  replace-subscription
+  "Given the subscribe effect of a subscription item, this returns a
+  modified effect that subscribes to the given subscription
+  instead. Alernatively, a function `f ` and args, that implement a
+  subscription can be given, corresponding
+  to [[core/subcription]]. Use this in a [[core/map-effects]] item, to
+  mock subscribe effects in a test setup."
+  [subscribe-effect f & args]
+  
+  (assert (subscribe-effect? subscribe-effect))
+  (let [[f args] (or (subscription-f-args f)
+                     [f args])]
+    (update subscribe-effect :args
+            (fn [[_ _ deliver! host action-mapper]]
+              ;; Note: action-mapper contains the schema validation when specified in a defn-subscription.
+              [f args deliver! host identity]))))
+
+(let [pre (fn [f eff]
+            (if-let [r (and (subscribe-effect? eff)
+                            (f (subscribe-effect-subscription eff)))]
+              (replace-subscription eff r)
+              eff))]
+  (defn map-subscriptions
+  "Returns an item that replaces subscriptions in `item`. Note that
+  `item` itself remains unchanged; instead, whenever a subscription is
+  activated in `item`, `f` will be called with that subscription, and
+  if it returns a different subscription, then that is activated
+  instead. If it returns nil, then the original subscription will be
+  actived.
+
+  You can use [[subscription?]] and [[subscription-args]], if the
+  replacement depends on details of the subscription or for mapping a
+  whole group of subscriptions."
+    [item f]
+    (core/map-effects item (f/partial pre f))))
+
+;; Note: I think we can remove emaulate-subscriptions and disable-subscriptions: map-subscription and utils are superiour.
 
 (let [h (fn [f state eff]
           (cond

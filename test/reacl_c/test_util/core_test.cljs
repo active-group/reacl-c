@@ -248,13 +248,99 @@
       (tu/mount! env nil)
       (is @sub-2-running?))))
 
-(deftest emulate-subscriptions
+(deftest emulate-subscriptions-test
   (let [sub-1 (c/subscription (fn [& args]
                                 (assert false "should not be called")))
         env (tu/env (-> (c/fragment sub-1)
                         (tu/emulate-subscriptions (fn [eff]
                                                     (assert (tu/subscribe-effect? eff sub-1))
                                                     ::result))))]
+    (is (= (c/return :action ::result)
+           (tu/mount! env nil)))))
+
+(deftest replace-subscriptions-test
+  ;; replace one subscription by another.
+  (let [sub-1 (c/subscription (fn [& args]
+                                (assert false "should not be called")))
+        
+        stopped? (atom false)
+        sub-2-f (fn [deliver!]
+                  (deliver! ::result)
+                  (fn []
+                    (reset! stopped? true)))
+        sub-2 (c/subscription sub-2-f)
+        env (tu/env (-> (c/fragment sub-1)
+                        (c/map-effects (fn [eff]
+                                         (cond
+                                           (tu/subscribe-effect? eff sub-1)
+                                           (tu/replace-subscription eff sub-2-f)
+                                                      
+                                           :else eff)))))]
+    (is (= (c/return :action ::result)
+           (tu/mount! env nil)))
+
+    (tu/unmount! env)
+    (is @stopped?)))
+
+(deftest subscription-utils-test
+  (c/defn-subscription subscription-utils-test-1 deliver! [x]
+    (fn [] nil))
+  
+  (let [sub-2-f (fn [deliver a1]
+                  (fn [] nil))
+
+        sub-2 (c/subscription sub-2-f :foo)
+        sub-1 (subscription-utils-test-1 42)]
+
+    (is (tu/subscription? sub-1))
+    (is (tu/subscription? sub-2))
+
+    (is (tu/subscription? sub-1 subscription-utils-test-1))
+    (is (tu/subscription? sub-2 sub-2-f))
+
+    (is (= sub-2-f (tu/subscription-f sub-2)))
+    (is (= '(:foo) (tu/subscription-args sub-2)))
+
+    ;; Note: subscription-utils-test-1 is a function creating a subscription, not the function implementing it.
+    (is (= (tu/subscription-f (subscription-utils-test-1 :bla))
+           (tu/subscription-f sub-1)))
+
+    (is (= '(42) (tu/subscription-args sub-1)))))
+
+(deftest map-subscriptions-test-1
+  ;; replace one subscription by another.
+  (let [sub-1-f (fn [& args]
+                  (assert false "should not be called"))
+        sub-1 (c/subscription sub-1-f)
+        
+        sub-2-f (fn [deliver! x]
+                  (assert (= 42 x))
+                  (deliver! ::result)
+                  (fn [] nil))
+        sub-2 (c/subscription sub-2-f 42)
+        
+        env (tu/env (-> (c/fragment sub-1)
+                        (tu/map-subscriptions (fn [sub]
+                                                (cond
+                                                  (= sub-1 sub)
+                                                  sub-2
+                                                      
+                                                  :else (assert false sub))))))]
+    (is (= (c/return :action ::result)
+           (tu/mount! env nil)))))
+
+(deftest map-subscriptions-test-2
+  ;; replace one subscription by another.
+  (c/defn-subscription emulate-subscriptions-test-4-sub deliver! [x]
+    (assert (= 42 x))
+    (deliver! ::result)
+    (fn [] nil))
+  
+  (let [sub-1 (c/subscription (fn [& args]
+                                (assert false "should not be called")))
+        
+        env (tu/env (-> (c/fragment sub-1)
+                        (tu/map-subscriptions {sub-1 (emulate-subscriptions-test-4-sub 42)})))]
     (is (= (c/return :action ::result)
            (tu/mount! env nil)))))
 
