@@ -5,7 +5,8 @@
             [reacl-c.test-util.core :as tu]
             [reacl-c.impl.reacl :as impl]
             [active.clojure.functions :as f]
-            [cljs.test :refer (is deftest testing) :include-macros true]
+            [cljs.test :as t :refer (is deftest testing) :include-macros true]
+            [cljs-async.core :as async]
             [reacl-c.test-util.item-generators :as item-gen]
             [clojure.test.check.properties :as prop]
             [clojure.test.check.clojure-test :include-macros true :refer [defspec]]))
@@ -343,6 +344,38 @@
                         (tu/map-subscriptions {sub-1 (emulate-subscriptions-test-4-sub 42)})))]
     (is (= (c/return :action ::result)
            (tu/mount! env nil)))))
+
+(deftest running-subscriptions-test
+  (let [stopped? (atom false)
+        sub-3 (c/subscription (fn [deliver!]
+                                (deliver! :foo)
+                                (js/setTimeout #(deliver! :bar) 2)
+                                (js/setTimeout #(deliver! :baz) 4)
+                                (fn []
+                                  (reset! stopped? true))))]
+    (t/async done
+             (-> (tu/subscription-results sub-3
+                                          3)
+                 (async/then (fn [lst]
+                               (is (= [:foo :bar :baz] lst))
+                               (is @stopped?)))
+                 (async/finally done)))))
+
+(deftest running-subscriptions-timeout-test
+  (let [stopped? (atom false)
+        sub-3 (c/subscription (fn [deliver!]
+                                (deliver! :foo)
+                                (js/setTimeout #(deliver! :bar) 10)
+                                (fn []
+                                  (reset! stopped? true))))]
+    (t/async done
+             (-> (tu/subscription-results sub-3
+                                          2
+                                          1)
+                 (async/then (fn [lst]
+                               (is (= [:foo] lst))
+                               (is @stopped?)))
+                 (async/finally done)))))
 
 (deftest subscribe-effect-properties-test
   ;; then getting a subscribe-effect in hand, one can look at the function and args the subscription was created from.

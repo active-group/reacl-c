@@ -4,8 +4,12 @@
             [reacl-c.impl.tu-reacl :as impl]
             [reacl-c.test-util.item-generators :as item-gen]
             [clojure.test.check.generators :as gen]
-            [active.clojure.functions :as f])
+            [active.clojure.functions :as f]
+            [cljs-async.core :as async]
+            [cljs-async.cljs.core :as async-cljs])
   (:refer-clojure :exclude [find]))
+
+;; TODO: make it cljc once the 'tu-reacl' things are out.
 
 (defn env
   "Returns a new test environment to test the behavior of the given item."
@@ -367,6 +371,54 @@
   whole group of subscriptions."
     [item f]
     (core/map-effects item (f/partial pre f))))
+
+(defn run-subscription!
+  "Calls the function implementing the given subscription with the given `deliver!` function, returning the stop function for it."
+  [sub deliver!]
+  (let [[f args] (subscription-f-args sub)]
+    (apply f deliver! args)))
+
+(defn- run-subscription-async [sub]
+  ;; starts the subscription and returns [stop-fn, value-promise] where value-promise is promise of [value, next-value-promise] and so on.
+  (let [first-value (async-cljs/promise)
+        next-value (atom first-value)
+        stop! (run-subscription! sub (fn deliver! [action]
+                                       (let [p @next-value
+                                             n (async-cljs/promise)]
+                                         (reset! next-value n)
+                                         (async-cljs/deliver p [action (async-cljs/async-deref n)]))))]
+    [stop! (async-cljs/async-deref first-value)]))
+
+(defn- subscription-results-next [akku done? x]
+  (let [[v next-value] x
+        lst (swap! akku conj v)]
+    (if (done? lst)
+      lst
+      (-> next-value
+          (async/then (partial subscription-results-next akku done?))))))
+
+(defn subscription-results
+  "Runs the given subscription, asynchronously waiting for at least the
+  given number of actions emitted by it (or the given timeout
+  elapses), and then stops the subscription. Returns a promise of the
+  sequence of actions."
+  [sub num-actions & [timeout-ms]]
+  (assert (number? num-actions))
+  (let [akku (atom [])
+        done? (fn [lst]
+                (>= (count lst) num-actions))
+        
+        [stop! first-value] (run-subscription-async sub)
+        values (-> first-value
+                   (async/then (partial subscription-results-next akku done?)))]
+    (-> (if timeout-ms
+          (async/race values
+                      (-> (async/timeout timeout-ms)
+                          (async/then (fn [_]
+                                        ;; on timeout, return what we have to far.
+                                        @akku))))
+          values)
+        (async/finally stop!))))
 
 ;; Note: I think we can remove emaulate-subscriptions and disable-subscriptions: map-subscription and utils are superiour.
 

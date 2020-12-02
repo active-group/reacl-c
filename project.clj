@@ -11,7 +11,7 @@
                  [org.clojure/test.check "0.10.0" :scope "provided"]
                  [prismatic/schema "1.1.12"]
                  [reacl "2.2.9"]
-                 [de.active-group/cljs-async "1.0-SNAPSHOT"]]
+                 [de.active-group/cljs-async "2.0.0"]]
 
   :plugins [[lein-codox "0.10.7"]
             [lein-auto "0.1.3"]]
