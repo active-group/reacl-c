@@ -1,6 +1,7 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.test-util.core :as tu]
+            [reacl-c.test-util.test-renderer :as tu]
+            [reacl-c.test-util.core :as tuc]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
             [schema.core :as s :include-macros true]
@@ -8,7 +9,7 @@
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
-  ;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components.
+;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components; everything that depends on test-renderer
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -90,7 +91,7 @@
     (let [res (atom false)]
       (c/defn-subscription defn-subscription-test-2 ^:always-validate deliver! :- s/Int [arg]
         (reset! res nil)
-        (try (tu/preventing-error-log
+        (try (tuc/preventing-error-log
               #(deliver! arg))
              (catch :default e
                (reset! res e)))
@@ -304,7 +305,7 @@
     (tu/mount! env {})
     (is (some? (tu/find env "Ok")))
 
-    (tu/preventing-error-log
+    (tuc/preventing-error-log
      (fn []
        (tu/update! env {:throw? true})))
     (is (some? (tu/find env "Error")))
@@ -384,7 +385,7 @@
 
     (is (some? (tu/mount! (tu/env (defn-test-3 42)) "foo")))
 
-    (tu/preventing-error-log
+    (tuc/preventing-error-log
      (fn []
        (is (str/starts-with?
             (try (tu/mount! (tu/env (defn-test-3 42)) :foo)
@@ -426,7 +427,7 @@
 
     (is (some? (tu/mount! (tu/env def-test-3) "foo")))
 
-    (tu/preventing-error-log
+    (tuc/preventing-error-log
      (fn []
        (is (str/starts-with?
             (try (tu/mount! (tu/env def-test-3) :foo)
