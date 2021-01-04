@@ -154,17 +154,33 @@
                item
                state))
 
-(defn- dom-attrs-contains? [a1 a2]
+(defn- split-css-classes [s]
+  (map string/trim (string/split (or s "") #" ")))
+
+(defn- contains-in-order? [l1 l2] ;; l1 contains l2 ?
+  (or (empty? l2)
+      (and (not (empty? l1))
+           (or (= (first l1) (first l2))
+               (contains-in-order? (rest l1) l2)))))
+
+(defn- dom-attrs-contains? [a1 a2]  ;; if a1 contains a2; resp. a2 < a1
   (reduce-kv (fn [res k v]
                (and res
                     (or (= (get a1 k) v)
-                        ;; TODO: class/name subset?! !
-                        (when (= :style k)
+                        ;; or sub matching for style and class attributes
+                        (case k
+                          :style
                           (let [st1 (:style a1)]
                             (reduce-kv (fn [res k v]
                                          (and res (= (get st1 k) v)))
-                                       res
-                                       v))))))
+                                       true
+                                       v))
+                          :class
+                          (contains-in-order? (split-css-classes (:class a1))
+                                              (split-css-classes v))
+                          
+
+                          false))))
              true
              a2))
 
@@ -289,7 +305,7 @@
   be specified, meaning that the sub item only matches if it would be
   in that state initially."
   [item state sub-item & [options]]
-  ;; TODO: testing dom with this is annoying - state can be nil/irrlevant then.
+  ;; TODO: testing dom with this is annoying - state can be nil/irrlevant then; can state be optional??
   (contains-by? like? item state sub-item options))
 
 (defn contains?

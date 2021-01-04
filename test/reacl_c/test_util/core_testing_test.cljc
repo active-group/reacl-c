@@ -102,4 +102,10 @@
   (testing "sub-item-state"
     (is (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "foo"}))
     (is (not (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "blubb"}))))
-  )
+
+  (testing "special dom attributes"
+    (is (tu/contains-like? (dom/div {:style {:width "100px" :height "50px"}}) nil
+                           (dom/div {:style {:width "100px"}})))
+
+    (is (tu/contains-like? (dom/div {:class "foo bar"}) nil
+                           (dom/div {:class "foo"})))))
