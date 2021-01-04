@@ -4,7 +4,9 @@
             [reacl-c.core :as c]
             [active.clojure.lens :as lens]
             [clojure.string :as string]
-            [clojure.set :as set]))
+            [clojure.set :as set])
+  (:refer-clojure :exclude [contains?]
+                  :rename {contains? clj-contains?}))
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
 
@@ -156,7 +158,7 @@
   (reduce-kv (fn [res k v]
                (and res
                     (or (= (get a1 k) v)
-                        ;; TODO: class/name subset?!
+                        ;; TODO: class/name subset?! !
                         (when (= :style k)
                           (let [st1 (:style a1)]
                             (reduce-kv (fn [res k v]
@@ -256,7 +258,7 @@
 (defn- contains-by? [f item state sub-item & [options]]
   (assert (every? #{:sub-item-state} (keys options)) (keys options))
   
-  (let [g (if (contains? options :sub-item-state)
+  (let [g (if (clj-contains? options :sub-item-state)
             (let [sub-item-state (:sub-item-state options)]
               (fn [item sub-item state]
                 (and (= state sub-item-state)
@@ -290,7 +292,7 @@
   ;; TODO: testing dom with this is annoying - state can be nil/irrlevant then.
   (contains-by? like? item state sub-item options))
 
-(defn contains-exact?
+(defn contains?
   "Returns if `item`, or any item 'below' it, is equal to `sub-item`
   in the given state of `item`. Optionally, the `:sub-item-state` can
   be specified, meaning that the sub item only matches if it would be
