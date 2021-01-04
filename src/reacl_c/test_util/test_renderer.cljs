@@ -1,7 +1,7 @@
 (ns ^:deprecated reacl-c.test-util.test-renderer
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]
-            [reacl-c.impl.tu-reacl :as impl] ;; TODO: move here?
+            [reacl-c.impl.tu-reacl :as impl]
             [reacl-c.test-util.item-generators :as item-gen]
             [clojure.test.check.generators :as gen]
             [active.clojure.functions :as f])

@@ -36,6 +36,13 @@
   (assert (base/simple-effect? eff))
   (:args eff))
 
+(defn run-effect!
+  "Returns a tuple `[value ret]`. If an effect returns a [[reacl-c.core/return]]
+  value, then 'value' is the returned state, and 'ret' everything else.
+  For any other value, 'ret' is empty."
+  [eff]
+  (base/run-effect! eff))
+
 (defn- subscribe-effect-1? [eff]
   (effect? eff core/subscribe!))
 
@@ -221,8 +228,6 @@
           values)
         (async/finally stop!))))
 
-;; TODO: I think we can remove emaulate-subscriptions and disable-subscriptions: map-subscription and utils are superiour.
-
 (let [h (fn [f state eff]
           (cond
             (subscribe-effect? eff)
@@ -233,7 +238,7 @@
                 (core/return :message [(subscribe-effect-host eff)
                                        (core/->SubscribedEmulatedResult action)])))
             :else (core/return :action eff)))]
-  (defn emulate-subscriptions
+  (defn emulate-subscriptions  ;; TODO: deprecated (use map-subscriptions)
     "Returns an item, that for all subscriptions done in `item`,
   evaluates `(f subscription-effect)`. The
   function [[subscription-effect?]] can be used to check which kind of
@@ -254,7 +259,7 @@
                      (cond
                        (some #(subscribe-effect? eff %) subs) core/no-effect
                        :else eff))]
-  (defn disable-subscriptions
+  (defn disable-subscriptions  ;; TODO: deprecated (use map-subscriptions)
     "Returns an item like `item`, but where all subscriptions (or the
   the given subscriptions) are not executed when emitted from `item`."
     ([item]
@@ -262,7 +267,7 @@
     ([item subs]
      (core/map-effects item (f/partial disable-subs subs)))))
 
-(defn preventing-error-log ;; TODO: -> other namespace; add a test fixture for it?
+(defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of
   `thunk`, which occurs even when the error is handled in an error
   boundary."
@@ -280,3 +285,14 @@
            (finally
              (set! js/console.error pre)
              (js/window.removeEventListener "error" eh))))))
+
+;; TODO
+#_(def validate-schemas-async
+  (at/simple-async-fixture
+   (fn [init-done]
+     (if (s/fn-validation?)
+       (init-done (fn [done] (done)))
+       (do (s/set-fn-validation! true)
+           (init-done (fn [done]
+                        (s/set-fn-validation! false)
+                        (done))))))))

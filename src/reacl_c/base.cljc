@@ -268,7 +268,7 @@
 (declare run-effect!)
 
 (defn run-effect!
-  "Returns a tuple [value ret]. If an effect returnn a [[return]]
+  "Returns a tuple [value ret]. If an effect returns a [[return]]
   value, then 'value' is the returned state, and 'ret' everything else.
   For any other value, 'ret' is empty."
   [eff]

@@ -10,13 +10,6 @@
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
 
-
-;; TODO: ?
-;; (defn run-effect [eff])
-;; (defn run-subscription [for-a-while])
-
-;; TODO: the performance tools, reimplemented?
-
 (defn- reduce-item [mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other item state]
   (let [rec (fn [state item]
               (reduce-item mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other
