@@ -30,6 +30,9 @@
   )
 
 (deftest init-finalize-test
+  (is (= (c/return)
+         (tu/init (c/fragment) :foo)))
+  
   (is (= (c/return :state 42 :action :foo)
          (tu/init (c/lifecycle (fn [st] (c/return :state (inc st)
                                                   :action :foo))
