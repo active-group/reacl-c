@@ -1,5 +1,6 @@
 (ns reacl-c.test-util.dom-testing
   (:require [reacl-c.main.react :as main]
+            [reacl-c.core :as c]
             [active.clojure.functions :as f]
             [cljs-async.core :as async]
             ["@testing-library/dom" :as dom-tu]
@@ -35,7 +36,6 @@
       (aset "name" "TestingLibraryElementError"))))
 
 (defn ^{:arglists '[(item options... f)]
-        ;; TODO: describe :handle-action!, or remove it?
         :doc "Calls `f` with a rendering environment that 'runs' the given item.
 Options can be
 
@@ -64,11 +64,9 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 
           initial-state (:state options)
 
-          r (react-tu/render (main/react-uncontrolled item initial-state
-                                                      (:handle-action! options))
+          r (react-tu/render (main/react-uncontrolled item initial-state)
                              (clj->js (-> options
-                                          (dissoc :handle-action!
-                                                  :visible?
+                                          (dissoc :visible?
                                                   :state
                                                   :configuration)
                                           (assoc :container container))))]
@@ -79,6 +77,14 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                                (f r))
                              (fn []
                                (react-tu/cleanup r))))))))
+
+(letfn [(conj-into [atom a]
+          (c/effect swap! atom conj a))]
+  (defn collect-actions
+    "Returns an item that is like `item`, but will capture all emitted actions and
+  conj them into the given atom instead."
+    [item atom]
+    (c/map-actions item (f/partial conj-into atom))))
 
 (defn ^:no-doc as-fragment [env]
   (.-asFragment env))
@@ -94,9 +100,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 (defn update!
   "Change the item and state rendered in the given rendering environment."
   [env item state]
-  ;; FIXME: need to recover :handle-action! ?!
-  (.rerender env (main/react-uncontrolled item state
-                                          #_(:handle-action! options))))
+  (.rerender env (main/react-uncontrolled item state)))
 
 (defn container
   "Returns the container element used in the given rendering environment."
