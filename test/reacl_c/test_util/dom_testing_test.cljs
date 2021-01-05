@@ -127,8 +127,8 @@
   (dom-t/rendering
    (dom/div (dom/span "foo" (dom/span "bar")) (dom/span "bar") (dom/span "foo"))
    (fn [env]
-     (is (= 1 (count (dom-t/query-all env (dom-t/within-q (dom-t/by-text "foo")
-                                                          (dom-t/by-text "bar")))))))))
+     (is (= 1 (count (dom-t/query-all env (dom-t/within (dom-t/by-text "foo")
+                                                        (dom-t/by-text "bar")))))))))
 
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))

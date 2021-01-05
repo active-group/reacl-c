@@ -9,6 +9,9 @@
 
 ;; Note: effects and subscriptions are execute by default.
 
+;; TODO: https://github.com/testing-library/user-event ?
+;; TODO: getNodeText, getRoles, isInaccessible
+
 (defn ^:no-doc with-config [config f]
   (let [previous (atom nil)]
     (react-tu/configure (fn [current]
@@ -111,10 +114,10 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   [node]
   (react-tu/prettyDOM node))
 
-(defn within
+(defn within-node
   "Specifies `node` as different root node in element queries. `base`
   should be either a rendering environemnt, or the result of a
-  previous call to `within`."
+  previous call to `within-node`."
   [base node]
   ;; Note: does not need base/env yet; but we might use it to copy
   ;; 'custom queries' from there to here; which imho is a flaw in
@@ -352,12 +355,14 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
      (or-q-0 q1 more))))
 
 (let [sub-q (build-query-fn (fn [env base-q child-q]
-                              (mapcat #(query-all (within env %) child-q)
+                              (mapcat #(query-all (within-node env %) child-q)
                                       (query-all env base-q)))
                             ;; TODO: better error messages would be nice; but how?
                             (constantly "Found multiple elements that match the query")
                             (constantly "Unable to find any element that matches the given query"))]
-  (defn within-q [base-q child-q] ;; TODO: rename.
+  (defn within
+    "Query for elements matching `child-q` within the elements matching `base-q`."
+    [base-q child-q]
     (sub-q base-q child-q)))
 
 (let [q (build-js-query-fn (fn [where attribute text & options]
@@ -395,7 +400,3 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                            (or (aget react-tu/createEvent (name event))
                                (throw (js/Error (str "Not a known standard event: " (pr-str event) ".")))))]
                    (f node (clj->js event-properties))))))
-
-;; TODO: https://github.com/testing-library/user-event ?
-
-;; TODO: getNodeText, getRoles, isInaccessible
