@@ -51,7 +51,7 @@
   (is (= (dom-t/by-attribute "data-id" "124")
          (dom-t/by-attribute "data-id" "124")))
 
-  (let [by-color (dom-t/build-query
+  (let [by-color (dom-t/build-query-fn
                   (fn [where col] nil)
                   (fn [where col] "")
                   (fn [where col] ""))]
@@ -59,7 +59,7 @@
            (by-color "white")))))
 
 (deftest build-query-test
-  (let [by-color (dom-t/build-query
+  (let [by-color (dom-t/build-query-fn
                   (fn [where col]
                     ;; Note: one could use other queries on 'where' as a base, resp. dive down into the whole tree of nodes from (.-container where)
                     (filter #(= col (.-color (.-style %)))
@@ -97,6 +97,38 @@
      (is (some? (dom-t/query env (dom-t/by-attribute "width" "100px"))))
 
      (is (not-empty (dom-t/query-all env (dom-t/by-attribute "width" (fn [v] (= v "100px")))))))))
+
+(deftest nothing-anything-query-test
+  (dom-t/rendering
+   (dom/div (dom/span "foo") "bar")
+   (fn [env]
+
+     (is (= 4 (count (dom-t/query-all env dom-t/anything))))
+
+     (is (empty? (dom-t/query-all env dom-t/nothing))))))
+
+(deftest all-of-test
+  (dom-t/rendering
+   (dom/span "foo")
+   (fn [env]
+     (is (some? (dom-t/query env
+                             (dom-t/all-of (dom-t/by-text "foo")
+                                           (dom-t/by-text #"f.."))))))))
+
+(deftest any-of-query-test
+  (dom-t/rendering
+   (dom/div (dom/span "foo") (dom/span "bar"))
+   (fn [env]
+     (is (= 2 (count (dom-t/query-all env
+                                      (dom-t/any-of (dom-t/by-text "foo")
+                                                    (dom-t/by-text "bar")))))))))
+
+(deftest subquery-test
+  (dom-t/rendering
+   (dom/div (dom/span "foo" (dom/span "bar")) (dom/span "bar") (dom/span "foo"))
+   (fn [env]
+     (is (= 1 (count (dom-t/query-all env (dom-t/within-q (dom-t/by-text "foo")
+                                                          (dom-t/by-text "bar")))))))))
 
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))

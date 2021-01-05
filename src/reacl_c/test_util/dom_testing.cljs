@@ -176,7 +176,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   [where what & options]
   (find* get-all where what options))
 
-;; TODO: add 'removed'...?
+;; TODO: add 'removed'...? Note: wait-for-removal requires the item to be present first. So what about 'not-find'/absense?
 
 (defn- query-fn [where how q]
   ;; how = find|get|query|findAll|getAll|queryAll
@@ -208,7 +208,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   (defn- q-runner [q args & [args-to-js]]
     (f/partial h q args (or args-to-js identity))))
 
-(defn- build-js-query
+(defn- build-js-query-fn
   [query-all make-multi-error make-missing-error & [args-to-js]]
   (let [r (react-tu/buildQueries query-all
                                  make-multi-error make-missing-error)]
@@ -217,26 +217,27 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
       (fn [& args]
         (q-runner qs args)))))
 
-(defn build-query
-  "Creates a custom query like [[by-label-text]], via a function that
-  implements the 'query-all' logic, which should return a sequence of
-  all matching nodes, and two functions that return an error message
-  for the cases of finding more than one, resp. nothing at all.
+(defn build-query-fn
+  "Creates a function that returns custom query like [[by-label-text]],
+  via a function that implements the 'query-all' logic, which should
+  return a sequence of all matching nodes, and two functions that
+  return an error message for the cases of finding more than one,
+  resp. nothing at all.
 
   For example:
 
 ```
-  (def by-my-property (build-queries (fn [env v1] ...) (fn [env v1] \"Error\") (fn [env v1] \"Error\")))
+  (def by-my-property (build-query-fn (fn [env v1] node-seq...) (fn [env v1] \"Error\") (fn [env v1] \"Error\")))
 
   (find node (by-my-property \"foo\"))
 ```
 
   See https://testing-library.com/docs/react-testing-library/setup#add-custom-queries for some additional notes."
   [query-all make-multi-error make-missing-error]
-  (build-js-query (fn [& args]
-                    ;; array or js interable?
-                    (to-array (apply query-all args)))
-                  make-multi-error make-missing-error))
+  (build-js-query-fn (fn [& args]
+                       ;; array or js interable?
+                       (to-array (apply query-all args)))
+                     make-multi-error make-missing-error))
 
 (let [to-js (fn [[text options]]
               [text (clj->js options)])]
@@ -301,14 +302,72 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   (std-q-runner "ByTestId"
                 text options))
 
-(let [q (build-js-query (fn [where attribute text & options]
-                          (dom-tu/queryHelpers.queryAllByAttribute attribute (container where) text
-                                                                   (clj->js (apply hash-map options))))
-                        ;; TODO: if text is a predicate? (not string nor regex)
-                        (fn [where attribute text & options]
-                          (str "Found multiple elements with: [" attribute "=" text "]"))
-                        (fn [where attribute text & options]
-                          (str "Unable to find an element by: [" attribute "=" text "]")))]
+(def anything
+  ((build-query-fn (fn [env]
+                     (letfn [(r [n]
+                               (let [nodes (.-childNodes n)]
+                                 (concat nodes (mapcat r nodes))))]
+                       (r (container env))))
+                   (constantly "Found multiple elements")
+                   (constantly "Unable to find any element"))))
+
+(def nothing
+  ((build-query-fn (constantly nil)
+                   (constantly "Found a multiple of no elements, which sounds impossible")
+                   (constantly "Unable to find no element, as expected"))))
+
+(let [and-q-0
+      (build-query-fn (fn [env q1 more]
+                        (reduce (fn [res q]
+                                  (if (empty? res)
+                                    res
+                                    (let [s (set (query-all env q))]
+                                      (filter s res))))
+                                (query-all env q1)
+                                more))
+                      ;; TODO: better error messages would be nice; but how?
+                      (constantly "Found multiple elements that match all of the given queries")
+                      (constantly "Unable to find any element that matches all of the given queries"))]
+  (defn ^{:arglists '([& queries])
+          :doc "Query for all elements that match all of the given queries."}
+    all-of
+    ([] anything)
+    ([q] q)
+    ([q1 & more]
+     (and-q-0 q1 more))))
+
+(let [or-q-0
+      (build-query-fn (fn [env q1 more]
+                        (distinct (mapcat (partial query-all env)
+                                          (cons q1 more))))
+                      ;; TODO: better error messages would be nice; but how?
+                      (constantly "Found multiple elements that match one or more of the given queries")
+                      (constantly "Unable to find any element that matches any of the given queries"))]
+  (defn ^{:arglists '([& queries])
+          :doc "Query for all elements that match any of the given queries."}
+    any-of
+    ([] nothing)
+    ([q] q)
+    ([q1 & more]
+     (or-q-0 q1 more))))
+
+(let [sub-q (build-query-fn (fn [env base-q child-q]
+                              (mapcat #(query-all (within env %) child-q)
+                                      (query-all env base-q)))
+                            ;; TODO: better error messages would be nice; but how?
+                            (constantly "Found multiple elements that match the query")
+                            (constantly "Unable to find any element that matches the given query"))]
+  (defn within-q [base-q child-q] ;; TODO: rename.
+    (sub-q base-q child-q)))
+
+(let [q (build-js-query-fn (fn [where attribute text & options]
+                             (dom-tu/queryHelpers.queryAllByAttribute attribute (container where) text
+                                                                      (clj->js (apply hash-map options))))
+                           ;; TODO: what to print if text is a predicate? (not string nor regex)
+                           (fn [where attribute text & options]
+                             (str "Found multiple elements with: [" attribute "=" text "]"))
+                           (fn [where attribute text & options]
+                             (str "Unable to find an element by: [" attribute "=" text "]")))]
   (defn by-attribute
     "Query by the given attribute, matching nodes where the attribute
   value matches the given string, regex of predicate `text`."
