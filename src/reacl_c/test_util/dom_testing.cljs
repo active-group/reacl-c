@@ -122,24 +122,32 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   (react-tu/within node))
 
 (defn query
-  "Returns matching node or nil, but throws if more than one node matches."
-  [where what]
-  (what where "query"))
+  "Returns matching node or nil, but throws if more than one node matches.
+
+  For example `(query env (by-text \"Hello\"))` will find an element containing the text \"Hello\"."
+  [env what]
+  (what env "query"))
 
 (defn query-all
-  "Returns all matching nodes."
-  [where what]
-  (what where "queryAll"))
+  "Returns all matching nodes.
+
+  For example `(query-all env (by-text \"Hello\"))` will find all elements containing the text \"Hello\"."
+  [env what]
+  (what env "queryAll"))
 
 (defn get
-  "Returns matching node, and throws if none or more than one node matches."
-  [where what]
-  (what where "get"))
+  "Returns the matching node, and throws if none or more than one node matches.
+
+  For example `(get env (by-text \"Hello\"))` will find an element containing the text \"Hello\"."
+  [env what]
+  (what env "get"))
 
 (defn get-all
-  "Returns all matching nodes, but throws if no nodes match."
-  [where what]
-  (what where "getAll"))
+  "Returns all matching nodes, but throws if no nodes match.
+
+  For example `(get-all env (by-text \"Hello\"))` will find all elements containing the text \"Hello\"."
+  [env what]
+  (what env "getAll"))
 
 (def ^:private default-wait-for-options
   ;; Note: the default onTimeout appends the markup of 'container' again to the
@@ -162,18 +170,18 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
          options))
 
 (defn find
-  "Asynchronously returns the matching node, and throws if none or more
-  than one nodes matches, or a timeout expires. Options are the same
-  as for [[wait-for]]."
-  [where what & options]
-  (find* get where what options))
+  "Asynchronously returns the matching node. If none or more than one nodes
+  match, this will repeat the search until a timeout expires and then
+  throw an exception. Options are the same as for [[wait-for]]."
+  [env what & options]
+  (find* get env what options))
 
 (defn find-all
-  "Asynchronously returns all matching nodes, but throws if no nodes
-  match, or a timeout expires. Options are the same as
-  for [[wait-for]]."
-  [where what & options]
-  (find* get-all where what options))
+  "Asynchronously returns all matching node. If no nodes match, this
+  will repeat the search until a timeout expires and then throw an
+  exception. Options are the same as for [[wait-for]]."
+  [env what & options]
+  (find* get-all env what options))
 
 ;; TODO: add 'removed'...? Note: wait-for-removal requires the item to be present first. So what about 'not-find'/absense?
 
@@ -253,7 +261,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                 text options))
 
 (defn by-placeholder-text
-  "Query by the placeholder test of a node. See
+  "Query by the placeholder text of a node. See
   https://testing-library.com/docs/dom-testing-library/api-queries#byplaceholdertext"
   [text & options]
   (std-q-runner "ByPlaceholderText"
@@ -297,9 +305,9 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 (defn by-test-id
   "Query by the test-id attribute of a node. See
   https://testing-library.com/docs/dom-testing-library/api-queries#bytestid"
-  [text & options]
+  [value & options]
   (std-q-runner "ByTestId"
-                text options))
+                value options))
 
 (def anything
   ((build-query-fn (fn [env]
@@ -387,7 +395,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   [node event & [event-properties]]
   (fire-event* node
                (if (instance? js/Event event)
-                 (do (assert (nil? event-properties))
+                 (do (assert (nil? event-properties) "Additional event properties can not be set on an event object argument.")
                      event)
                  ;; Note: createElemnt.click() uses default properties, but createEvent("click") doesn't :-/ damn!
                  ;; How can we distinguish it? Let's use: keyword event => default; string event => generic.
