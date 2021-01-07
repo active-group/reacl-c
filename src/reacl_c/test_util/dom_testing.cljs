@@ -78,14 +78,6 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                              (fn []
                                (react-tu/cleanup r))))))))
 
-(letfn [(conj-into [atom a]
-          (c/effect swap! atom conj a))]
-  (defn collect-actions
-    "Returns an item that is like `item`, but will capture all emitted actions and
-  conj them into the given atom instead."
-    [item atom]
-    (c/map-actions item (f/partial conj-into atom))))
-
 (defn ^:no-doc as-fragment [env]
   (.-asFragment env))
 

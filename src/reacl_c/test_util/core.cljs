@@ -7,6 +7,14 @@
 
 ;; TODO: make it cljc?
 
+(letfn [(conj-into [atom a]
+          (core/effect swap! atom conj a))]
+  (defn collect-actions
+    "Returns an item that is like `item`, but will capture all emitted actions and
+  conj them into the given atom instead."
+    [item atom]
+    (core/map-actions item (f/partial conj-into atom))))
+
 (defn effect?
   "Returns true if the given action is an effect action, and
   optionally if it was created by the given effect function."
