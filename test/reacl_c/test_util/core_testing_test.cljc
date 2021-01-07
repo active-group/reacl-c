@@ -83,29 +83,43 @@
 
 (deftest contains-like?-test
   (testing "basics"
-    (is (tu/contains-like? (dom/div "foo") nil "foo"))
-    (is (tu/contains-like? (dom/div "foo") nil "fo"))
-    (is (tu/contains-like? (dom/div "foo") nil (dom/div)))
-    (is (tu/contains-like? (dom/div {:width "100px" :height "100px"}) nil (dom/div {:width "100px"})))
+    (is (tu/contains-like? (dom/div "foo") "foo"))
+    (is (tu/contains-like? (dom/div "foo") "fo"))
+    (is (tu/contains-like? (dom/div "foo") (dom/div)))
+    (is (tu/contains-like? (dom/div {:width "100px" :height "100px"}) (dom/div {:width "100px"})))
 
     (is (tu/contains-like? (c/dynamic (fn [st] (dom/div st)))
-                           "foo"
-                           (dom/div "foo")))
+                           (dom/div "foo")
+                           :state "foo"))
     (is (not (tu/contains-like? (c/dynamic (fn [st] (dom/div st)))
-                                "bar"
-                                (dom/div "foo"))))
+                                (dom/div "foo")
+                                :state "bar")))
     (let [f (fn [st] (dom/div st))]
       (is (tu/contains-like? (dom/div (c/dynamic f))
-                             "foo"
-                             (c/dynamic f)))))
+                             (c/dynamic f)
+                             :state "foo"))))
 
   (testing "sub-item-state"
-    (is (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "foo"}))
-    (is (not (tu/contains-like? (c/focus :a (dom/div "bla")) {:a "foo"} "bla" {:sub-item-state "blubb"}))))
+    (is (tu/contains-like? (c/focus :a (dom/div "bla")) "bla"
+                           :state {:a "foo"}
+                           :sub-item-state "foo"))
+    (is (not (tu/contains-like? (c/focus :a (dom/div "bla")) "bla"
+                                :state  {:a "foo"}
+                                :sub-item-state "blubb"))))
 
   (testing "special dom attributes"
-    (is (tu/contains-like? (dom/div {:style {:width "100px" :height "50px"}}) nil
+    (is (tu/contains-like? (dom/div {:style {:width "100px" :height "50px"}})
                            (dom/div {:style {:width "100px"}})))
 
-    (is (tu/contains-like? (dom/div {:class "foo bar"}) nil
+    (is (tu/contains-like? (dom/div {:class "foo bar"})
                            (dom/div {:class "foo"})))))
+
+(deftest contains?-test
+  (is (tu/contains? (dom/div "foo") "foo"))
+  
+  (is (tu/contains? (c/dynamic (fn [st] (dom/div st)))
+                    (dom/div "foo")
+                    :state "foo"))
+  (is (tu/contains? (c/focus :a (dom/div "bla")) "bla"
+                    :state {:a "foo"}
+                    :sub-item-state "foo")))

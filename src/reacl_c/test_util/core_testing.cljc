@@ -264,10 +264,11 @@
     :else
     (throw (unknown-item-error item))))
 
-(defn- contains-by? [f item state sub-item & [options]]
-  (assert (every? #{:sub-item-state} (keys options)) (keys options))
+(defn- contains-by? [f item sub-item & [options]]
+  (assert (every? #{:state :sub-item-state} (keys options)) (keys options))
   
-  (let [g (if (clj-contains? options :sub-item-state)
+  (let [state (get options :state nil)
+        g (if (clj-contains? options :sub-item-state)
             (let [sub-item-state (:sub-item-state options)]
               (fn [item sub-item state]
                 (and (= state sub-item-state)
@@ -294,20 +295,27 @@
 
 (defn contains-like?
   "Returns if `item`, or any item 'below' it, is [[like?]] `sub-item`
-  in the given state of `item`. Optionally, the `:sub-item-state` can
-  be specified, meaning that the sub item only matches if it would be
-  in that state initially."
-  [item state sub-item & [options]]
-  ;; TODO: testing dom with this is annoying - state can be nil/irrlevant then; can state be optional??
-  (contains-by? like? item state sub-item options))
+  in the given state of `item`. Options can be:
+
+  - `:state`: specifies the state of `item` used to resolve dynamic
+  items in it. It defaults to `nil`,
+  
+  - `:sub-item-state`: if specified the sub item only matches if it
+  occurs in `item` with that state initially."
+  [item sub-item & options]
+  (contains-by? like? item sub-item (apply hash-map options)))
 
 (defn contains?
   "Returns if `item`, or any item 'below' it, is equal to `sub-item`
-  in the given state of `item`. Optionally, the `:sub-item-state` can
-  be specified, meaning that the sub item only matches if it would be
-  in that state initially."
-  [item state sub-item & [options]]
-  (contains-by? = item state sub-item options))
+  in the given state of `item`.  Options can be:
+
+  - `:state`: specifies the state of `item` used to resolve dynamic
+  items in it. It defaults to `nil`,
+  
+  - `:sub-item-state`: if specified the sub item only matches if it
+  occurs in `item` with that state initially."
+  [item sub-item & options]
+  (contains-by? = item sub-item (apply hash-map options)))
 
 ;; TODO: could/should some of these fns be shared with the 'real' implementations?
 
