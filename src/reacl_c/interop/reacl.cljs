@@ -1,7 +1,7 @@
 (ns reacl-c.interop.reacl
   (:require [reacl-c.core :as c]
             [reacl-c.interop.react :as react]
-            [reacl-c.impl.react0 :as r0]
+            [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl2.core :as r]
             [active.clojure.lens :as lens]))
 
