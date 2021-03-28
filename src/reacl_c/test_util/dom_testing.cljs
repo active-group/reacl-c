@@ -48,10 +48,11 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
  "}
   rendering
   [item & args]
+  (assert (c/item? item) item)
+  (assert (not-empty args))
   (let [f (last args)
         options (apply hash-map (drop-last args))]
-    (assert (not-empty args))
-    (assert (ifn? f))
+    (assert (ifn? f) f)
     (let [container (map-get options :container
                              ;; by default, hide the container if the document is visible.
                              ;; Note: visibility changes when putting tabs in foreground/background (in Chrome)

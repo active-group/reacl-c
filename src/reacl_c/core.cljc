@@ -28,6 +28,11 @@
 ;; - a (bind item (fn [component] => item)) to 'bridge' state to a lower part?
 ;; - (derived-local-state init (fn [outer inner] => inner) item)  ? or same without outer?
 
+(defn item?
+  "Returns true if is an item, and false otherwise."
+  [v]
+  (base/item? v))
+
 (defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
@@ -960,6 +965,7 @@ Note that the state of the inner item (the `div` in this case), will
   value of the local state.
 "
   [binding-form & body]
+  ;; TODO: forgetting to write :local should give a helpful error msg.
   (let [p (apply parse-binding-form binding-form body)]
     (cond
       (contains? p :local)
