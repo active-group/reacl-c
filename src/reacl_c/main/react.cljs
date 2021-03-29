@@ -21,6 +21,7 @@
   actions and effects are passed to the given handler function. If you
   want to effects to be executed, use [[main/execute-effects]]."
   [item state set-state! handle-action!]
+  (assert (base/item? item) item)
   (impl/react-run item state set-state! handle-action!))
 
 (defn react-uncontrolled
@@ -28,6 +29,7 @@
   state internally. Effects are executed implicitly, but for other
   actions emitted by the item `handle-action!` is called."
   [item initial-state & [handle-action!]]
+  (assert (base/item? item) item)
   (react-controlled (core/local-state initial-state (core/focus lens/second (main/execute-effects item)))
                     nil
                     main/state-error
