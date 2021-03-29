@@ -33,6 +33,14 @@
   [v]
   (base/item? v))
 
+;; TODO: document 'returned' fns (although only for expert use and rarely needed)
+(def returned? base/returned?)
+(def merge-returned base/merge-returned)
+(def returned-actions base/returned-actions)
+(def returned-state base/returned-state)
+(def returned-messages base/returned-messages)
+(def keep-state base/keep-state)
+
 (defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
