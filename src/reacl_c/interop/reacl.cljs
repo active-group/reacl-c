@@ -5,30 +5,20 @@
             [reacl2.core :as r]
             [active.clojure.lens :as lens]))
 
-#_(extend-type base/LiftReacl
-  IReacl
-  (-xpath-pattern [{class :class args :args}]
-    (class-args-pattern class [args]))
-  (-instantiate-reacl [{class :class args :args} binding]
-    [(if (and (rcore/reacl-class? class) (rcore/has-app-state? class))
-       (apply class binding args)
-       (apply class args))]))
-
-(r0/defclass ^:private reacl-wrapper ;; TODO: make it a function component?
-  "render"
-  (fn [this]
-    (let [[class args state return! ref] (r0/get-args this)]
-      (r/react-element class (cond-> {:args args
-                                      :handle-action! (fn [a]
-                                                        (return! (c/return :action a)))
-                                      :ref ref}
-                               (r/has-app-state? class)
-                               (merge {:app-state state
-                                       :set-app-state! (fn [st cb]
-                                                         (when-not (r/keep-state? st)
-                                                           (return! (c/return :state st)))
-                                                         ;; TODO: add callback to return! ?
-                                                         (when cb (cb)))}))))))
+(defn- reacl-wrapper [props]
+  ;; a React function component
+  (let [[class args state return! ref] (r0/extract-args props)]
+    (r/react-element class (cond-> {:args args
+                                    :handle-action! (fn [a]
+                                                      (return! (c/return :action a)))
+                                    :ref ref}
+                             (r/has-app-state? class)
+                             (merge {:app-state state
+                                     :set-app-state! (fn [st cb]
+                                                       (when-not (r/keep-state? st)
+                                                         (return! (c/return :state st)))
+                                                       ;; TODO: add callback to return! ?
+                                                       (when cb (cb)))})))))
 
 (c/defn-effect ^:private make-ref! []
   #js {:current nil})
@@ -37,7 +27,8 @@
   (r/send-message! (.-current ref) msg))
 
 (let [ar (fn [return! state class args ref]
-           (react/react reacl-wrapper (r0/mk-props [class args state return! ref])))
+           (react/lift* reacl-wrapper (r0/mk-props [class args state return! ref])
+                        (r/has-app-state? class)))
       d (fn [[state ref] class args]
           (when (some? ref) ;; ...before the effect is executed.
             (c/focus lens/first
@@ -46,8 +37,11 @@
       hm (fn [[state ref] msg]
            (c/return :action (send-message! ref msg)))
       set-ref #(assoc %1 1 %2)]
-  (defn reacl
-    "Returns an item implemented by the given Reacl class and arguments."
+  (defn lift
+    "Returns an item implemented by the given Reacl class and
+  arguments. Messages sent to the item are forwarded to the component,
+  actions emitted are passed though, and the app-state of the
+  component can be bound to the state of the item."
     [class & args]
     (assert (r/reacl-class? class) class)
     (c/local-state nil

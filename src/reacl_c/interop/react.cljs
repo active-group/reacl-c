@@ -3,17 +3,19 @@
             [active.clojure.cljs.record :as r :include-macros true]))
 
 (r/define-record-type ^:no-doc LiftReact
-  (make-lift-react class props)
+  (make-lift-react class props dynamic?)
   lift-react?
   [class lift-react-class
-   props lift-react-props]
+   props lift-react-props
+   dynamic? lift-react-dynamic?]
   base/E
-  (-is-dynamic? [this]
-                false
-                #_(and (reacl/reacl-class? class) (reacl/has-app-state? class))))
+  (-is-dynamic? [this] dynamic?))
 
-(defn react
-  "Returns an item implemented by the given React class and props."
+(defn ^:no-doc lift* [class props dynamic?]
+  ;; Note: I thought, lifted Reacl class with app-state should be considered 'dynamic'; but somehow it does not make any difference (yet)
+  (make-lift-react class props dynamic?))
+
+(defn lift
+  "Returns an item implemented by the given React class or function component and props."
   [class props]
-  ;; TODO: 'clojure props' and/or 'js props'?
-  (make-lift-react class props))
+  (lift* class props false))

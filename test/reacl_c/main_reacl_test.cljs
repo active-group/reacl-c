@@ -13,28 +13,29 @@
   ;; TODO: maybe this should use only reacl-c/test-utils?
   ;; using Reacl classes in reacl-c
   (testing "syncs state"
-    (let [it (i/reacl (reacl/class "foo" this state []
-                                   render (rdom/div (str state))))]
+    (let [it (i/lift (reacl/class "foo" this state []
+                                  render (rdom/div (str state))))]
       (is (= "ok1" (btest/text (.-firstChild (btest/renders-as it "ok1"))))))
     
-    (let [it (i/reacl (reacl/class "foo" this state []
-                                   component-did-mount (fn [] (reacl/return :app-state "ok11"))
-                                   render (rdom/div (str state))))]
-      (is (= "ok11" (btest/text (.-firstChild (btest/renders-as it "start")))))))
+    (let [it (c/focus :v
+                      (i/lift (reacl/class "foo" this state []
+                                           component-did-mount (fn [] (reacl/return :app-state (str state "-ok11")))
+                                           render (rdom/div (str state)))))]
+      (is (= "start-ok11" (btest/text (.-firstChild (btest/renders-as it {:v "start"})))))))
   
   (testing "emits actions"
-    (let [it (i/reacl (reacl/class "foo" this state [v]
-                                   component-did-mount (fn [] (reacl/return :action v))
-                                   render (rdom/div (str state)))
-                      "ok2")]
+    (let [it (i/lift (reacl/class "foo" this state [v]
+                                  component-did-mount (fn [] (reacl/return :action v))
+                                  render (rdom/div (str state)))
+                     "ok2")]
       (is (= "ok2" (btest/text (.-firstChild (btest/renders-as (-> it
                                                                    (c/handle-action (fn [state a] a)))
                                                                "start")))))))
   (testing "forwards messages"
-    (let [it (i/reacl (reacl/class "foo3" this state []
-                                   handle-message (fn [msg]
-                                                    (reacl/return :app-state msg))
-                                   render (rdom/span)))
+    (let [it (i/lift (reacl/class "foo3" this state []
+                                  handle-message (fn [msg]
+                                                   (reacl/return :app-state msg))
+                                  render (rdom/span)))
           [x inject!] (btest/injector)
           n (btest/renders-as (dom/div (c/with-ref (fn [ref]
                                                      (c/fragment (c/dynamic dom/div)
@@ -66,16 +67,16 @@
     (is (= "ok2" (btest/text (.-firstChild (.-firstChild node)))))))
 
 (deftest full-reacl-test
-  ;; i/reacl and main/reacl also work in combination.
+  ;; i/lift and main/reacl also work in combination.
   (is (btest/passes-actions
        (fn [x]
-         (i/reacl (reacl/class "foo" this state []
-                               render (main/reacl (reacl/bind this) x))))))
+         (i/lift (reacl/class "foo" this state []
+                              render (main/reacl (reacl/bind this) x))))))
   (is (btest/passes-messages
        (fn [x]
-         (i/reacl (reacl/class "foo" this state []
-                               refs [child]
-                               handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
-                               render (-> (main/reacl (reacl/bind this) x)
-                                          (reacl/refer child)))))))
+         (i/lift (reacl/class "foo" this state []
+                              refs [child]
+                              handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
+                              render (-> (main/reacl (reacl/bind this) x)
+                                         (reacl/refer child)))))))
   )

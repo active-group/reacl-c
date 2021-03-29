@@ -500,11 +500,6 @@
         (assert comp this)
         (reacl/send-message! comp msg)))))
 
-#_(extend-type base/LiftReacl
-  IReact
-  (-instantiate-react [{class :class args :args} binding ref]
-    (r0/elem lifted-reacl ref [binding class args])))
-
 (extend-type interop/LiftReact
   IReact
   (-instantiate-react [{class :class props :props} binding ref]
