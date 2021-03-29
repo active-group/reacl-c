@@ -4,7 +4,7 @@
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
-            #?(:cljs [reacl-c.impl.reacl :as impl])))
+            #?(:cljs [reacl-c.impl.react :as impl])))
 
 ;; webcomponent(hybrids.js?), 
 ;; hmtl/hiccup ?
