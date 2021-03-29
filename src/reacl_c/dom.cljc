@@ -11,7 +11,8 @@
   (:refer-clojure :exclude (meta map time use set symbol)))
 
 ;; TODO: some standard event handlers? constantly, value, checked.
-;; TODO: add merge-attrs?
+;; TODO: add merge-attrs? defn-dom
+;; TODO: add some way to lift new primitives (with React getSnapshot.... and/or webcomponents)
 
 (r/define-record-type ^:no-doc Element
   (make-element type attrs events ref children)
@@ -86,7 +87,7 @@
   h
   "Returns a DOM item of the specified `type`, like \"div\" for example. Arguments are the same as the specific DOM functions, like [[div]]."
   [type & args]
-  (apply (dom-function type) args))
+  (apply dom-element type args))
 
 ;; The following HTML elements are supported by react (http://facebook.github.io/react/docs/tags-and-attributes.html)
 (defdom a)
