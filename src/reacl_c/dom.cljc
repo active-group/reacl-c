@@ -11,7 +11,6 @@
   (:refer-clojure :exclude (meta map time use set symbol)))
 
 ;; TODO: some standard event handlers? constantly, value, checked.
-;; TODO: add merge-attrs? defn-dom
 ;; TODO: add some way to lift new primitives (with React getSnapshot.... and/or webcomponents)
 
 (r/define-record-type ^:no-doc Element
@@ -30,7 +29,7 @@
 (defn ^:no-doc set-ref [e ref]
   (assoc e :ref ref))
 
-(defn ^:no-doc dom-attributes? [v]
+(defn dom-attributes? "Returns if v is a map, and not an item." [v]
   (and (map? v)
        (not (satisfies? base/E v))))
 
