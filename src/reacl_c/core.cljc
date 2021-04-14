@@ -251,7 +251,7 @@ be specified multiple times.
 
 (defn handle-message
   "Handles the messages sent to the the resulting item (either
-  via [[send-message!]] or [[return]]), by calling `(f state message)`,
+  via [[reacl-c.main/send-message!]] or [[return]]), by calling `(f state message)`,
   which must return a [[return]] value. The resulting item
   otherwise looks and behaves exactly like the given one."
   [f item]

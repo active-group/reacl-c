@@ -39,14 +39,13 @@
               (c/handle-message (fn [state msg]
                                   (reset! received msg)
                                   (c/return))
-                                c/empty)
-              nil)]
+                                c/empty))]
     (main/send-message! app ::hello)
     (is (= ::hello @received))))
 
 (defn renders-as* [item & [state]]
   (let [host (js/document.createElement "div")]
-    (main/run host item state)
+    (main/run host item {:initial-state state})
     (array-seq (.-childNodes host))))
 
 (defn renders-as [item & [state]]
@@ -107,10 +106,10 @@
 
 (deftest run-test
   (let [host (js/document.createElement "div")]
-    (main/run host (c/dynamic str) "foo")
+    (main/run host (c/dynamic str) {:initial-state "foo"})
     (is (= "foo" (text (.-firstChild host))))
 
-    (main/run host (c/dynamic str) "bar")
+    (main/run host (c/dynamic str) {:initial-state "bar"})
     (is (= "bar" (text (.-firstChild host))))))
 
 (deftest effects-test
@@ -443,7 +442,7 @@
                                  (dom/div {:onclick (fn [state ev]
                                                       (conj state :new-local-1))}))))
         host (js/document.createElement "div")
-        cc (main/run host c1 [])]
+        cc (main/run host c1 {:initial-state []})]
     
     (let [inner-div (.-firstChild (.-firstChild host))]
       (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))

@@ -2,16 +2,17 @@
 
 ## Organization
 
-Reacl-c consists of two namespaces:
+Reacl-c consists of these main namespaces:
 
-- `reacl-c.core` for basic functions, and
-- `reacl-c.dom` for functions related to a browser's DOM.
+- `reacl-c.core` for basic functions,
+- `reacl-c.dom` for functions related to a browser's DOM, and
+- `reacl-c.main` for functions to actually run an item in a browser.
 
 In the following, a `:require` clause like this is assumed:
 
 ```clj
  (:require [reacl-c.core :as c :include-macros true]
-           [reacl-c.browser :as browser]
+           [reacl-c.main :as main]
            [reacl-c.dom :as dom])
 ```
 
@@ -19,9 +20,10 @@ In the following, a `:require` clause like this is assumed:
 
 In Reacl-c, the user interface is defined by an *Item*.
 
-All items have an optional *visual appearance*, consisting of one or
-more DOM nodes (elements or text). Items without a visual appearance,
-are called invisible.
+All items have an implicit *state*, an optional *visual appearance*,
+consisting of one or more DOM nodes (elements or text), and some
+*behaviour*, like how they initialize their state. Items without a
+visual appearance, are called invisible.
 
 The `reacl-c/dom` namespace contains functions that construct items
 with a visual appearance, while the functions from `reacl-c/core` that
@@ -57,16 +59,16 @@ item *work* on just a part of the state, or by introducting new state,
 that is stored at a lower part in the tree as so called *local state*.
 
 Finally, an item can be run in a browser, underneath a specific DOM
-node, by calling `reacl-c.browser/run`, specifying an initial state
-for the given item:
+node, by calling `reacl-c.main/run`, optionally specifying an initial
+state for the given item:
 
 ```clojure
-(browser/run (js/document.getElementById "app")
-             my-item
-             my-initial-state)
+(main/run (js/document.getElementById "app")
+          "Hello World"
+          {:initial-state nil})
 ```
 
-With the basic concepts explained, we can now go through all the
+With these basic concepts explained, we can now go through all the
 functions that allow you to create new items, and which visual
 appearance and behaviour they will have.
 
@@ -571,23 +573,22 @@ from the item tree. Subscription items are the most convenient way.
 
 When using Reacl-c in an outer framework, it is sometimes necessary to
 communicate with a 'running item'. The `run` function from the
-`reacl-c.browser` namespace mentioned in the beginning of this
-document, actually returns an *application* handle:
+`reacl-c.main` namespace mentioned in the beginning of this
+document, actually returns an *application handle*:
 
 ```clojure
 (def my-app
-  (browser/run (js/document.getElementById "app")
-               my-item
-               my-initial-state)
+  (main/run (js/document.getElementById "app")
+            my-item))
 ```
 
-If `my-item` handles messages sent to it, you can do so with `c/send-message!`:
+If `my-item` handles messages sent to it, you can do so with `main/send-message!`:
 
 ```clojure
-(c/send-message! my-app :a-message)
+(main/send-message! my-app :a-message)
 ```
 
-That will always return `nil`. For receiving results or handling
-unsolicited events from an application, you could use effects setting
-an atom from the message, or use a `handle-action` and an effect to
-push actions into a `core.async` channel for example.
+To receie results or handling unsolicited events from an application,
+you could use an effect that sets an atom for example, or use the
+`:handle-action!` option of `run` with a side effect that push actions
+into a `core.async` channel for example.

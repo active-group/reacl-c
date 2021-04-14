@@ -50,29 +50,46 @@
 #?(:cljs
    (defn run-controlled
      "Runs the given item as an application underneath the given
-  native `dom` node, and with the current state and state changes
-  controlled via the given arguments. Actions, including effects are
-  passed to the given action handling function."
-     [dom item state set-state! handle-action!]
-     (impl/run dom
-       item
-       state
-       set-state!
-       handle-action!)))
+  native `dom` node. Options are:
+
+  `:state`: specifying the state of the item, which defaults to nil.
+  
+  `set-state!`: a function that should handle a state change of the
+  item; if not specified, and the item wants to change its state, an
+  error is thrown.
+
+  `handle-action!`: a function called when the item emits an
+  action (including effects); if not specified, and the item does emit
+  an action, an error is thrown."
+     [dom item & [options]]
+     (assert (every? #{:state :set-state! :handle-action!} (keys options)))
+     (let [{state :state set-state! :set-state! handle-action! :handle-action!} options]
+       (impl/run dom
+         item
+         state
+         (or set-state! state-error)
+         (or handle-action! action-error)))))
 
 #?(:cljs
    (defn run
      "Runs the given item as an application underneath the given
-  native `dom` node, and with the given `initial-state`."
-     [dom item initial-state & [handle-action!]]
-     (run-controlled dom
-                     (-> (core/local-state initial-state (core/focus lens/second item))
-                         ;; should be 'toplevel':
-                         (execute-effects))
-                     ;; the item's state is fully local; to toplevel state can be nil and should never change:
-                     nil
-                     state-error
-                     (or handle-action! action-error))))
+  native `dom` node, automatically managing its state and executing effect actions.
+  Options are:
+
+  `:initial-state`: specifying the initial state of the item, which defaults to nil.
+
+  `:handle-action!`: a function called when the item emits an
+  action (excluding effects); if not specified, and the item does emit
+  an action, an error is thrown."
+     [dom item & [options]]
+     (assert (every? #{:handle-action! :initial-state} (keys options)))
+     (let [{initial-state :initial-state} options]
+       (run-controlled dom
+                       (-> (core/local-state initial-state (core/focus lens/second item))
+                           ;; should be 'toplevel':
+                           (execute-effects))
+                       ;; Note: the item's state is fully local; so toplevel state will never change
+                       (dissoc options :initial-state)))))
 
 
 (defn send-message!
