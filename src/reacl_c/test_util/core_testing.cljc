@@ -5,8 +5,9 @@
             [active.clojure.lens :as lens]
             [clojure.string :as string]
             [clojure.set :as set])
-  (:refer-clojure :exclude [contains?]
-                  :rename {contains? clj-contains?}))
+  (:refer-clojure :exclude [contains?]))
+
+(def ^:private clj-contains? clojure.core/contains?)
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
 
