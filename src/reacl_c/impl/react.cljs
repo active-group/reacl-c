@@ -157,11 +157,11 @@
   [comp msg & [callback]]
   (send-message! comp msg callback))
 
-(defn react-run [item state onchange onaction]
-  (r0/elem toplevel nil [item state onchange onaction]))
+(defn react-run [item state onchange onaction ref key]
+  (r0/elem toplevel key ref [item state onchange onaction]))
 
 (defn run [dom item state onchange onaction]
-  (ReactApplication. (r0/render-component (react-run item state onchange onaction)
+  (ReactApplication. (r0/render-component (react-run item state onchange onaction nil nil)
                                           dom)))
 
 ;; items

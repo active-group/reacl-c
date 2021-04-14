@@ -4,33 +4,35 @@
             [reacl-c.core :as core]
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
-            [reacl-c.impl.reacl :as impl]))
+            [reacl-c.impl.react :as impl]))
 
 (defn send-message!
   "Sends a message to the instance of a react element returned
-  by [[react-controlled]] or [[react-uncontrolled]], i.e. the current
-  value of reference set on them."
+  by [[embed]], i.e. the current value of reference set on them."
   [comp msg & [callback]]
   (impl/react-send-message! comp msg callback))
 
-;; TODO: refs, keys. (take 'props'?)
+(defn embed
+  "Returns a React element embedding the given item. Current `state` and
+  state changes (`set-state!`) are controlled by the given optional
+  arguments.
 
-(defn react-controlled
-  "Returns a React element running the given item. Current state and
-  state changes are 'controlled' by the given arguments. Toplevel
-  actions and effects are passed to the given handler function. If you
-  want to effects to be executed, use [[main/execute-effects]]."
-  [item state set-state! handle-action!]
+  Toplevel actions and effects are passed to the optional
+  `handler-action!` function. To have effects being executed
+  implicitly, use [[reacl-c.main/execute-effects]]. Messages can be
+  sent to the item via [[send-message!]]. A `key` and a `ref` can also
+  be set in the options."
+  [item & [options]]
   (assert (base/item? item) item)
-  (impl/react-run item state set-state! handle-action!))
+  (let [{state :state
+         set-state! :set-state!
+         handle-action! :handle-action!
+         ref :ref
+         key :key} options]
+    (impl/react-run item
+                    state
+                    (or set-state! main/state-error)
+                    (or handle-action! main/action-error)
+                    ref
+                    key)))
 
-(defn react-uncontrolled
-  "Returns a React element running the given item, which manages its
-  state internally. Effects are executed implicitly, but for other
-  actions emitted by the item `handle-action!` is called."
-  [item initial-state & [handle-action!]]
-  (assert (base/item? item) item)
-  (react-controlled (core/local-state initial-state (core/focus lens/second (main/execute-effects item)))
-                    nil
-                    main/state-error
-                    (or handle-action! main/action-error)))

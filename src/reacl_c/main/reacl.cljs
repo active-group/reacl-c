@@ -14,7 +14,10 @@
     refs [self]
     
     render
-    (-> (main-react/react-controlled item state (f/partial set-state this) (f/partial handle-action this))
+    (-> (main-react/embed item
+                          {:state state
+                           :set-state! (f/partial set-state this)
+                           :handle-action! (f/partial handle-action this)})
         (reacl/refer self))
 
     handle-message
@@ -28,17 +31,18 @@
 
         :else
         (let [comp (reacl/get-dom self)]
-          (main-react/send-message! comp msg)  ;; TODO: callback?
+          (main-react/send-message! comp msg) ;; TODO: callback?
           (reacl/return))))))
 
-;; previously named reacl-render
-(defn reacl ;; TODO: rename instantiate?
-  "Returns a Reacl component running the given item with the given
+(defn embed
+  "Returns a Reacl component embedding the given item with the given
   Reacl `state binding`.
 
   Messages sent to the returned component are passed to the given
-  item. Actions emitted from the item are emitted from the returned
-  component. Note that this includes effect actions. If you want
-  effects to be executed instead, use [[reacl-c.main/execute-effects]]."
-  [binding item]
-  (runner binding item))
+  item. Actions and effects emitted from the item are emitted from the
+  returned component. To have effects being executed implicitly,
+  use [[reacl-c.main/execute-effects]]."
+  ([item]
+   (runner (reacl/use-app-state nil) item))
+  ([binding item]
+   (runner binding item)))

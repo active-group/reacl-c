@@ -1,7 +1,9 @@
 (ns reacl-c.test-util.dom-testing
-  (:require [reacl-c.main.react :as main]
+  (:require [reacl-c.main.react :as main-react]
+            [reacl-c.main :as main]
             [reacl-c.core :as c]
             [active.clojure.functions :as f]
+            [active.clojure.lens :as lens]
             [cljs-async.core :as async]
             ["@testing-library/dom" :as dom-tu]
             ["@testing-library/react" :as react-tu])
@@ -35,6 +37,11 @@
                          (react-tu/prettyDOM container)))
       (aset "name" "TestingLibraryElementError"))))
 
+(defn- run [item initial-state]
+  ;; run 'uncontrolled'
+  (c/local-state initial-state
+                 (c/focus lens/second (main/execute-effects item))))
+
 (defn ^{:arglists '[(item options... f)]
         :doc "Calls `f` with a rendering environment that 'runs' the given item.
 Options can be
@@ -65,7 +72,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 
           initial-state (:state options)
 
-          r (react-tu/render (main/react-uncontrolled item initial-state)
+          r (react-tu/render (main-react/embed (run item initial-state))
                              (clj->js (-> options
                                           (dissoc :visible?
                                                   :state
@@ -93,7 +100,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 (defn update!
   "Change the item and state rendered in the given rendering environment."
   [env item state]
-  (.rerender env (main/react-uncontrolled item state)))
+  (.rerender env (run item state)))
 
 (defn container
   "Returns the container element used in the given rendering environment."

@@ -51,7 +51,7 @@
   ;; Using reacl-c items in Reacl
   (let [node (js/document.createElement "div")
         wr (reacl/class "foo" this state []
-                        render (main/reacl (reacl/bind this)
+                        render (main/embed (reacl/bind this)
                                            (dom/div (c/dynamic str))))]
     (reacl/render-component node wr "ok1")
     (is (= "ok1" (btest/text (.-firstChild (.-firstChild node))))))
@@ -60,23 +60,23 @@
         [x inject!] (btest/injector)
         wr (reacl/class "foo" this state []
                         render (rdom/fragment (rdom/div state)
-                                              (main/reacl (reacl/bind this)
+                                              (main/embed (reacl/bind this)
                                                           x)))]
     (reacl/render-component node wr "start")
     (inject! node (constantly (c/return :state "ok2")))
     (is (= "ok2" (btest/text (.-firstChild (.-firstChild node)))))))
 
 (deftest full-reacl-test
-  ;; i/lift and main/reacl also work in combination.
+  ;; i/lift and main/embed also work in combination.
   (is (btest/passes-actions
        (fn [x]
          (i/lift (reacl/class "foo" this state []
-                              render (main/reacl (reacl/bind this) x))))))
+                              render (main/embed (reacl/bind this) x))))))
   (is (btest/passes-messages
        (fn [x]
          (i/lift (reacl/class "foo" this state []
                               refs [child]
                               handle-message (fn [msg] (reacl/return :message [(reacl/get-dom child) msg]))
-                              render (-> (main/reacl (reacl/bind this) x)
+                              render (-> (main/embed (reacl/bind this) x)
                                          (reacl/refer child)))))))
   )

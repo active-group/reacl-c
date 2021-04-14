@@ -152,9 +152,10 @@
   (reacl0/send-message! comp msg callback))
 
 (defn react-run
-  [item state onchange onaction]
+  [item state onchange onaction ref key]
   ;; Note: just instantiating toplevel looks similar, but Reacl elements need a toplevel/uber-class to work:
-  (rcore/react-element toplevel {:args [state item onchange onaction]}))
+  (rcore/react-element toplevel {:ref ref :key key
+                                 :args [state item onchange onaction]}))
 
 (rcore/defclass ^:private handle-message this state [e f]
   should-component-update?
