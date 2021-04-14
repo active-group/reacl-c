@@ -123,8 +123,8 @@
 
 (defn- message-deadend [elem]
   (fn [this msg]
-    ;; TODO: exn?
-    (assert false (str "Can't send message to a " elem " element: " (pr-str msg) "."))))
+    ;; TODO: exn?!
+    (assert false (str "Can't send a message to a " elem " element: " (pr-str msg) "."))))
 
 (defn- toplevel-process-messages [messages]
   (doseq [[target msg] messages]

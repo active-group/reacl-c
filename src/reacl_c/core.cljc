@@ -306,7 +306,7 @@ be specified multiple times.
   (defn forward-messages
     "Returns an item like `(f ref & args)` where `ref` is a reference
     to which any messages sent to the returned item is forwarded
-    to. You must use [[set-ref]] to define which item that is further
+    to. You must use [[refer]] to define which item that is further
     down in the item."
     [f & args]
     ;; useful when sening messages downwards.
