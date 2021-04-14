@@ -217,10 +217,9 @@
 (def empty-return (make-returned keep-state [] []))
 
 (defn merge-returned
-  [r1 & rs]
-  {:pre [(returned? r1)
-         (every? returned? rs)]}
-  (loop [r1 r1
+  [& rs]
+  {:pre [(every? returned? rs)]}
+  (loop [r1 empty-return
          rs rs]
     (if (empty? rs)
       r1

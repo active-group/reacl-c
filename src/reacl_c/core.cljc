@@ -33,14 +33,6 @@
   [v]
   (base/item? v))
 
-;; TODO: document 'returned' fns (although only for expert use and rarely needed)
-(def returned? base/returned?)
-(def merge-returned base/merge-returned)
-(def returned-actions base/returned-actions)
-(def returned-state base/returned-state)
-(def returned-messages base/returned-messages)
-(def keep-state base/keep-state)
-
 (defn fragment
   "Returns a container item consisting of the given child items."
   [& children]
@@ -200,6 +192,62 @@ be specified multiple times.
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
+
+(def ^{:arglists '([v])
+       :doc "Returns whether the given value is a [[return]] value."}
+  returned? base/returned?)
+
+(def ^{:arglists '([& rets])
+       :doc "Merges multiple [[return]] values into one. Actions and
+       messages are concatenated. If more than one contains a new
+       state, the right-most state value is used."}
+  merge-returned base/merge-returned)
+
+(def ^{:doc "A lens over a list of the actions contained in a [[return]] value."}
+  returned-actions base/returned-actions)
+
+(def ^{:doc "A lens over a list of the messages contained in a [[return]] value, as tuples `[target message]`."}
+  returned-messages base/returned-messages)
+
+(def ^{:doc "A lens over the state contained in a [[return]] value. No
+  state is represented by the unique value [[keep-state]]."}
+  returned-state base/returned-state)
+
+(def ^{:doc "A unique value for the state in a [[return]] value, representing that the state should not be changed."}
+  keep-state base/keep-state)
+
+(defn embed-returned
+  "Given a [[return]] value on a part of the given state, as specified
+  by the given lens, this returns an equivalent [[return]] value with
+  a change to the given `state` value.
+
+  For example:
+
+  ```
+  (embed-returned [:a :b] lens/first (return :c))
+  =
+  (return [:c :b])
+  ```
+
+  See also [[lift-handler]]."
+  [state lens ret]
+  (cond-> ret
+    (not= base/keep-state (base/returned-state ret))
+    (base/merge-returned ret
+                         (return :state (lens/shove state lens (base/returned-state ret))))))
+
+(let [h* (fn [lens h state & args]
+           (let [v (apply h (lens/yank state lens) args)
+                 ret (if (base/returned? v) v (return :state v))]
+             (embed-returned state lens ret)))]
+  (defn lift-handler
+    "Given a handler function `h`, which takes a state as the first
+  argument, this returns a handler function that works on a larger
+  state, by extracting the smaller state via the given lens, and
+  embedding a returned state back into a return value on the larger
+  state."
+    [lens h]
+    (f/partial h* lens h)))
 
 (defn handle-message
   "Handles the messages sent to the the resulting item (either
