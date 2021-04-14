@@ -41,11 +41,10 @@
                                         (:monitor options)))))
 
 (defn ^:no-doc state-error [st]
-  ;; TODO or a warning?  TODO: no callback arg?
+  ;; TODO: no callback arg?
   (throw (ex-info "Unhandled state change at toplevel." {:state st})))
 
 (defn ^:no-doc action-error [a] ;; TODO: no callback arg?
-  ;; TODO: warning is enough (utils/warn "Unhandled action:" action)
   (throw (ex-info "Unhandled action at toplevel." {:action a})))
 
 #?(:cljs
