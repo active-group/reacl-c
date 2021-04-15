@@ -6,9 +6,6 @@
             [active.clojure.functions :as f]
             #?(:cljs [reacl-c.impl.react :as impl])))
 
-;; webcomponent(hybrids.js?), 
-;; hmtl/hiccup ?
-
 (let [h (fn [recursion-limit monitor _ eff]
           (loop [effs (list eff)
                  res (core/return)
@@ -19,11 +16,10 @@
               (> n recursion-limit) (throw (ex-info "Maximum recursion limit exceeded in handling effects." {}))
               :else
               (let [[res ret] (base/run-effect! eff)
-                    {more-effs true more-acts false} (group-by base/effect? (base/returned-actions ret))
-                    msgs (base/returned-messages ret)]
+                    {more-effs true more-acts false} (group-by base/effect? (base/returned-actions ret))]
                 (when monitor (monitor eff res ret))
                 (recur (concat (rest effs) more-effs)
-                       (base/merge-returned ret (base/make-returned base/keep-state more-acts msgs))
+                       (base/merge-returned ret (base/make-returned base/keep-state more-acts []))
                        (inc n))))))]
   (defn execute-effects
     "Returns an item that will intercept and execute all effects
