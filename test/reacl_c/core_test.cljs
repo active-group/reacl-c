@@ -39,39 +39,6 @@
     (is (= (c/handle-state-change "foo" :f) (c/handle-state-change "foo" :f))))
   )
 
-(deftest subscription-test
-  (let [subscribed (atom nil)
-        sub-impl (fn [deliver! x]
-                   (reset! subscribed deliver!)
-                   (deliver! :sync)
-                   (fn []
-                     (reset! subscribed nil)))
-        sub (c/subscription sub-impl :x)
-        env (tu/env (c/dynamic (fn [v]
-                                 (if v sub ""))))]
-    (tu/mount! env false)
-    (is (not @subscribed))
-    
-    ;; sub on mount and sync actions.
-    (is (= (c/return :action :sync)
-           (tu/update! env true)))
-    (is @subscribed)
-
-    ;; async actions emitted.
-    (is (= (c/return :action ::act)
-           (tu/with-env-return env
-             (fn []
-               (@subscribed ::act)))))
-    
-    ;; unsub on unmount
-    (tu/update! env false)
-    (is (not @subscribed)))
-
-  ;; equality
-  (let [ff (fn [deliver! a] (fn [] nil))]
-    (is (= (c/subscription ff :foo)
-           (c/subscription ff :foo)))))
-
 (deftest defn-subscription-test
   (testing "basic creation and equality"
     (let [x (atom nil)]

@@ -660,12 +660,14 @@ be specified multiple times.
   (-> (effect subscribe! f args deliver! host action-mapper)
       (vary-meta assoc subscription-from-defn-meta-key defn-f)))
 
-(defn- unsubscribe! [stop! _]
-  (stop!)
+(defn- unsubscribe! [stop! [f & args]]
+  (assert (some? stop!) (str "Subscription did not return a stop function: " f (if (empty? args) "." (str ", when called with " (pr-str args) "."))))
+  (when stop!
+    (stop!))
   (return))
 
 (defn- unsubscribe-effect [stop! f args]
-  ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]] below.
+  ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]], and better assertion message in unsubscribe!.
   (effect unsubscribe! stop! (cons f args)))
 
 (let [store-sub (fn [f args state msg]
@@ -680,17 +682,22 @@ be specified multiple times.
                     (return :action (:action msg))
 
                     :else
-                    (do (assert false (str "Unexpected message:" (pr-str msg)))
+                    (do (assert false (str "Unexpected message: " (pr-str msg)))
                         (return))))
+      do-unsub (fn [state]
+                 (let [{f :f args :args stop! :stop!} state]
+                   (return :action (unsubscribe-effect stop! f args))))
       msgs (fn [deliver! action-mapper defn-f f args host]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (refer host))
                        (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
       dyn (fn [deliver! action-mapper defn-f {f :f args :args stop! :stop!}]
-            (if (some? stop!)
-              (cleanup (f/constantly (return :action (unsubscribe-effect stop! f args))))
-              (with-ref (f/partial msgs deliver! action-mapper defn-f f args))))
+            (fragment
+             (cleanup do-unsub)
+             (if (nil? stop!)
+               (with-ref (f/partial msgs deliver! action-mapper defn-f f args))
+               empty)))
       stu (fn [action-mapper defn-f f args deliver!]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
             (isolate-state {:f f

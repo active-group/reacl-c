@@ -23,23 +23,41 @@
     (main/send-message! app ::hello)
     (is (= ::hello @received))))
 
-(defn renders-as* [item & [state]]
+(defn run-in [host item & [state]]
+  (main/run host item {:initial-state state}))
+
+(defn render [item & [state]]
   (let [host (js/document.createElement "div")]
-    (main/run host item {:initial-state state})
+    [(run-in host item state)
+     host]))
+
+(defn renders-as* [item & [state]]
+  (let [[app host] (render item state)]
     (array-seq (.-childNodes host))))
 
 (defn renders-as [item & [state]]
   (first (renders-as* item state)))
 
-(defn- changes-state [item & [initial-state]]
-  (let [last-state (atom initial-state)
+(defn capture-last-state [& [initial]]
+  (let [last-state (atom initial)
+        it (c/dynamic (fn [st]
+                        (reset! last-state st)
+                        c/empty))]
+    [it last-state]))
+
+(defn changes-state [item & [initial-state]]
+  (let [[it at] (capture-last-state initial-state)
         n (renders-as (c/fragment
                        item
-                       (c/dynamic (fn [st]
-                                    (reset! last-state st)
-                                    c/empty)))
+                       it)
                       initial-state)]
-    @last-state))
+    @at))
+
+(defn emits-actions [item & [initial-state]]
+  (second (changes-state (c/handle-action (c/focus lens/first item)
+                                          (fn [st a]
+                                            [(first st) (conj (second st) a)]))
+                         [initial-state []])))
 
 (defn injector []
   (let [ret (atom nil)
@@ -430,3 +448,59 @@
       (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))
 
     (is (= [:new-local-1 :new-local-2] @last-c1-local))))
+
+(deftest subscription-test
+  (let [subscribed (atom nil)
+        sub-impl (fn [deliver! x]
+                   (assert (= x :x))
+                   (reset! subscribed deliver!)
+                   (deliver! :sync)
+                   (fn stop-fn []
+                     (reset! subscribed nil)))
+        sub (c/subscription sub-impl :x)]
+
+    (testing "emits a sync action"
+      (is (= [:sync] (emits-actions sub))))
+    
+    (testing "emits async actions"
+      (reset! subscribed nil)
+      (let [[x last-state] (capture-last-state)]
+        (render (c/handle-action (c/fragment sub x)
+                                 conj)
+                [])
+        (is (= [:sync] @last-state))
+        (@subscribed :async) ;; @subscribed = deliver! fn.
+        (is (= [:sync :async] @last-state))))
+
+    (testing "unsub on unmount"
+      (reset! subscribed nil)
+      (let [[app host] (render (c/handle-action sub
+                                                conj)
+                               [])]
+        (run-in host (dom/div))
+        (is (not @subscribed))))
+
+    (testing "synchronous unsub"
+      ;; subscribing and unsubscribing in the same update cycle... tricky.
+      (reset! subscribed nil)
+      (render (c/handle-action (c/dynamic (fn [sub?]
+                                            (if sub? sub c/empty)))
+                               (fn [st a]
+                                 false))
+              true)
+      (is (not @subscribed))))
+
+  ;; equality
+  (let [ff (fn [deliver! a] (fn [] nil))]
+    (is (= (c/subscription ff :foo)
+           (c/subscription ff :foo)))))
+
+(deftest once-test
+  (is (= [:init :cleanup]
+         (emits-actions (c/dynamic (fn [st]
+                                     (if st
+                                       (c/once (constantly (c/return :action :init
+                                                                     :state false))
+                                               (constantly (c/return :action :cleanup)))
+                                       c/empty)))
+                        true))))
