@@ -454,17 +454,34 @@
   (-instantiate-react [{e :e ref :ref} binding ref2]
     (r0/elem set-ref ref2 [binding e ref])))
 
+(r0/defclass ^:private on-mount
+  "render" (fn [this] (r0/fragment))
+  
+  "componentDidMount"
+  (fn [this]
+    (let [[f] (r0/get-args this)]
+      (f))))
+
 (r0/defclass handle-error
+  ;; store error in state, then immediately clear it again and call
+  ;; handler; handler is reponsible to the reset the problem. Note:
+  ;; handle-error matched better with 'componentDidCatch' -
+  ;; core/try-catch would be the better primitive when using
+  ;; getDerivedStateFromError.
+  
+  "getInitialState" (fn [this] {:error nil})
   
   "render" (fn [this]
-             (let [[binding ref e _] (r0/get-args this)]
-               (render e binding ref)))
+             (let [[binding ref e f] (r0/get-args this)]
+               (let [error (:error (r0/get-state this))]
+                 (if (some? error)
+                   (r0/elem on-mount nil
+                            [(fn []
+                               (r0/set-state this (constantly {:error nil}))
+                               (call-event-handler! binding f error))])
+                   (render e binding ref)))))
 
-  ;; [:static "getDerivedStateFromError"] (fn [error])
-  
-  "componentDidCatch" (fn [this error info]
-                        (let [[binding _ _ f] (r0/get-args this)]
-                          (call-event-handler! binding f error))))
+  [:static "getDerivedStateFromError"] (fn [error] (r0/mk-state {:error error})))
 
 (extend-type base/HandleError
   IReact
