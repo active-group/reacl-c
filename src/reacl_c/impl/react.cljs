@@ -489,36 +489,10 @@
     (r0/elem handle-error nil [binding ref e f])))
 
 
-;; Reacl compat
-
-#_(let [set-app-state!
-      (fn [binding state callback]
-        (when-not (reacl/keep-state? state)
-          (call-event-handler! binding (fn [_]
-                                         (core/return :state state))))
-        (when callback (callback)))
-      handle-action!
-      (fn [binding action]
-        (call-event-handler! binding (fn [state]
-                                       (base/make-returned base/keep-state [action] nil))))]
-  (r0/defclass lifted-reacl
-    "render"
-    (fn [this]
-      (let [[binding class args] (r0/get-args this)]
-        (reacl/react-element class {:args args :app-state (:state binding)
-                                    :set-app-state! (f/partial set-app-state! binding)
-                                    :handle-action! (f/partial handle-action! binding)
-                                    :ref (r0/child-ref this)})))
-  
-    $handle-message
-    (fn [this msg]
-      ;; TODO: callback?!
-      (let [comp (.-current (r0/child-ref this))]
-        (assert comp this)
-        (reacl/send-message! comp msg)))))
+;; React compat
 
 (extend-type interop/LiftReact
   IReact
   (-instantiate-react [{class :class props :props} binding ref]
-    ;; FIXME: ref + a ref in props?
+    ;; FIXME: ref + a ref in props? How does that relate?
     (react/createElement class props)))
