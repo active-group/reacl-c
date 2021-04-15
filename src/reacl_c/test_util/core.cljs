@@ -278,7 +278,8 @@
 (defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of
   `thunk`, which occurs even when the error is handled in an error
-  boundary."
+  boundary. If `thunk` returns a promise, then error logs are enabled
+  after that completes instead."
   [thunk]
   ;; React does some fancy things with the browsers error
   ;; handler in DEV, and respects 'default prevented' in
@@ -287,12 +288,20 @@
              (.preventDefault ev))]
     (js/window.addEventListener "error" eh)
     ;; and this suppressed the 'The above error occurred' log msg from React.
-    (let [pre js/console.error]
+    (let [pre js/console.error
+          restore-sync? (atom true)
+          restore (fn []
+                    (set! js/console.error pre)
+                    (js/window.removeEventListener "error" eh))]
       (set! js/console.error (fn [& args] nil))
-      (try (thunk)
+      (try (let [x (thunk)]
+             (if (async/promise? x)
+               (do (reset! restore-sync? false)
+                   (async/finally x restore))
+               x))
            (finally
-             (set! js/console.error pre)
-             (js/window.removeEventListener "error" eh))))))
+             (when @restore-sync?
+               (restore)))))))
 
 ;; TODO
 #_(def validate-schemas-async
