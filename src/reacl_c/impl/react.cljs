@@ -8,7 +8,6 @@
             [reacl-c.core :as core]
             [reacl-c.dom :as dom]
             [reacl-c.impl.dom0 :as dom0]
-            #_[reacl2.core :as reacl :include-macros true]
             [clojure.string :as str]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
