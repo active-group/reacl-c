@@ -428,9 +428,9 @@
        (is (= (pr-str {:throw? false
                        :error err}) (text (.-firstChild n))))))))
 
-;; FIXME:
-#_(deftest bubbling-events-test
+(deftest bubbling-events-test
   ;; state consitency upon a bubbling event.
+  ;; Note: work with the React implementation, not with the Reacl implementation (https://github.com/active-group/reacl/issues/47).
   (let [last-c1-local (atom nil)
         inner (atom false)
         outer (atom false)
