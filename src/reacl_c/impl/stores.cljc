@@ -42,7 +42,7 @@
   (BaseStore. (atom init-expr) (atom (value-f init-expr)) watcher))
 
 (defn maybe-reset-store! [store init-expr value-f]
-  (assert (instance? BaseStore store))
+  (assert (instance? BaseStore store) (str "Expected a BaseStore, but got: " (pr-str store)))
   (if (not= init-expr @(:init-a store))
     (do (reset! (:init-a store) init-expr)
         (reset! (:a store) (value-f init-expr))
@@ -85,6 +85,6 @@
 (def void-store
   (reify IStore
     (-get [this] nil)
-    (-set [this v] (when-not (nil? v) (assert false))) ;; TODO: exn
-    ))
-
+    (-set [this v]
+      ;; setting to 'nil' is kindof more ok, as get returns nil too.
+      (assert (nil? v) (str "Tried to put a value into a void store: " (pr-str v) ". Possible cause: trying to set the state of a static item.")))))
