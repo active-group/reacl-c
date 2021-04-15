@@ -5,8 +5,6 @@
             [cljs-async.core :as async]
             [cljs-async.cljs.core :as async-cljs]))
 
-;; TODO: make it cljc?
-
 (letfn [(conj-into [atom a]
           (core/effect swap! atom conj a))]
   (defn collect-actions

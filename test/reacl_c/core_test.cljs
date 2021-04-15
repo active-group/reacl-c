@@ -292,37 +292,6 @@
              (tu/inject-action! (tu/find env item)
                                 :a))))))
 
-(deftest handle-error-test
-  (let [finalized? (atom false)
-        unmounted (c/effect (fn []
-                              (reset! finalized? true)))
-        ex (ex-info "Test" {:value :foo})
-        env (tu/env (c/handle-error (c/fragment
-                                     (c/once (fn []
-                                               (c/return))
-                                             (fn []
-                                               (c/return :action unmounted)))
-                                     (c/dynamic (fn [st]
-                                                  (if (:throw? st)
-                                                    (throw ex)
-                                                    "Ok"))))
-                                    (fn [st error]
-                                      (assoc st
-                                             :throw? false
-                                             :thrown error))))]
-    (tu/mount! env {})
-    (is (some? (tu/find env "Ok")))
-
-    (tuc/preventing-error-log
-     (fn []
-       (is (= (c/return :state {:throw? false :thrown ex})
-              (tu/update! env {:throw? true})))))
-
-    ;; not super important, but react actually unmounted children
-    ;; before componentDidCatch was called; so best to keep it like
-    ;; that.
-    (is @finalized?)))
-
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
                                                (throw (ex-info "Test" {:value :foo}))

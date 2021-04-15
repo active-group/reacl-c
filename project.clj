@@ -26,7 +26,9 @@
   :clean-targets ^{:protect false} [:target-path]
 
   :aliases {"fig" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
-            "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]}
+            "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]
+            ;; then run tests with: npx karma start --single-run
+            }
 
   :codox {:language :clojurescript ;; :clojure
           :metadata {:doc/format :markdown}

@@ -9,28 +9,8 @@
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
-#_(deftest simple-performance-test
-    (let [host (js/document.createElement "div")
-          run (fn [st]
-                (main/run host
-                  (dom/div {:id "a"}
-                           (apply dom/div (repeat 20 (dom/span)))
-                           (c/fragment (apply dom/span (repeat 15 "x"))))
-                  st))
-          tupd (fn [n]
-                 (let [st (js/window.performance.now)]
-                   (doseq [i (range n)]
-                     (run  i))
-                   (- (js/window.performance.now) st)))]
-      (run 0)
-      (is (= nil
-             [(tupd 100) (tupd 1000) (tupd 10000)]))
-      
-      ;; 1.9 reacl [152.27999998023733 1182.5650000246242 8815.754999988712]
-      ;; 1.9 react [68.25999997090548 350.3499999642372 2993.8100000144914]
-
-      )
-    )
+;; some things don't work in karma/compiled mode of shadow; TODO: any way to find out?
+(def karma? true)
 
 (deftest app-send-message-test
   (let [e (js/document.createElement "div")
@@ -50,6 +30,16 @@
 
 (defn renders-as [item & [state]]
   (first (renders-as* item state)))
+
+(defn- changes-state [item & [initial-state]]
+  (let [last-state (atom initial-state)
+        n (renders-as (c/fragment
+                       item
+                       (c/dynamic (fn [st]
+                                    (reset! last-state st)
+                                    c/empty)))
+                      initial-state)]
+    @last-state))
 
 (defn injector []
   (let [ret (atom nil)
@@ -123,35 +113,33 @@
       (is @executed)))
 
   (testing "handling result"
-    (let [eff (c/effect (fn [] "ok"))
-          n (renders-as (dom/div (c/dynamic str)
-                                 (c/handle-effect-result (fn [st res]
-                                                           res)
-                                                         eff)))]
-      (is (= "ok" (text (.-firstChild n))))))
+    (let [eff (c/effect (fn [] "ok"))]
+      (is (= "ok"
+             (changes-state (c/handle-effect-result (fn [st res]
+                                                      res)
+                                                    eff))))))
 
   (testing "mapping effects, with parrallel effects"
-    (let [eff (c/effect (fn [] :foo))
-          n (renders-as (dom/div (c/dynamic str)
-                                 (-> (c/handle-effect-result (fn [st res]
-                                                               ;; first of par-effects result:
-                                                               (first res))
-                                                             (c/par-effects eff eff))
-                                     (c/map-effects {eff (c/const-effect :bar)}))))]
-      (is (= ":bar" (text (.-firstChild n))))))
+    (let [eff (c/effect (fn [] :foo))]
+      (is (= [:bar :bar]
+             (changes-state (-> (c/handle-effect-result (fn [st res]
+                                                          ;; both par-effects results as new state, replaced by :bar
+                                                          res)
+                                                        (c/par-effects eff eff))
+                                (c/map-effects {eff (c/const-effect :bar)})))))))
 
-  ;; FIXME: the react seems to throw in debug mode, but not in prod?? :-/ Not easy to handle an error in an effect; the toplevel might go into "error state", but that is not catchable with try-catch either; could thread the error back, but only if handle-error-result is used? hmmm...
-  #_(testing "state validation"
-    (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
-      "err")
+  ;; does not work in karma; not sure why
+  (when-not karma?
+    (testing "state validation"
+      (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+        "err")
     
-    (try (tu/preventing-error-log
-          (fn []
-            (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))))
-         (is false)
-         (catch :default e
-           (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))
-  )
+      (try (tu/preventing-error-log
+            (fn []
+              (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))))
+           (is false)
+           (catch :default e
+             (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))))
 
 (deftest dom-test
   (is (passes-actions dom/div))
@@ -231,13 +219,14 @@
     (is (= 1 @upd)))
 
   ;; throws on state changes
-  ;; FIXME: throws in dev, but not in prod (because of react??); try-catch does not work either, because it happends in the set-state phase.
-  #_(tu/preventing-error-log
-   (fn []
-     (try (renders-as (c/static #(c/once (fn [_] (c/return :state "foo")))))
-          (is false)
-          (catch :default e
-            (is true))))))
+  ;; Note: for some reason the exception is not catchable like this in karma/compiled mode; not sure why.
+  (when-not karma?
+    (tu/preventing-error-log
+     (fn []
+       (try (renders-as (c/static #(c/once (fn [_] (c/return :state "foo")))))
+            (is false)
+            (catch :default e
+              (is true)))))))
 
 (deftest messaging-test
   ;; tests: with-ref refer handle-message, also handle-action
@@ -308,21 +297,21 @@
       (inject! n (constantly [:d :c]))
       (is (= (pr-str [:d :c]) (text (.-firstChild n))))))
 
-  ;; FIXME - and I think Reacl cannot fix it.
-  #_(testing "consistency - never see inconsistent states."
-      (let [[x inject!] (injector)
-            states (atom [])
-            n (renders-as (dom/div (c/local-state 2
-                                                  (c/dynamic (fn [st]
-                                                               (swap! states conj st)
-                                                               x))))
-                          4)
-            invariant (fn [[a b]]
-                        (or (and (odd? a) (odd? b))
-                            (and (even? a) (even? b))))]
-        (is (= 1 (count @states)))
-        (is (every? invariant @states))
-        (inject! n [3 5])))
+  (testing "consistency - never see inconsistent states."
+    ;; the state of 'dynamic' will be [4 2] first, then, atomically, [3 5]; no mix of inner and outer states.
+    (let [[x inject!] (injector)
+          states (atom [])
+          n (renders-as (dom/div (c/local-state 2
+                                                (c/dynamic (fn [st]
+                                                             (swap! states conj st)
+                                                             x))))
+                        4)
+          invariant (fn [[a b]]
+                      (or (and (odd? a) (odd? b))
+                          (and (even? a) (even? b))))]
+      (is (= 1 (count @states)))
+      (inject! n (constantly [3 5]))
+      (is (every? invariant @states))))
 
   (testing "reinit"
     (let [[x inject!] (injector)
@@ -357,7 +346,7 @@
     
     (is (= "div" (tag (renders-as (c/named name-id (dom/div))))))
 
-    ;; has an effect on React debugging utils. TODO: is that testable?
+    ;; has an effect on React debugging utils. probably not testable?
 
     ))
 
@@ -405,28 +394,21 @@
   
   (is (passes-messages (fn [x] (c/handle-error x (fn [_ _] nil)))))
 
-  ;; FIXME: does not work in karma/chrome-headless testing... no idea why.
-  #_(tu/preventing-error-log
-   (fn []
-     (let [[x inject-x!] (injector)
-           err (ex-info "err" {})
-           n (renders-as (dom/div (c/fragment
-                                   (-> (c/dynamic (fn [st]
-                                                    (if (:throw? st)
-                                                      (throw err)
-                                                      c/empty)))
-                                       (c/handle-error (fn [state error]
-                                                         (assoc state
-                                                                :throw? false
-                                                                :error error))))
-                                   (c/dynamic pr-str)
-                                   x))
-                         {:throw? false})]
-       (is (= (pr-str {:throw? false}) (text (.-firstChild n))))
-
-       (inject-x! n #(assoc % :throw? true))
-       (is (= (pr-str {:throw? false
-                       :error err}) (text (.-firstChild n))))))))
+  ;; does not work in compiled/karma mode - don't know why.
+  (when-not karma?
+    (tu/preventing-error-log
+     (fn []
+       (let [err (ex-info "err" {})]
+         (is (= {:throw? false
+                 :error err}
+                (changes-state (-> (c/dynamic (fn [st]
+                                                (if (:throw? st)
+                                                  (throw err)
+                                                  c/empty)))
+                                   (c/handle-error (fn [state error]
+                                                     (assoc state
+                                                            :throw? false
+                                                            :error error))))))))))))
 
 (deftest bubbling-events-test
   ;; state consitency upon a bubbling event.

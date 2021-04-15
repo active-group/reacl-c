@@ -325,7 +325,6 @@
   (if (base/returned? r) r (c/return :state r)))
 
 (defn- merge-returned [r1 r2]
-  ;; TODO: need to lift plain states into (c/return) / or should merge-return do that? (at least define it in only one place accross all impls)
   (base/merge-returned r1 (lift-returned r2)))
 
 (defn- de-focus [res item state]
@@ -515,8 +514,13 @@
   item in the given state. Returns a [[core/return]] value or nil, if
   the message would not be handled at all."
   [item state msg]
-  ;; find applicable handle-message
+  ;; Note: will not recur, e.g. when the message handler returns a new
+  ;; :message... (forward-messages for example); to make that work, we
+  ;; need to remove explicit ref object from the api, and only allow
+  ;; refer-items as the message targets.
+
+  ;; find applicable handle-message:
   (if-let [{f :f state :state post :post} (find-handle-message item state)]
     (post (f state msg))
-    ;; message won't be processed... throw then?
+    ;; message won't be processed:
     nil))
