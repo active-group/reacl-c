@@ -14,12 +14,22 @@
                  [de.active-group/cljs-async "2.0.0"]]
 
   :plugins [[lein-codox "0.10.7"]
-            [lein-auto "0.1.3"]]
+            [lein-auto "0.1.3"]
+            [lein-resource "17.06.1"]]
 
   :profiles {:shadow {:dependencies [[thheller/shadow-cljs "2.11.7"]
                                      [binaryage/devtools "1.0.2"]]
-                      :source-paths ["src" "test" "examples"]
-                      :resource-paths ["target" "resources"]}
+                      :source-paths ["src" "test"]
+                      :resource-paths ["target"]}
+
+             :examples [:shadow
+                        {:source-paths ["src" "examples"]
+                         :resource {:resource-paths
+                                    [["examples"
+                                      {:target-path "target/public"
+                                       :includes [#"examples/todo/index\.html"
+                                                  #"examples/world/index\.html"]}]]
+                                    :update true}}]
              
              :codox {:dependencies [[codox-theme-rdash "0.1.2"]]}}
 
@@ -28,7 +38,8 @@
   :aliases {"fig" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
             "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]
             ;; then run tests with: npx karma start --single-run
-            }
+
+            "examples" ["with-profile" "examples" "do" "resource," "run" "-m" "shadow.cljs.devtools.cli" "watch" "examples-todo" "examples-world"]}
 
   :codox {:language :clojurescript ;; :clojure
           :metadata {:doc/format :markdown}

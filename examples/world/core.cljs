@@ -1,4 +1,4 @@
-(ns ^:no-doc examples.world
+(ns ^:no-doc world.core
     (:require [reacl-c.core :as c :include-macros true]
               [active.clojure.functions :as f]
               [reacl-c.main :as main]
@@ -39,6 +39,6 @@
                clock)
       (dom/button {:onClick show} "Show"))))
 
-(main/run (.getElementById js/document "app-world")
+(main/run (.getElementById js/document "content")
   world-app
-  true)
+  {:initial-state true})

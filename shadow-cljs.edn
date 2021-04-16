@@ -6,6 +6,18 @@
                  :devtools {:hud #{:errors :warnings :progress}
                             :http-port          9500
                             :http-root          "target/public/test"}}
+          :examples-todo {:target :browser
+                          :output-dir "target/public/todo"
+                          :asset-path "/"
+                          :modules {:main {:entries [todo.core]}}
+                          :devtools {:http-port 9501
+                                     :http-root "target/public/todo"}}
+          :examples-world {:target :browser
+                           :output-dir "target/public/world"
+                           :asset-path "/"
+                           :modules {:main {:entries [world.core]}}
+                           :devtools {:http-port 9502
+                                      :http-root "target/public/world"}}
           :ci {:target :karma
                :output-to "target/ci.js"}
           }

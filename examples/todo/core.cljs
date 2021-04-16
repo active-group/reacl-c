@@ -1,4 +1,4 @@
-(ns ^:no-doc examples.todo
+(ns ^:no-doc todo.core
     (:require [reacl-c.core :as c :include-macros true]
               [active.clojure.functions :as f]
               [active.clojure.lens :as lens]
@@ -81,7 +81,7 @@
                   (add-item-form ->AddItem))
       (c/handle-action list-actions)))
 
-(main/run (.getElementById js/document "app-todo")
+(main/run (.getElementById js/document "content")
   main
-  (TodosApp. 0 [(Todo. -1 "Example" false)]))
+  {:initial-state (TodosApp. 0 [(Todo. -1 "Example" false)])})
 
