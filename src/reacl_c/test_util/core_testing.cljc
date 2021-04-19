@@ -1,6 +1,6 @@
 (ns reacl-c.test-util.core-testing
   (:require [reacl-c.base :as base]
-            [reacl-c.dom :as dom]
+            [reacl-c.dom-base :as dom]
             [reacl-c.core :as c]
             [active.clojure.lens :as lens]
             [clojure.string :as string]

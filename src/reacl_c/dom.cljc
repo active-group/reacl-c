@@ -3,31 +3,18 @@
   all return corresponding dom items. Additionally it contains the
   function [[h]], a generic function that creates dom items."
   (:require [reacl-c.base :as base]
+            [reacl-c.dom-base :as dom-base]
+            [reacl-c.core :as core]
             [clojure.string :as str]
-            #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
-            #?(:clj [active.clojure.record :as r])
+            [active.clojure.functions :as f]
             #?(:clj [reacl-c.impl.macros :refer (defdom)]))
   #?(:cljs (:require-macros [reacl-c.impl.macros :refer (defdom)]))
   (:refer-clojure :exclude (meta map time use set symbol)))
 
-;; TODO: some standard event handlers? constantly, value, checked.
 ;; TODO: add some way to lift new primitives (with React getSnapshot.... and/or webcomponents)
 
-(r/define-record-type ^:no-doc Element
-  (make-element type attrs events ref children)
-  element?
-  [type element-type
-   attrs element-attrs
-   events element-events
-   ref element-ref
-   children element-children]
-  base/E
-  (-is-dynamic? [{events :events children :children}]
-    ;; TODO: maybe worth to cache this? calculate in advance?
-    (or (not (empty? events)) (some base/is-dynamic? children))))
-
-(defn ^:no-doc set-ref [e ref]
-  (assoc e :ref ref))
+(defn element? "Returns if `v` is a dom element." [v]
+  (dom-base/element? v))
 
 (defn dom-attributes? "Returns if v is a map, and not an item." [v]
   (and (map? v)
@@ -65,7 +52,7 @@
          (map? events)
          (every? #(or (ifn? %) (nil? %)) (vals events))
          (base/assert-item-list type children)]}
-  (make-element type attrs events nil children))
+  (dom-base/make-element type attrs events nil children))
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}

@@ -1,6 +1,6 @@
 (ns ^:no-doc reacl-c.impl.reacl
   (:require [reacl-c.base :as base]
-            [reacl-c.dom :as dom]
+            [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.utils :as utils]
             [reacl2.core :as rcore :include-macros true]
             [reacl2.test-util.xpath :as xp]
@@ -302,7 +302,7 @@
 (defn- flatten-children [children]
   (mapcat flatten-fragment children))
 
-(extend-type dom/Element
+(extend-type dom-base/Element
   IReacl
   (-xpath-pattern [{type :type attrs :attrs events :events ref :ref children :children}]
     (let [children (flatten-children children)]

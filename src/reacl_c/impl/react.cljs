@@ -6,7 +6,7 @@
             [reacl-c.impl.stores :as stores]
             [reacl-c.base :as base]
             [reacl-c.core :as core]
-            [reacl-c.dom :as dom]
+            [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str]
             [active.clojure.functions :as f]
@@ -90,7 +90,7 @@
   (not (or (nil? v)
            (string? v)
            (base/fragment? v)
-           (dom/element? v))))
+           (dom-base/element? v))))
 
 
 (defn- render
@@ -396,7 +396,7 @@
                                                   ref
                                                   children))))))))
 
-(extend-type dom/Element
+(extend-type dom-base/Element
   IReact
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref]
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.

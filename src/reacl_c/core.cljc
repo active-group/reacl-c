@@ -1,7 +1,7 @@
 (ns reacl-c.core
   "Functions, primitive values and some macros to define new items."
   (:require [reacl-c.base :as base]
-            [reacl-c.dom :as dom]
+            [reacl-c.dom-base :as dom-base]
             [clojure.set :as set]
             [schema.core :as s]
             #?(:clj [schema.macros :as sm])
@@ -76,9 +76,9 @@
   {:pre [(base/item? item)]}
   ;; Note: when setting a ref on a dom item, we don't want the
   ;; class/component, but the 'raw' dom element. Pass the ref down to
-  ;; get that. (TODO: why? for dom manupulation? Split that from the messaging api then)
-  (if (dom/element? item)
-    (dom/set-ref item ref)
+  ;; get that. (TODO: why? for dom manupulation? Split that from the messaging api then - use only dom :ref to access dom-nodes? and drop this case here:)
+  (if (dom-base/element? item)
+    (dom-base/set-ref item ref)
     (base/make-refer item ref)))
 
 (let [c (fn [refs items f args]

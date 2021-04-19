@@ -1,8 +1,9 @@
 (ns ^:no-doc reacl-c.base
-    (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
-              #?(:clj [active.clojure.record :as r])
-              [active.clojure.functions :as f]
-              [schema.core :as s]))
+  ;; Internal namespace; don't depend on it.
+  (:require #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
+            #?(:clj [active.clojure.record :as r])
+            [active.clojure.functions :as f]
+            [schema.core :as s]))
 
 (defprotocol E
   (-is-dynamic? [this] "If the item depends on the state in rendering or behaviour. Some optimizations can be applied if false."))
