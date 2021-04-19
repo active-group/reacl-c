@@ -270,13 +270,22 @@
   ;; OPT: shouldUpdate could ignore the finish fn.
   "componentDidMount" (fn [this]
                         (let [[binding init finish] (r0/get-args this)]
-                          (call-event-handler! binding init)))
+                          (when (some? init)
+                            (call-event-handler! binding init))))
   "componentDidUpdate" (fn [this]
                          (let [[binding init finish] (r0/get-args this)]
-                           (call-event-handler! binding init)))
+                           (when (some? init)
+                             (call-event-handler! binding init))))
   "componentWillUnmount" (fn [this]
+                           ;; FIXME: a cleaup can run on
+                           ;; 'non-existing' state; i.e. the lens may
+                           ;; fail; run it on the rendered state
+                           ;; instead? Changing state in cleanup is
+                           ;; dangerous, too; but probably cannot be
+                           ;; disallowed in general.
                            (let [[binding init finish] (r0/get-args this)]
-                             (call-event-handler! binding finish))))
+                             (when (some? finish)
+                               (call-event-handler! binding finish)))))
 
 (extend-type base/Lifecycle
   IReact

@@ -570,13 +570,19 @@
   (fn [msg]
     (condp = msg
       mount-msg
-      (transform-return (init state))
+      (if (some? init)
+        (transform-return (init state))
+        (rcore/return))
       
       update-msg
-      (transform-return (init state))
+      (if (some? init)
+        (transform-return (init state))
+        (rcore/return))
 
       unmount-msg
-      (transform-return (finish state))
+      (if (some? finish)
+        (transform-return (finish state))
+        (rcore/return))
 
       (message-deadend "lifecycle" msg)))
 
