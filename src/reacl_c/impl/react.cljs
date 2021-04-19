@@ -378,8 +378,9 @@
         event-fns (fn [this events]
                     (let [[handler capture-handler] (:event-handlers (r0/get-state this))]
                       (into {}
-                            (map (fn [[k _]]
-                                   [k (if (dom0/capture-event? k) capture-handler handler)])
+                            (map (fn [[k h]]
+                                   [k (when (some? h)
+                                        (if (dom0/capture-event? k) capture-handler handler))])
                                  events))))]
     (memoize (fn [type]
                (r0/class (str "reacl-c.dom/" type)
