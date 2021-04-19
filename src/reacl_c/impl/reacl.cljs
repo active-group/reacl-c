@@ -247,9 +247,10 @@
 
 (defn- merge-dom-attrs [attrs events [handler capture-handler] self-ref]
   ;; Note: events are non-empty here.
-  (-> (reduce (fn [attrs k]
+  (-> (reduce (fn [attrs [k h]]
                 (assoc! attrs k
-                        (if (dom0/capture-event? k) capture-handler handler)))
+                        (when (some? h) ;; keep nil for nil handlers.
+                          (if (dom0/capture-event? k) capture-handler handler))))
               (cond-> (transient attrs)
                 self-ref (assoc! :ref (reacl-ref self-ref)))
               events)
@@ -277,9 +278,8 @@
                   (fn [msg]
                     (dom-message-to-action state msg events))
 
-                  ;; Note that we could exclude updates when only event-handler functions have changed (if it's worth it to check?)
                   render
-                  (apply native-dom (rcore/bind this) type (merge-dom-attrs attrs (keys events)
+                  (apply native-dom (rcore/bind this) type (merge-dom-attrs attrs events
                                                                             handlers
                                                                             ref)
                          children)))))

@@ -63,7 +63,7 @@
   {:pre [(string? type)
          (map? attrs)
          (map? events)
-         (every? ifn? (vals events))
+         (every? #(or (ifn? %) (nil? %)) (vals events))
          (base/assert-item-list type children)]}
   (make-element type attrs events nil children))
 
