@@ -417,3 +417,24 @@
   (is (= ((c/lift-handler lens/first (fn [st] :bar))
           [:a :foo])
          (c/return :state [:bar :foo]))))
+
+(deftest many-args-test
+  (c/defn-item defn-item-many-args-test [& args]
+    (apply c/fragment args))
+
+  (s/defn defn-schema-many-args-test :- s/Int [& args]
+    (apply + args))
+
+  (is (= (apply c/fragment (repeat 50 c/empty))
+         (apply c/fragment (repeat 50 c/empty))))
+
+  (is (= 50
+         (apply defn-schema-many-args-test (repeat 50 1))))
+
+  ;; currently does not work with s/fn though:
+  #_(is (= 50
+         (apply (s/fn :- s/Int [& args :- [s/Int]] (apply + args)) (repeat 50 1))))
+
+  ;; Note: currently only works when no schema annoations are used (until ClojureScript solves the MetaFn arity bug :-/)
+  (is (= (apply defn-item-many-args-test (repeat 50 c/empty))
+         (apply defn-item-many-args-test (repeat 50 c/empty)))))

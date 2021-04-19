@@ -817,6 +817,7 @@ be specified multiple times.
          (named* id# validate# ~@item)))))
 
 (defn ^:no-doc meta-name-id [v]
+  ;; Note: deprecated, and not set for all named-fns because of clojurescripts MetaFn arity problem (see defn-named++)
   (::name-id (meta v)))
 
 (defn- maybe-docstring [candidate & more]
@@ -849,6 +850,9 @@ be specified multiple times.
               (not= n-args arity))
         (throw (ex-info (str "Wrong number of args (" n-args ") passed to " name) {:function name :arity arity}))))))
 
+(defn- has-schemata? [args]
+  (some #{':-} args))
+
 (defmacro ^:no-doc defn+
   "Internal utility macro.
 
@@ -865,16 +869,21 @@ be specified multiple times.
                         :doc (or docstring? (:doc (meta name)))
                         :arglists `'(~args))]
     `(let [check-arity# (arity-checker ~name_ ~(arity args))
-           f# (s/fn ~name ~@(when result-schema? [:- result-schema?]) [~@wrapper-args ~@args] ~@body)
-           check-args-schema# (s/fn ~name [~@args] nil)]
+           ;; Note: s/fn has clojurescripts MetaFn arity problem; so use it only if user wants it.
+           f# ~(if (or result-schema? (has-schemata? wrapper-args) (has-schemata? args))
+                 `(s/fn ~name ~@(when result-schema? [:- result-schema?]) [~@wrapper-args ~@args] ~@body)
+                 `(fn ~name [~@wrapper-args ~@args] ~@body))
+           check-args-schema# ~(if (has-schemata? args)
+                                 `(s/fn ~name [~@args] nil)
+                                 `(constantly nil))]
        (def ~name
          (~mod-fn (fn [& args#]
-                   (assert (do (check-arity# (count args#))
-                               (apply check-args-schema# args#)
-                               true))               
-                   (~@create (apply ~@opt-wrapper f# args#))))))))
+                    (assert (do (check-arity# (count args#))
+                                (apply check-args-schema# args#)
+                                true))               
+                    (~@create (apply ~@opt-wrapper f# args#))))))))
 
-(defmacro ^:no-doc defn-named+
+(defmacro ^:no-doc defn-named++
   "Internal utility macro.
 
   Creates something like
@@ -882,12 +891,19 @@ be specified multiple times.
   (defn-named name [& args]
     (apply @opt-wrapper (fn [@wrapper-args & args] @body) args))
 "
-  [opt-wrapper wrapper-args name  docstring? state-schema? args & body]
-  (let [name_ (str *ns* "/" name)]
-    `(let [id# (name-id ~name_)
+  [set-meta-name-id? opt-wrapper wrapper-args name  docstring? state-schema? args & body]
+  (let [name_ (str *ns* "/" name)
+        id (gensym "id")]
+    `(let [~id (name-id ~name_)
            validate# (state-validator ~name ~state-schema?)]
-       (defn+ [named* id# validate#] (fn [f#] (vary-meta f# assoc ::name-id id#))
+       (defn+ [named* ~id validate#] ~(if set-meta-name-id?
+                                        `(fn [f#] (vary-meta f# assoc ::name-id ~id))
+                                        `identity)
          ~opt-wrapper ~wrapper-args ~name nil ~docstring? ~args ~@body))))
+
+(defmacro ^:no-doc defn-named+
+  [& args]
+  `(defn-named++ false ~@args))
 
 (defn- maybe-schema-arg [candidate & more]
   (if (and (not-empty more) (= ':- (first more)))
@@ -942,7 +958,7 @@ A schema annotation is possible after the name of the deliver
     `(let [action-mapper# ~(if (some? action-schema?)
                             `(s/fn ~deliver! [action# :- ~action-schema?] action#)
                             `identity)]
-       (defn-named+ [subscription-from-defn ~name action-mapper#] [~deliver!] ~name ~docstring? nil ~args ~@body))))
+       (defn-named++ true [subscription-from-defn ~name action-mapper#] [~deliver!] ~name ~docstring? nil ~args ~@body))))
 
 (defn ^:no-doc effect-from-defn [fn eff]
   ;; Note: must be public, because used in macro expansion of defn-effec.
