@@ -429,7 +429,9 @@
   [item state]
   (run-lifecycle item state
                  (fn [it state]
-                   ((base/lifecycle-init it) state))))
+                   (if-let [h (base/lifecycle-init it)]
+                     (h state)
+                     (c/return)))))
 
 (defn finalize
   "Returns what happens when the given item is finalized in the given
@@ -438,7 +440,9 @@
   [item state]
   (run-lifecycle item state
                  (fn [it state]
-                   ((base/lifecycle-finish it) state))))
+                   (if-let [h (base/lifecycle-finish it)]
+                     (h state)
+                     (c/return)))))
 
 (defn- r-comp [& fs]
   (apply comp (reverse fs)))

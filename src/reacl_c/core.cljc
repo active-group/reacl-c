@@ -455,7 +455,7 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-keyed item key))
 
-(defn lifecycle ;; TODO: rename handle-lifecyle ?
+(defn lifecycle
   "Returns an invisible item, that calls `init` each time the item is
   used at a place in the component hierarchy, including every change
   of state or the `init` function itself subsequently. The `finish`
@@ -463,8 +463,8 @@ be specified multiple times.
   place. Both functions must return a [[return]] value specifying what
   to do."
   [init finish]
-  {:pre [(ifn? init)
-         (ifn? finish)]}
+  {:pre [(or (nil? init) (ifn? init))
+         (or (nil? finish) (ifn? finish))]}
   (base/make-lifecycle init finish))
 
 (let [init (fn [init-f [state local]]
@@ -479,7 +479,7 @@ be specified multiple times.
                        :action (cleanup-f state)))
       pass-act (fn [state act]
                  act)
-      no-cleanup (f/constantly (return))]
+      no-cleanup nil]
   (defn once
     "Returns an item that evaluates `(f state)` and emits the [[return]]
   value that it must return initially. On subsequent state updates,
@@ -495,7 +495,7 @@ be specified multiple times.
            (or (nil? cleanup-f) (ifn? cleanup-f))]}
     (-> (local-state {}
                      (lifecycle (f/partial init f)
-                                (if cleanup-f
+                                (if (some? cleanup-f)
                                   (f/partial finish cleanup-f)
                                   no-cleanup)))
         (handle-action pass-act))))
@@ -511,7 +511,7 @@ be specified multiple times.
   from the item tree, and emits the [[return]] value that that must
   return."
   [f]
-  (lifecycle (f/constantly (return)) f))
+  (lifecycle nil f))
 
 (defn finalize
   "An invisible item that 'emits' the given [[return]] value once as
