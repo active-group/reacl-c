@@ -358,12 +358,12 @@ be specified multiple times.
     down in the item."
     [f & args]
     {:pre [(ifn? f)]}
-    ;; useful when sening messages downwards.
+    ;; useful when sending messages downwards.
     (with-ref h f args)))
 
 (let [h (fn [f ref state msg]
           (return :message [ref (f msg)]))
-      wr (fn [f item ref]
+      wr (fn [ref f item]
            (handle-message (f/partial h f ref) (refer item ref)))]
   (defn map-messages
     "Returns an item like the given one, that transforms all messages sent to
@@ -371,7 +371,7 @@ be specified multiple times.
     [f item]
     {:pre [(ifn? f)
            (base/item? item)]}
-    (with-ref (f/partial wr f item))))
+    (with-ref wr f item)))
 
 (defn name-id
   "Generates a fresh unique value that can be used to generate named
@@ -688,26 +688,26 @@ be specified multiple times.
       do-unsub (fn [state]
                  (let [{f :f args :args stop! :stop!} state]
                    (return :action (unsubscribe-effect stop! f args))))
-      msgs (fn [deliver! action-mapper defn-f f args host]
+      msgs (fn [host deliver! action-mapper defn-f f args]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (refer host))
                        (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
-      dyn (fn [deliver! action-mapper defn-f {f :f args :args stop! :stop!}]
+      dyn (fn [{f :f args :args stop! :stop!} deliver! action-mapper defn-f]
             (fragment
              (cleanup do-unsub)
              (if (nil? stop!)
-               (with-ref (f/partial msgs deliver! action-mapper defn-f f args))
+               (with-ref msgs deliver! action-mapper defn-f f args)
                empty)))
-      stu (fn [action-mapper defn-f f args deliver!]
+      stu (fn [deliver! action-mapper defn-f f args]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
             (isolate-state {:f f
                             :args args
                             :stop! nil}
-                           (dynamic (f/partial dyn deliver! action-mapper defn-f))))]
+                           (dynamic dyn deliver! action-mapper defn-f)))]
   (defn ^:private subscription*
     [action-mapper defn-f f & args]
-    (with-async-actions (f/partial stu action-mapper defn-f f args))))
+    (with-async-actions stu action-mapper defn-f f args)))
 
 (defn subscription
     "Returns an item that emits actions according to the given
@@ -756,11 +756,11 @@ be specified multiple times.
     (-> (dynamic dyn try-item catch-item)
         (hide-state nil lens/id))))
 
-(let [df (fn [e validate! state]
+(let [df (fn [state e validate!]
            ;; state passed down!
            (validate! state :down)
            e)
-      mf (fn [validate! old new]
+      mf (fn [old new validate!]
            ;; state passed up!
            (validate! new :up))]
   (defn validation-boundary
@@ -775,8 +775,8 @@ be specified multiple times.
      ;; Note: dynamic adds it to render; could make a little earlied
      ;; via 'validate clause'; but probably not worth here (as
      ;; instantiation is delayed anyway)
-    (-> (dynamic (f/partial df item validate!))
-        (monitor-state (f/partial mf validate!)))))
+    (-> (dynamic df item validate!)
+        (monitor-state mf validate!))))
 
 (defmacro ^:no-doc state-validator [name state-schema?]
   (let [name_st (symbol (str "state-of-" name))]

@@ -2,6 +2,7 @@
   (:require [reacl-c.core :as core]
             [reacl-c.base :as base]
             [active.clojure.functions :as f]
+            [active.clojure.lens :as lens]
             [cljs-async.core :as async]
             [cljs-async.cljs.core :as async-cljs]))
 
@@ -105,8 +106,7 @@
               (base/named-e sub)
               sub)]
     (and (base/with-async-return? sub)
-         (let [[a1 _] (base/with-async-return-args sub) ;; async-actions => async-return
-               [_ _ f args] (:args a1)] ;; a1 = Partial fn with args [action-mapper defn-f f args]   (could replace it with some other Ifn to not depend on active-clojure internals)
+         (let [[_ [_ _ f args]] (base/with-async-return-args sub)]
            (assert (ifn? f))
            (when (ifn? f)
              [f args])))))
@@ -114,7 +114,7 @@
 (defn- subscription-1?
   [v]
   (and (base/item? v)
-        (some? (subscription-f-args v))))
+       (some? (subscription-f-args v))))
 
 (defn subscription-f
   "Returns the function implementing the given subscription item."
@@ -162,10 +162,10 @@
   (assert (subscribe-effect? subscribe-effect))
   (let [[f args] (or (subscription-f-args f)
                      [f args])]
-    (update subscribe-effect :args
-            (fn [[_ _ deliver! host action-mapper]]
-              ;; Note: action-mapper contains the schema validation when specified in a defn-subscription.
-              [f args deliver! host identity]))))
+    (lens/overhaul subscribe-effect base/effect-args
+                   (fn [[_ _ deliver! host action-mapper]]
+                     ;; Note: action-mapper contains the schema validation when specified in a defn-subscription.
+                     [f args deliver! host identity]))))
 
 (let [pre (fn [f eff]
             (if-let [r (and (subscribe-effect? eff)
