@@ -23,8 +23,8 @@
 (def ^:private $handle-message "handleMessage")
 
 ;; Note: assume 'elide asserts' => release mode.
-(def dev-mode? (try (do (assert false) false)
-                    (catch :default e
+(def dev-mode? (try (do (assert (= 1 0)) ((constantly false))) ;; Note: some tricks to prevent 'unreachable code' warning.
+                    (catch :default _
                       true)))
 
 (defn- send-message! [comp msg & [callback]]
