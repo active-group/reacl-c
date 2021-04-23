@@ -1,6 +1,6 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.test-util.test-renderer :as tu]
+            [reacl-c.test-util.test-renderer :as tu] ;; TODO: get rid of this
             [reacl-c.test-util.core :as tuc]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]

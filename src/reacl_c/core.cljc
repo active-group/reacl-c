@@ -444,7 +444,7 @@ be specified multiple times.
 
 (defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
-  item with an arbitrary state that is inaccessible for it."
+  item with an arbitrary state that is inaccessible for it." ;; TODO: formulate the other way round.
   [initial-state item]
   (static (f/partial add-state initial-state lens/second item)))
 
@@ -539,7 +539,7 @@ be specified multiple times.
   evaluted for side effects. Note that this is only called when the
   item changes its state 'by itself', not if the state was changed
   somewhere upwards in the item tree an is only passed down to the
-  resulting item."
+  resulting item." ;; TODO: change 'side effect' to an effect?
     [item f & args]
     {:pre [(base/item? item)
            (ifn? f)]}

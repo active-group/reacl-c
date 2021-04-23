@@ -166,11 +166,13 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 (defn wait-for*
   "Functional version of the macro [[wait-for]]."
   [f & options]
+  ;; TODO: assert proper options
   (react-tu/waitFor f (clj->js (merge default-wait-for-options (apply hash-map options)))))
 
 (defn wait-for-removal*
   "Functional version of the macro [[wait-for-removal]]."
   [f & options]
+  ;; TODO: assert proper options
   (react-tu/waitForElementToBeRemoved f (clj->js (merge default-wait-for-options (apply hash-map options)))))
 
 (defn- find* [f where what options]
