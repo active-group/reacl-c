@@ -38,10 +38,10 @@
 
 (defn ^:no-doc state-error [st]
   ;; TODO: no callback arg?
-  (throw (ex-info "Unhandled state change at toplevel." {:state st})))
+  (throw (ex-info (str "Unhandled state change at toplevel: " (pr-str st) ".") {:state st})))
 
 (defn ^:no-doc action-error [a] ;; TODO: no callback arg?
-  (throw (ex-info "Unhandled action at toplevel." {:action a})))
+  (throw (ex-info (str "Unhandled action at toplevel: " (pr-str a) ".") {:action a})))
 
 #?(:cljs
    (defn run-controlled
