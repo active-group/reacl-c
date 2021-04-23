@@ -1099,6 +1099,15 @@ Note that the state of the inner item (the `div` in this case), will
     (list* true rest)
     (list* false (cons cand rest))))
 
+(defn ^:no-doc parse-defn-item-args [name & args]
+  (let [[static? & args] (apply maybe-static args)]
+    (if static?
+      (let [[docstring? params & body] (apply maybe-docstring args)]
+        (list* name true nil docstring? params body))
+      (let [[[name _ state-schema?] & args] (apply maybe-schema-arg name args)
+            [docstring? params & body] (apply maybe-docstring args)]
+        (list* name false state-schema? docstring? params body)))))
+
 (defmacro defn-item
   "A macro like [[clojure.core/defn]] to define abstractions over
   items, with optional schema annotations similar to [[schema.core/defn]].
@@ -1131,22 +1140,85 @@ Note that the state of the inner item (the `div` in this case), will
   In all cases, the name of the var is attached to the returned items, which
   can be helpful in testing and debugging utilities (see [[named]])."
   [name params & body]
-  (let [[static? params & body] (apply maybe-static params body)]
+  (let [[name static? state-schema? docstring? params & body] (apply parse-defn-item-args name params body)]
+    ;; TODO: proper and helpful error messages:
+    (assert (or (not static?) (not state-schema?))) ;; either or
+    (assert (or (nil? docstring?) (string? docstring?)))
+    (assert (vector? params))
     (if static?
-      (let [[docstring? params & body] (apply maybe-docstring params body)]
-        `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~params ~@body))
-      (let [[[name _ state-schema?] params & body] (apply maybe-schema-arg name params body)
-            [docstring? params & body] (apply maybe-docstring params body)]
-        ;; Optimization: if the body is a [[with-state-as]] expression, then lift that up to make it static (non-generative):
-        (if-let [[prelude p] (maybe-with-state-as-expr &env body)]
-          (let [body (:body p)
-                prelude-fn `(s/fn ~params ~@prelude)]
-            (cond
-              (contains? p :local)
-              `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
+      `(defn-named+ [(f/comp static f/partial)] nil ~name ~docstring? nil ~params ~@body)
+      ;; Optimization: if the body is a [[with-state-as]] expression, then lift that up to make it static (non-generative):
+      (if-let [[prelude p] (maybe-with-state-as-expr &env body)]
+        (let [body (:body p)
+              prelude-fn `(s/fn ~params ~@prelude)]
+          (cond
+            (contains? p :local)
+            `(defn-named+ [local-dynamic+p ~prelude-fn ~(:local p)] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)
           
-              :else
-              `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)))
+            :else
+            `(defn-named+ [dynamic+p ~prelude-fn] ~(:dynamic p) ~name ~docstring? ~state-schema? ~params ~@body)))
       
-          ;; else
-          `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body))))))
+        ;; else
+        `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body)))))
+
+
+(defrecord ^:private CallHandler [id f args])
+
+(def ^:private make-unique-id
+  (handle-effect-result (fn [_ uuid]
+                          (return :state uuid))
+                        (effect #?(:cljs random-uuid)
+                                #?(:clj (Object.)))))
+
+(let [bound (fn [id h inner-state & args]
+              (return :action (CallHandler. id h args)))
+      binder (fn [id h]
+               (when (some? h)
+                 (f/partial bound id h)))
+      handler (fn [id state a]
+                (if (and (instance? CallHandler a)
+                         (= id (:id a)))
+                  (apply (:f a) state (:args a))
+                  (return :action a)))
+      dyn-ref (fn [ref f id]
+                (fragment (focus lens/second make-unique-id)
+                           ;; wait for id; (Note: handlers usually
+                           ;; have no visual effect; so rendering with
+                           ;; nil first should be ok? but that would
+                           ;; disallow events during initialization;
+                           ;; although that is probably a bad idea
+                           ;; anyway...?)
+                          (when id
+                            (-> (focus lens/first
+                                       (-> (f (f/partial binder id))
+                                           (handle-action (f/partial handler id))))
+                                (refer ref)))))
+      dyn (fn [[_ id] f]
+            (forward-messages dyn-ref f id))]
+  (defn with-bind
+    "Returns an item that will call `f` with a `bind` function, which
+  should return an item then. The `bind` function can then be used, to
+  bind an event handler function to operate on the state of the
+  returned item, even if it is used on a dom element with a different
+  state, or it can also be triggered directly via [[call]] from a
+  handler function with a different state.
+
+  Note: [[reacl-c.dom/defn-dom]] does this binding automatically, so
+  you usually don't have to use this yourself."
+    [f]
+    {:pre [(ifn? f)]}
+    ;; TODO: maybe bring the local-state initializers in again? Would greatly simplify this item, which will be used a lot via defn-dom
+    (local-state nil
+                 (dynamic dyn f))))
+
+(defn call
+  "Calls an event handler function `f`, which should be a function
+  returned from calling the `bind` function of a [[with-bind]]
+  item. Note that this returns a special [[return]] value, which you
+  must return from another event handler, and which you can combine
+  with local state changes via [[merge-returned]]."
+  [f & args]
+  ;; f = result of (binder h) in with-bind above - TODO: assert that?
+  (if (some? f)
+    (apply f nil args)
+    (return)))

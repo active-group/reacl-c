@@ -298,6 +298,14 @@
     (tu/mount! env "foo")
     (is (some? (tu/find env (c/fragment "foo" "bar"))))))
 
+(deftest defn-item-parser-test
+  (is (= ['test false nil nil '[a] 'body] (c/parse-defn-item-args 'test '[a] 'body)))
+  (is (= ['test true nil nil '[a] 'body] (c/parse-defn-item-args 'test :static '[a] 'body)))
+  (is (= ['test true nil "foo" '[a] 'body] (c/parse-defn-item-args 'test :static "foo" '[a] 'body)))
+  (is (= ['test false 's "foo" '[a] 'body] (c/parse-defn-item-args 'test :- 's "foo" '[a] 'body)))
+  (is (= ['test false 's nil '[a] 'body] (c/parse-defn-item-args 'test :- 's '[a] 'body)))
+  (is (= ['test false nil "foo" '[a] 'body] (c/parse-defn-item-args 'test "foo" '[a] 'body))))
+
 (deftest defn-item-test
   (testing "simple items"
     (c/defn-item defn-test-1 "foo" [a :- s/Str]

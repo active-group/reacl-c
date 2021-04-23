@@ -504,3 +504,17 @@
                                                (constantly (c/return :action :cleanup)))
                                        c/empty)))
                         true))))
+
+(deftest with-bind-test
+  (let [n (renders-as (c/with-bind
+                        (fn [bind]
+                          (let [h (bind (fn [state _]
+                                          (update state :counter inc)))]
+                            (c/focus :counter
+                                     (dom/button {:onclick h}
+                                                 (c/dynamic str))))))
+                      {:counter 0})]
+    (is (= "0" (text (.-firstChild n))))
+
+    (react-tu/Simulate.click n)
+    (is (= "1" (text (.-firstChild n))))))

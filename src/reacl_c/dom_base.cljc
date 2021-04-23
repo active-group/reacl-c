@@ -14,8 +14,11 @@
    children element-children]
   base/E
   (-is-dynamic? [{events :events children :children}]
-    ;; TODO: maybe worth to cache this? calculate in advance?
-    (or (not (empty? events)) (some base/is-dynamic? children))))
+                ;; OPT: maybe worth to cache this? calculate in
+                ;; advance?
+                ;; OPT: if all event handlers are created by 'with-bind',
+                ;; then it does not have to be dynamic.
+                (or (not (empty? events)) (some base/is-dynamic? children))))
 
 (defn ^:no-doc set-ref [e ref]
   (assert (element? e))

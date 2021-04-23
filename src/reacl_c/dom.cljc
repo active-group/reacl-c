@@ -22,11 +22,11 @@
 
 (defn- analyze-dom-args [args]
   (if (empty? args)
-    [{} args]
+    (cons {} args)
     (let [x (first args)]
       (if (dom-attributes? x)
-        [x (rest args)]
-        [{} args]))))
+        args
+        (cons {} args)))))
 
 (defn- event? [k]
   (str/starts-with? (name k) "on"))
@@ -56,7 +56,7 @@
 
 (defn ^:no-doc dom-element [type & args]
   {:pre [(string? type)]}
-  (let [[attrs_ children] (analyze-dom-args args)
+  (let [[attrs_ & children] (analyze-dom-args args)
         [attrs events] (split-events attrs_)]
     (apply dom-element* type attrs events children)))
 
@@ -68,10 +68,86 @@
   (fn [& args]
     (apply dom-element type args)))
 
+(let [k (fn [f attrs events children bind]
+          (apply f
+                 (reduce-kv (fn [attrs ev h]
+                              (assoc attrs ev
+                                     (if (some? h)
+                                       (bind h)
+                                       nil)))
+                            attrs
+                            events)
+                 children))]
+  (defn ^:no-doc defn-dom-impl [f args]
+    (let [[attrs & children] (analyze-dom-args args)
+          [attrs events] (split-events attrs)]
+      (if (empty? events)
+        (apply f attrs children)
+        (core/with-bind (f/partial k f attrs events children))))))
+
+(defmacro ^{:arglists '([name [attrs & children] & body])} defn-dom
+  "Defines a function that works like the dom element functions in this
+  namespace (e.g. [[div]]), in that the first argument is an optional
+  attributes map, followed by arbitrarily many child items.
+
+  If the defined function is called without an attribute map, then
+  `{}` will be passed implicitly as the first argument.
+
+  Additionally, all attributes starting with `:on` must be event
+  handlers and are automatically bound to the state of the returned
+  item, via [[reacl-c.core/with-bind]]. That means you can assign
+  these event handlers to any item in the body, or
+  use [[reacl-c.core/call]], irrespective of the state that those
+  items get.
+
+  Tip: Pass the attributes to the toplevel dom element that is
+  returned, and use [[merge-attributes]] to add some default
+  attributes in your function body."
+  [name params & body]
+  (let [[name static? state-schema? docstring? params & body] (apply core/parse-defn-item-args name params body)]
+    `(let [f# (fn ~params ~@body)]
+       (core/defn-item ~(vary-meta name assoc :arglists '(params)) ;; TODO: opt-assoc (only if not set yet);
+         ~@(when static? [:static])
+         ~@(when state-schema? [:- state-schema?])
+         ~@(when docstring? [docstring?])
+         [& args#]
+         ;; TODO: validate arguments earlier (arity and schema).
+         ;; TODO: optimize toplevel with-bind/with-state-as like defn-item.
+         (defn-dom-impl f# args#)))))
+
+(defn- join-classes [& cs]
+  (str/join " " (filter not-empty
+                        (mapcat #(str/split % #"\s+") cs))))
+(letfn [(merge-a2 [a1 a2]
+          (reduce-kv (fn [res k v]
+                       (case k
+                         ;; merge class names
+                         (:class :className)
+                         (-> res
+                             (dissoc :class :className)
+                             (assoc :className (join-classes (apply join-classes (clojure.core/map second (filter #(#{:class :className} (first %))
+                                                                                                                  res)))
+                                                             v)))
+                         ;; Merging styles absolutely correct is very hard (like merging :border and :border-with)
+                         ;; This will only cover simple cases.
+                         :style
+                         (update res :style merge v)
+                         ;; for any other attribute, overwrite   (TODO: maybe compose event handlers?)
+                         (assoc res k v)))
+                     a1
+                     a2))]
+  (defn merge-attributes [& attrs]
+    (assert (every? #(or (nil? %) (dom-attributes? %)) attrs) (vec (remove #(or (nil? %) (dom-attributes? %)) attrs)))
+    (reduce merge-a2
+            {}
+            attrs)))
+
 (defn ^{:arglists '([type attrs & children]
                     [type & children])}
   h
-  "Returns a DOM item of the specified `type`, like \"div\" for example. Arguments are the same as the specific DOM functions, like [[div]]."
+  "Returns a DOM item of the specified `type`, like \"div\" for
+  example. Arguments are the same as the specific DOM functions,
+  like [[div]]."
   [type & args]
   (apply dom-element type args))
 
