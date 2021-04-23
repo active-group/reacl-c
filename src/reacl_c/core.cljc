@@ -357,8 +357,9 @@ be specified multiple times.
     to. You must use [[refer]] to define which item that is further
     down in the item."
     [f & args]
+    {:pre [(ifn? f)]}
     ;; useful when sening messages downwards.
-    (with-ref (f/partial h f args))))
+    (with-ref h f args)))
 
 (let [h (fn [f ref state msg]
           (return :message [ref (f msg)]))
