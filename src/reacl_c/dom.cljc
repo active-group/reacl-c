@@ -107,7 +107,7 @@
   (let [[name static? state-schema? docstring? params & body] (apply core/parse-defn-item-args name params body)]
     `(let [f# (fn ~params ~@body)]
        (core/defn-item ~(vary-meta name assoc :arglists '(params)) ;; TODO: opt-assoc (only if not set yet);
-         ~@(when static? [:static])
+         ;; ~@(when static? [:static]) ;; FIXME: with-bind must be ouside of static.
          ~@(when state-schema? [:- state-schema?])
          ~@(when docstring? [docstring?])
          [& args#]
