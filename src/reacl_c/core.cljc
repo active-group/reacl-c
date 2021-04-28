@@ -675,7 +675,7 @@ be specified multiple times.
                   (cond
                     (instance? SubscribedMessage msg)
                     (apply base/merge-returned
-                           (return :state {:f f :args args :stop! (:stop! msg)})
+                           (return :state {:f f :args args :stop! (:stop! msg) :subscribed? true})
                            (map #(return :action %) (:sync-actions msg)))
 
                     ;; added for test-util emulation of subscriptions.
@@ -686,14 +686,16 @@ be specified multiple times.
                     (do (assert false (str "Unexpected message: " (pr-str msg)))
                         (return))))
       do-unsub (fn [state]
-                 (let [{f :f args :args stop! :stop!} state]
-                   (return :action (unsubscribe-effect stop! f args))))
+                 (let [{f :f args :args stop! :stop! subscribed? :subscribed?} state]
+                   (if subscribed? ;; usually when emulated in tests.
+                     (return :action (unsubscribe-effect stop! f args))
+                     (return))))
       msgs (fn [host deliver! action-mapper defn-f f args]
              (fragment (-> (handle-message (f/partial store-sub f args)
                                            (fragment))
                            (refer host))
                        (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
-      dyn (fn [{f :f args :args stop! :stop!} deliver! action-mapper defn-f]
+      dyn (fn [{f :f args :args stop! :stop! subscribed? :subscribed?} deliver! action-mapper defn-f]
             (fragment
              (cleanup do-unsub)
              (if (nil? stop!)
@@ -703,7 +705,8 @@ be specified multiple times.
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
             (isolate-state {:f f
                             :args args
-                            :stop! nil}
+                            :stop! nil
+                            :subscribed? false}
                            (dynamic dyn deliver! action-mapper defn-f)))]
   (defn ^:private subscription*
     [action-mapper defn-f f & args]
