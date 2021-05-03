@@ -17,7 +17,7 @@ The API documentation for the latest release are available [here](https://cljdoc
 
 For some auxiliary building blocks to build web applications, also
 take a look at the accompanying library
-[https://github.com/active-group/reacl-c-basics](reacl-c-basics).
+[reacl-c-basics](https://github.com/active-group/reacl-c-basics).
 
 ## License
 
