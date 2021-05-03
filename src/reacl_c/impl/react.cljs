@@ -323,12 +323,12 @@
 
 (defn- gen-named [name]
   (r0/class name
-            [:state "getDerivedStateFromProps"] (fn [state props]
-                                                  (let [[_ _ _ validate-state!] (r0/extract-args props)]
-                                                    (when validate-state!
-                                                      (validate-state! (r0/extract-state state))))
-                                                  nil)
-
+            [:static "getDerivedStateFromProps"] (fn [state props]
+                                                   (let [[_ _ _ validate-state!] (r0/extract-args props)]
+                                                     (when validate-state!
+                                                       (validate-state! (r0/extract-state state))))
+                                                   nil)
+            "getInitialState" (fn [this] nil)
             "render" (fn [this]
                        (let [[binding ref e _] (r0/get-args this)]
                          (render e binding ref)))))
