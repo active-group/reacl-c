@@ -1165,13 +1165,13 @@ Note that the state of the inner item (the `div` in this case), will
         `(defn-named+ nil nil ~name ~docstring? ~state-schema? ~params ~@body)))))
 
 
-(defrecord ^:private CallHandler [id f args])
+(defrecord ^{:private true :rtd-record? true} CallHandler [id f args])
 
 (def ^:private make-unique-id
   (handle-effect-result (fn [_ uuid]
                           (return :state uuid))
                         (effect #?(:cljs random-uuid)
-                                #?(:clj (Object.)))))
+                                #?(:clj #(Object.)))))
 
 (let [bound (fn [id h inner-state & args]
               (return :action (CallHandler. id h args)))
