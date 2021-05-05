@@ -476,9 +476,9 @@ be specified multiple times.
                  (return :state [state new]
                          :action r))))
       finish (fn [cleanup-f [state local]]
-               (return :state [state {}]
-                       :action (cleanup-f state)))
+               (return :action (cleanup-f state)))
       pass-act (fn [state act]
+                 ;; Note: act is always the result of either init-f or cleanup-f
                  act)
       no-cleanup nil]
   (defn once
