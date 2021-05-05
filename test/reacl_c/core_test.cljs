@@ -147,38 +147,6 @@
     (is (= (c/return :state [13])
            (tu/send-message! env 13)))))
 
-(deftest once-test
-  ;; state dependant.
-  (let [env (tu/env (c/once (f/partial c/return :action)
-                            (f/partial c/return :action)))]
-    (is (= (c/return :action ::up)
-           (tu/mount!! env ::up)))
-
-    (is (= (c/return)
-           (tu/update!! env ::up)))
-
-    (is (= (c/return :action ::new)
-           (tu/update!! env ::new)))
-
-    (tu/update!! env ::down)
-    (is (= (c/return :action ::down)
-           (tu/unmount!! env))))
-
-  ;; state independant
-  (let [env (tu/env (c/once (f/constantly (c/return :action ::up))
-                            (f/constantly (c/return :action ::down))))]
-    (is (= (c/return :action ::up)
-           (tu/mount!! env true))) 
-
-    (is (= (c/return)
-           (tu/update!! env true)))
-
-    (is (= (c/return)
-           (tu/update!! env false))) 
-
-    (is (= (c/return :action ::down)
-           (tu/unmount!! env)))))
-
 (deftest with-ref
   ;; important for with-ref, must be the same ref for a unique item, even if the state changes.
   (let [last-ref (atom nil)

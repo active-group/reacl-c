@@ -503,7 +503,29 @@
                                                                      :state false))
                                                (constantly (c/return :action :cleanup)))
                                        c/empty)))
-                        true))))
+                        true)))
+  (is (= [true]
+         (emits-actions (c/dynamic (fn [st]
+                                     (if st
+                                       (c/fragment (c/once (partial c/return :action))
+                                                   (c/once not))
+                                       c/empty)))
+                        true)))
+  (is (= [:cleanup]
+         (emits-actions (c/dynamic (fn [st]
+                                     (if st
+                                       (c/once (constantly false)
+                                               (constantly (c/return :action :cleanup)))
+                                       c/empty)))
+                        true)))
+  (is (= [:init]
+         (emits-actions (c/dynamic (fn [st]
+                                     (c/fragment (c/once (constantly (c/return :action :init)))
+                                                 (c/once (constantly 1)))))
+                        0)))
+
+  (is (= 1 (changes-state (c/once (constantly 1)))))
+  (is (= nil (changes-state (c/once (constantly nil)) :init))))
 
 (deftest with-bind-test
   (let [n (renders-as (c/with-bind
