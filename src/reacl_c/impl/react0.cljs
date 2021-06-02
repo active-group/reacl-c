@@ -40,6 +40,14 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
+(defn- default-should-component-update? [new-props new-state]
+  (this-as this
+    (or (and (some? new-state) ;; class has no local-state...
+             (not= (extract-state new-state)
+                   (get-state this)))
+        (not= (extract-args new-props)
+              (get-args this)))))
+
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
         static-decls (map (fn [[[_ k] v]] [k v])
@@ -55,23 +63,17 @@
                                      (assoc "displayName" name)
                                      (update "getInitialState"
                                              (fn [f]
-                                               (fn []
-                                                 (this-as this
-                                                          (when f (mk-state (.call f this)))))))
+                                               (when f
+                                                 (fn []
+                                                   (this-as this (mk-state (.call f this)))))))
                                      (update "shouldComponentUpdate"
                                              (fn [p]
                                                (if p
                                                  (fn [new-props new-state]
+                                                   ;; call p with args and state.
                                                    (this-as this
                                                             (.call p this (extract-args new-props) (when (some? new-state) (extract-state new-state)))))
-                                                 ;; default:
-                                                 (fn [new-props new-state]
-                                                   (this-as this
-                                                            (or (and (some? new-state) ;; class has no local-state...
-                                                                     (not= (extract-state new-state)
-                                                                           (get-state this)))
-                                                                (not= (extract-args new-props)
-                                                                      (get-args this))))))))
+                                                 default-should-component-update?)))
                                      ))))
       (set-statics! static-decls))))
 
