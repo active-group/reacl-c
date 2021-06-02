@@ -20,14 +20,14 @@ In the following, a `:require` clause like this is assumed:
 
 In Reacl-c, the user interface is defined by an *Item*.
 
-All items have an implicit *state*, an optional *visual appearance*,
+All items have an implicit *state*, an optional *visual appearance*
 consisting of one or more DOM nodes (elements or text), and some
 *behaviour*, like how they initialize their state. Items without a
-visual appearance, are called invisible.
+visual appearance are called invisible.
 
 The `reacl-c/dom` namespace contains functions that construct items
 with a visual appearance, while the functions from `reacl-c/core` that
-create items, are related to the behaviour of the user interface, and
+create items are related to the behaviour of the user interface, and
 are usually invisible themself.
 
 Just like in the DOM, some items can have child items. So together
@@ -40,22 +40,22 @@ All items may be sent *messages* to. Those can be handled, but some
 items forward such a message down to a child item, while others always
 raise an error.
 
-All items have a *state*, which may change over time, as the user
-interacts with the user interface. That state however, is not stored
+All items have a *state* that may change over time as the user
+interacts with the user interface. That state, however, is not stored
 or mutated *inside* an item. It can instead be thought of as an
-implicit argument the item, which can be passed to it multiple
-times. Also, a change of the state can be though of as an implicit
+implicit argument to the item, which can be passed to it multiple
+times. Also, a change of the state can be thought of as an implicit
 return value from the item.
 
 Most items just pass the state they get down to all their child items,
 and propagate any changed state from any of their children upwards in
-the item tree. A state change that reaches the toplevel, is then
-actually stored by the Reacl-C runtime, and passed back to the root
+the item tree. A state change that reaches the toplevel is then
+actually stored by the Reacl-c runtime, and passed back to the root
 item as its new state. Like that, the state becomes an *application
 state*, as all items share the same state, and all of them can update
 any part of it. But of course, there are ways to break this basic
 model up at certain points in the item tree - by either making a child
-item *work* on just a part of the state, or by introducting new state,
+item *work* on just a part of the state, or by introducting new state
 that is stored at a lower part in the tree as so called *local state*.
 
 Finally, an item can be run in a browser, underneath a specific DOM
@@ -69,12 +69,12 @@ state for the given item:
 ```
 
 With these basic concepts explained, we can now go through all the
-functions that allow you to create new items, and which visual
-appearance and behaviour they will have.
+functions that allow you to create new items, and also explain which
+visual appearance and behaviour they will have.
 
 ## DOM and other simple items
 
-The most simple item is the empty item:
+The simplest item is the *empty item*:
 
 ```clojure
 c/empty
@@ -84,9 +84,9 @@ It has no visual appearance, can take any state, never changes the
 state, never emits any actions and sending a message to it always
 raises an error.
 
-The empty item is actually nothing else than a *fragment* item with no
-children. But fragment items can be constructed from arbitrarily many
-items:
+The empty item is actually nothing else than a *fragment* item without
+any children. But fragment items can be constructed from arbitrarily
+many items:
 
 ```clojure
 (c/fragment item1 ...)
@@ -109,8 +109,8 @@ the browser, can take any state, don't change the state, don't emit
 any actions, and sending a message to them raises an error.
 
 Now DOM elements make things interesting. For all HTML tags, there is
-a function in the `reacl-c.dom` namespace, that creates an item with
-that visual appearance. Some examples:
+a function in the `reacl-c.dom` namespace that creates an item with
+the respective visual appearance. Some examples:
 
 ```clojure
 (dom/br)
@@ -126,16 +126,15 @@ that visual appearance. Some examples:
 
 All these functions take an optional map of attributes as the first
 argument, and then arbitrarily many child items. The `style` attribute
-is somewhat special, in that it can be a map of CSS style
-settings.
+is somewhat special, in that it can be a map of CSS style settings.
 
 DOM elements can take any state, which they pass down to all child
 items, and they pass any changed state from a child upwards. They also
 pass actions from any child upwards, and raise an error if a message
 is sent to them.
 
-Things get interactive, when adding event handlers to DOM
-elements. Resembling HTML, event handlers are functions that can be
+Things get interactive when adding event handlers to DOM
+elements. Resembling HTML, event handlers are functions that may be
 attached to an element via attributes that start with `:on`, like
 `:onclick`:
 
@@ -144,9 +143,13 @@ attached to an element via attributes that start with `:on`, like
 ```
 
 An event handler function takes the current state of the item and the
-DOM Event object as arguments. It can then do three things: Pass a
-state change upwards, emit an action, or send a message to some other
-item. To specify that, the event handler function must return a value
+DOM Event object as arguments. It can then do three things:
+
+- Pass a state change upwards,
+- emit an action, or
+- send a message to some other item.
+
+To specify that, the event handler function must return a value
 created by `c/return`. For example:
 
 ```clojure
@@ -161,19 +164,19 @@ created by `c/return`. For example:
 (c/return :state "foo" :action "bar" :action "baz")
 ```
 
-So the state change is optional, but can be specified at most
-once. Actions and messages can be specified multiple times. What a
-valid target for messages is, will be described later in this
-document.
+So the state change is optional, but must be specified at most
+once. Actions and messages may be specified multiple times. What
+designates valid targets for messages will be described later in
+this document.
 
 The `c/return` values will also be used to specify the reaction to
 many other discrete events, like when handling actions for
 example. These return values are a central concept of Reacl-c.
 
-## Items that add behavior
+## Items that add behaviour
 
 With the items described so far, your application will be very static,
-always look the same, and the user cannot not really interact with
+always look the same, and the user cannot really interact with
 it. This chapter introduces the various ways to create items that
 change their appearance over time, the ways to change state and how to
 trigger or react to discrete events in the application.
@@ -251,10 +254,10 @@ aforementioned meaning. Look at a large collection of useful lenses
 and lens combinators in
 [`active.clojure.lens`](https://github.com/active-group/active-clojure).
 
-The next thing concerning the state of items, is introducing new state
+The next thing concerning the state of items is introducing new state
 into a branch of the item tree, or hiding a part of the inner state,
-which is the same thing but from the other perspective. The most
-primitive way to do that, is the `local-state` function:
+which is the same thing but from the opposite perspective. The most
+primitive way to do that is the `local-state` function:
 
 ```clojure
 (c/local-state 42 (c/dynamic pr-str))
@@ -270,12 +273,12 @@ afterwards.
 Note that this depends on the position of the item in the tree. If you
 'move' that item to a different position, it might 'restart' with the
 initial state again. Actually, as most primitive items in Reacl-c are
-referentially transparent values, using the the created item multiple
+referentially transparent values, using the created item multiple
 times is possible, but at each place it will start with `42` intially,
-and then store updated states independantly from each other.
+and then store updated states independently from each other.
 
-One way to allow an item to 'move' in a limited way, is adding a *key*
-on it:
+One way to allow an item to 'move' in a limited way, is by adding a
+*key* onto it:
 
 ```clojure
 (c/keyed some-item "some-key")
@@ -332,8 +335,8 @@ following way:
 ```
 
 In this way, the body of `table-1-header` will not be evaluated again
-nor re-rendered on any state change from above, as long as it's
-used with same arguments.
+nor re-rendered on any state change from above, as long as it is used
+with same arguments.
 
 ### Working with actions
 
@@ -371,14 +374,14 @@ To create an item that accepts messages, the function
   some-other-item)
 ```
 
-Just like always, the resulting item looks like `some-other-item`, has
-the same state that, and passes all actions emitted by it upwards.
+As always, the resulting item looks like `some-other-item`, has the
+same state, and passes all actions emitted by it upwards.
 
-The other task regarding messages, is of course sending messages to
+The other task regarding messages is of course sending messages to
 items, either in reaction to an action or to a received message, for
-example. The key concept to this are *references*. Messages can be
+instance. The key concept to this are *references*. Messages can be
 targeted indirectly to a reference, which resolve to a concrete item
-at a place in the item tree, or directly to an item to which a reference
+at a place in the item tree, or directly to an item which a reference
 was assigned to. There are low-level utilities to do that
 (`c/with-ref` and `c/set-ref`), but the most convenient way for the
 common use cases is the `c/ref-let` macro:
@@ -391,32 +394,33 @@ common use cases is the `c/ref-let` macro:
     (dom/div child)))
 ```
 
-This example defines an item, whose visual appearance is that of
+This example defines an item whose visual appearance is that of
 `some-other-item`, wrapped in a `dom/div`, and messages sent to the
 item are forwarded unchanged to `some-other-item`. Note that you must
-use `child` at both places in this code - it is also just an item, but
+use `child` in both places in this code - it is also just an item, but
 it contains the reference information that is needed to identify the
 target for the message. As usual, `ref-let` passes any state down and
 up unchanged, as well as any action upwards. Messages sent to the
 `ref-let` item are forwarded to the item bound - `some-other-item` in
 this case.
 
-Note that an item with a reference assigned (`child` in this case),
-can only be used once in the body of `ref-let`.
+Note that an item with a reference assigned (`child` in this case) can
+only be used once in the body of `ref-let`.
 
 Also note that the item created by the `ref-let` macro is not
 referentially transparent, i.e. evaluating the same code twice will
-not be be equal as of Clojure's `=` function. When optimizing an
-application for performance, you can use the functional equivalent
-`c/ref-let*` to create referntially transparent items.
+not be be equal with respect to Clojure's `=` function. When
+optimizing an application for performance, you may want to use the
+functional equivalent `c/ref-let*` to create referentially transparent
+items.
 
 ### Unexpected errors
 
 Sometimes, items may fail at runtime, for example dynamic items that
 make wrong assumptions on the state they get, or are being used on the
-wrong state of course. There is one primitive way to handle such
-errors, `c/error-boundary`, and a slightly more convenient way: the
-items created by the `try-catch` function:
+wrong state. There is one primitive way to handle such errors,
+`c/error-boundary`, and a slightly more convenient way: the items
+created by the `try-catch` function:
 
 ```clojure
 (def try-item (dynamic (fn [state] (/ 42 state))))
@@ -444,19 +448,20 @@ tree after a state change.
 
 Although items are usually just a referentially transparent
 description of a visual appearance and a behaviour (i.e. items have no
-identity), when they are used at a specific place in the item tree, a
+identity), when they are used at a specific place in the item tree a
 certain lifetime can be associated with them, starting when they are
 first used in that position, via changes of the state they get from
 above over time, the points in time at which they handle messages and
 action, to the point in time they are no longer used at that place in
-item tree again.
+the item tree again.
 
 Above, we already mentioned a few cases where the lifetime of an item
 plays a role, e.g. for `local-state` items. But occasionally, one also
-want's to make use of that and write items that can react to those
+wants to make use of that and write items that react to those
 transitions in the lifecycle of an item.
 
-The first such items are those created by the `c/init` and `c/finalize` functions:
+The first such items are those created by the `c/init` and
+`c/finalize` functions:
 
 ```clojure
 (c/fragment
@@ -464,11 +469,11 @@ The first such items are those created by the `c/init` and `c/finalize` function
   (c/finalize (c/return :action "I'm not in use anymore")))
 ```
 
-In this example the first action is emitted by the resulting item
-when it is used at some place in the tree, and the second action
-when it is not used anymore there.
+In this example the first action is emitted by the resulting item when
+it is used at some place in the tree, and the second action when it is
+not used there any longer.
 
-For more advanced reactions to lifecycle events, there are the `c/once`
+For more advanced reactions to lifecycle events there are the `c/once`
 and the `c/lifecycle` items.
 
 Note that you can easily combine these items with others in a
@@ -481,9 +486,9 @@ fragment item, which is then equivalent to *their* lifetime:
 ## The outside world
 
 There are hardly any applications that do not interact with the
-outside world and be useful at the same time. So most of the time, you
-will want to modify the browser's session store, retrieve or push data
-to a server, or modify the browser history. In this chapter we go
+outside world and are useful at the same time. So most of the time,
+you will want to modify the browser's session store, retrieve or push
+data to a server, or modify the browser history. In this chapter we go
 through the utilities that Reacl-c offers to do this in a safe,
 functional and fully testable way.
 
@@ -506,7 +511,7 @@ With this definition, an item may trigger a reload as a reaction to
 some other event by returning the effect as an action. For example:
 
 ```clojure
-(dom/buttom {:onclick (fn [state ev]
+(dom/button {:onclick (fn [state ev]
                         (c/return :action (reload! true)))})
 ```
 
@@ -531,11 +536,12 @@ given effect each time it is placed in the item tree somewhere.
 
 ### Subscriptions
 
-Subscriptions are a high-level feature included in Reacl-c, which make
+Subscriptions are a high-level feature included in Reacl-c that makes
 it easy to register at a global source of asynchronous discrete events
-and create items that handle them. Such sources can be Ajax requests
-to a HTTP server, which will usually create only one asynchronous
-result, or an interval timer which can make inifinitely many:
+and create items that handle these events. Such sources may be Ajax
+requests to an HTTP server (which will usually create only one
+asynchronous result) or an interval timer which can produce infinitely
+many:
 
 ```clojure
 (c/defn-subscription interval-timer deliver! [ms]
@@ -545,7 +551,7 @@ result, or an interval timer which can make inifinitely many:
     (fn [] (js/window.clearInterval id))))
 ```
 
-With this definition, you can create an item that emits `:tick` as an
+With this definition you create an item that emits `:tick` as an
 action every 100 milliseconds:
 
 ```clojure
@@ -556,12 +562,12 @@ action every 100 milliseconds:
 
 You can of course create multiple subscription items from the same
 subscription definition. In this case, they will all have their own
-timer running though.
+timer running, though.
 
-Note that the subscription definition must return a *stop function*,
-which is called when an item creted from it is removed from the item
+Note that the subscription definition must return a *stop function*
+that is called when an item created from it is removed from the item
 tree. The subscription definition must make sure that the `deliver!`
-function is not called again, after the stop function has been called.
+function is not called again after the stop function has been called.
 
 There are also more primitive items that can be used to attach
 asynchronous sources of events or data (`c/with-async-return` and
@@ -574,7 +580,7 @@ from the item tree. Subscription items are the most convenient way.
 When using Reacl-c in an outer framework, it is sometimes necessary to
 communicate with a 'running item'. The `run` function from the
 `reacl-c.main` namespace mentioned in the beginning of this
-document, actually returns an *application handle*:
+document actually returns an *application handle*:
 
 ```clojure
 (def my-app
@@ -588,7 +594,7 @@ If `my-item` handles messages sent to it, you can do so with `main/send-message!
 (main/send-message! my-app :a-message)
 ```
 
-To receie results or handling unsolicited events from an application,
-you could use an effect that sets an atom for example, or use the
-`:handle-action!` option of `run` with a side effect that push actions
-into a `core.async` channel for example.
+To receive results or handle unsolicited events from an application,
+you could use an effect that sets an `atom`, or use the
+`:handle-action!` option of `run` with a side effect that pushes
+actions into a `core.async` channel, for instance.
