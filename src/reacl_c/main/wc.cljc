@@ -44,7 +44,7 @@
                (if (= attr changed-attr)
                  (f state old-value new-value)
                  (c/return)))]
-  (defn attribute-change [wc attr f]
+  (defn attribute-changed [wc attr f]
     (-> wc
         (conc :attribute-changed (f/partial when-f attr f))
         (update :observed-attributes #(conj (or %1 #{}) %2) attr))))
@@ -62,13 +62,32 @@
                              ;; TODO: else forward to item?
                              )))))
 
+#?(:cljs (defn- eval-event-unmounted [class handler args]
+           (let [wc (.-definition class)
+                 state (:initial-state wc)
+                 r (c/as-returned (apply handler state args))]
+             (assert (empty? (c/returned-actions r)) "Cannot return actions from this web component handler in the unmounted state.")
+             (assert (empty? (c/returned-messages r)) "Cannot return messages from this web component handler in the unmounted state.")
+             (let [state (c/returned-state r)]
+               (when (not= c/keep-state state)
+                 (set! (.-definition class)
+                       (assoc wc :initial-state state)))))))
+
 #?(:cljs
    (defn ^:no-doc method-wc [class field]
      (fn [& args]
        (this-as ^js this
          (let [f (field (.-definition class))
                app (.-app this)]
-           (when f (main/send-message! app (Call. f args))))))))
+           ;; an attribute change may occur before the connected event
+           ;; (the element is mounted), in which case we don't have a
+           ;; running app yet; in that case, we change the
+           ;; initial-state for now, and complain about actions and
+           ;; messages.
+           (when f
+             (if (some? app)
+               (main/send-message! app (Call. f args))
+               (eval-event-unmounted class f args))))))))
 
 #?(:cljs
    (defn prototype-of [tag-or-class]
@@ -106,10 +125,11 @@
 
        ;; static methods
        (js/Object.defineProperty ctor "observedAttributes"
-                                 #{:get (fn []
-                                          (let [wc (.-definition ctor)]
-                                            (let [as (:observed-attributes wc)]
-                                              (to-array as))))})
+                                 ;; Note: might be called by the browser only once; so no hot code reload for this.
+                                 #js {:get (fn []
+                                             (let [wc (.-definition ctor)]
+                                               (let [as (:observed-attributes wc)]
+                                                 (to-array as))))})
        ctor)))
 
 #?(:cljs
@@ -120,14 +140,16 @@
    (defn define-wc* [n wc & [options]]
      (let [f (if-let [f (and (not (:no-hot-update? options))
                              (get-wc n))]
+               ;; trying at least some hot updates:
                (do (assert (some? (.-definition f)) "Can only redefine components defined by this library.")
+                   ;; Note: this will not update existing elements immediately (only after they update somehow; but we cannot force this here, I think)
+                   (set! (.-definition f) (lift wc))
                    f)
                (let [f (new-wc)]
+                 (set! (.-definition f) (lift wc))
                  (js/customElements.define n f)
                  f))]
        (assert (some? (lift wc)))
-       ;; Note: this will not update existing elements immediately (only after they update somehow; but we cannot force this here, I think)
-       (set! (.-definition f) (lift wc))
        ;; TODO: return interop/wc item using ?
        f)))
 
