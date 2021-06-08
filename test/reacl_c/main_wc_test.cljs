@@ -59,4 +59,10 @@
                    (is (= "foo" (.-textContent (.-firstChild e))))
                    (is (= [nil "foo"] @change)))
                  (fn [e]
-                   (.setAttribute e "test" "foo"))))))
+                   (.setAttribute e "test" "foo")))))
+  (testing "attribute to state util"
+    (rendering (-> (wc/base (c/focus :test (c/dynamic dom/div)) {})
+                   (wc/attribute :test))
+               (fn [e]
+                 (.setAttribute e "test" "foo")
+                 (is (= "foo" (.-textContent (.-firstChild e))))))))

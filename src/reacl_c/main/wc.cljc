@@ -4,13 +4,13 @@
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [active.clojure.functions :as f]
-            #_[goog.object :as gobj]))
+            [active.clojure.lens :as lens]))
 
 ;; TODO: extending existing elements?
 (defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed])
 
-(defn base [item]
-  (WebComponent. item nil nil nil nil nil nil))
+(defn base [item & [initial-state]]
+  (WebComponent. item initial-state nil nil nil nil nil))
 
 (defn ^:no-doc lift [item]
   (if (instance? WebComponent item)
@@ -48,6 +48,17 @@
     (-> wc
         (conc :attribute-changed (f/partial when-f attr f))
         (update :observed-attributes #(conj (or %1 #{}) %2) attr))))
+
+(let [f (fn [lens state old new]
+          (lens/shove state lens new))]
+  (defn attribute [wc attr & [state-lens]]
+    (let [kw (if-not (keyword? attr)
+               (keyword attr)
+               attr)
+          lens (or state-lens kw)]
+      (attribute-changed wc (name kw) (f/partial f lens)))))
+
+;; TODO: property, method
 
 ;; TODO (defn shadow-root [wc])
 ;; TODO: event util.
