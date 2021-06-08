@@ -236,6 +236,9 @@ be specified multiple times.
     (base/merge-returned ret
                          (return :state (lens/shove state lens (base/returned-state ret))))))
 
+(defn ^:no-doc as-returned [v]
+  (if (base/returned? v) v (return :state v)))
+
 (let [h* (fn [lens h state & args]
            (let [v (apply h (lens/yank state lens) args)
                  ret (if (base/returned? v) v (return :state v))]
