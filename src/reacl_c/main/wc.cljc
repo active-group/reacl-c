@@ -3,14 +3,15 @@
   (:require [reacl-c.main :as main]
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
+            [reacl-c.base :as base]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
 
 ;; TODO: extending existing elements?
-(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties])
+(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties methods])
 
 (defn base [item & [initial-state]]
-  (WebComponent. item initial-state nil nil nil nil nil {}))
+  (WebComponent. item initial-state nil nil nil nil nil {} {}))
 
 (defn ^:no-doc lift [item]
   (if (instance? WebComponent item)
@@ -82,7 +83,18 @@
                            (f/partial set lens))
                          (dissoc options :read-only?)))))
 
-;; TODO: methods
+(defn method [wc method f]
+  (update (lift wc) :methods assoc (if (keyword? method) (name method) method) f))
+
+(let [g (fn [f state return & args]
+          (c/return :action (return (apply f state args))))]
+  (defn accessor-method [wc method f]
+    (method wc method (f/partial g f))))
+
+(let [g (fn [f state return & args]
+          (apply f state args))]
+  (defn mutator-method [wc method f]
+    (method wc method (f/partial g f))))
 
 ;; TODO (defn shadow-root [wc])
 ;; TODO: event util.
@@ -102,10 +114,30 @@
                              ;; TODO: else forward to item?
                              )))))
 
+(let [set-atom-f (base/effect-f (set-atom nil nil))]
+  (defn- emulate-set-atom! [returned]
+    (let [as (base/returned-actions returned)]
+      (lens/overhaul returned base/returned-actions
+                     (fn [as]
+                       (reduce (fn [res a]
+                                 (js/console.log )
+                                 (if (and (base/simple-effect? a)
+                                          (= set-atom-f (base/effect-f a)))
+                                   (do (base/run-effect! a)
+                                       res)
+                                   (conj res a)))
+                               []
+                               as))))))
+
 #?(:cljs (defn- eval-event-unmounted [class handler args]
            (let [wc (.-definition class)
                  state (:initial-state wc)
-                 r (c/as-returned (apply handler state args))]
+                 ;; we 'emulate' the set-atom effect as an exception;
+                 ;; because that is used for methods which should work
+                 ;; in the unmounted state too.
+                 
+                 r (-> (c/as-returned (apply handler state args))
+                       (emulate-set-atom!))]
              (assert (empty? (c/returned-actions r)) "Cannot return actions from this web component handler in the unmounted state.")
              (assert (empty? (c/returned-messages r)) "Cannot return messages from this web component handler in the unmounted state.")
              (let [state (c/returned-state r)]
@@ -141,7 +173,7 @@
            (apply f (:initial-state wc) args))))))
 
 #?(:cljs
-   (defn ^:no-doc method-wc [class field]
+   (defn ^:no-doc lifecycle-method-wc [class field]
      (fn [& args]
        (this-as ^js this
          (let [f (field (.-definition class))]
@@ -149,6 +181,7 @@
 
 #?(:cljs
    (defn property-wc [class [property-name descriptor]]
+     ;; Note: for more hot code reload, we might lookup descriptor in the definition, but that would be slower.
      (let [{get :get set :set} descriptor
            js-descriptor (clj->js (dissoc descriptor :get :set :value))]
        (when (some? (:get descriptor))
@@ -160,6 +193,27 @@
        (when (contains? descriptor :value)
          (aset js-descriptor "value" (:value descriptor)))
        [property-name js-descriptor])))
+
+#?(:cljs
+   (defn- call-method-wc [class ^js this f args]
+     ;; Note: for more hot code reload, we might lookup f in the definition, but that would be slower.
+     (let [result (atom nil)
+           ;; extra first arg: an action to return the result of the method.
+           full-args (cons (f/partial set-atom result) args)
+           app (.-app this)]
+       (if (some? app)
+         ;; as of now, event handling is synchronous
+         (do
+           (main/send-message! app (Event. f full-args))
+           @result)
+
+         (do (eval-event-unmounted class f full-args)
+             @result)))))
+
+#?(:cljs
+   (defn method-wc [class f]
+     (fn [& args]
+       (this-as this (call-method-wc class this f args)))))
 
 #?(:cljs
    (defn prototype-of [tag-or-class]
@@ -177,7 +231,7 @@
                     this))
            
            prototype
-           #js {:connectedCallback (let [user (method-wc ctor :connected)]
+           #js {:connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
                                      (fn []
                                        (this-as ^js this
                                          ;; Note: we cannot render before 'connected event'.
@@ -185,9 +239,9 @@
                                            (set! (.-app this)
                                                  (main/run this (wrap (:item wc)) {:initial-state (:initial-state wc)})))
                                          (.call user this))))
-                :disconnectedCallback (method-wc ctor :disconnected)
-                :adoptedCallback (method-wc ctor :adopted)
-                :attributeChangedCallback (method-wc ctor :attribute-changed)}]
+                :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
+                :adoptedCallback (lifecycle-method-wc ctor :adopted)
+                :attributeChangedCallback (lifecycle-method-wc ctor :attribute-changed)}]
        
        (js/Object.setPrototypeOf prototype super)
        (set! (.-prototype ctor) prototype)
@@ -220,8 +274,11 @@
                  (js/Object.defineProperties (.-prototype f) (apply js-obj (mapcat (partial property-wc f) (:properties wc))))
                  (js/customElements.define n f)
                  f))]
-
-       (assert (some? (lift wc)))
+       ;; Note: this will not remove methods on a hot code reload:
+       (let [p (.-prototype f)]
+         (doseq [[m-name impl] (:methods wc)]
+           (aset p m-name (method-wc f impl))))
+       
        ;; TODO: return interop/wc item using ?
        f)))
 

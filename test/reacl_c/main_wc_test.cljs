@@ -85,3 +85,22 @@
                    (is (= 'foo (.-test e)))
                    (set! (.-test e) 'bar)
                    (is (= 'bar (.-test e))))))))
+
+(deftest method-test
+  (testing "after mount"
+    (rendering (-> (wc/base (c/dynamic str) 41)
+                   (wc/method :test (fn [state return a]
+                                      (c/return :state (inc state)
+                                                :action (return a)))))
+               (fn [e]
+                 (is (= 'foo (.test e 'foo)))
+                 (is (= "42" (.-textContent e))))))
+  (testing "before mount"
+    (rendering (-> (wc/base (c/dynamic str) 41)
+                   (wc/method :test (fn [state return a]
+                                      (c/return :state (inc state)
+                                                :action (return a)))))
+               (fn [e]
+                 (is (= "42" (.-textContent e))))
+               (fn [e]
+                 (is (= 'foo (.test e 'foo)))))))
