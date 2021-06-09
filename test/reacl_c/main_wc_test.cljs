@@ -8,7 +8,7 @@
             [reacl-c.test-util.dom-testing :as dom-testing]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
-(defn- rendering [wc-or-name f & [before-mount]]
+(defn- rendering-async [wc-or-name f & [before-mount]]
   (let [tag (if (string? wc-or-name)
               wc-or-name
               (let [s (name (gensym "main-wc-test"))]
@@ -17,8 +17,15 @@
         e (js/document.createElement tag)]
     (when before-mount (before-mount e))
     (.appendChild js/document.body e)
-    (try (f e)
-         (finally (.removeChild js/document.body e)))))
+    (f e (fn cleanup []
+           (.removeChild js/document.body e)))))
+
+(defn- rendering [wc-or-name f & [before-mount]]
+  (rendering-async wc-or-name
+                   (fn [e cleanup]
+                     (try (f e)
+                          (finally (cleanup))))
+                   before-mount))
 
 (deftest base-test
   (rendering (dom/div "Hello World")
@@ -117,3 +124,18 @@
              (fn [e]
                (is (nil? (.-shadowRoot e)))
                (is (nil? (.-firstChild e))))))
+
+(deftest dispatch-event-test
+  (let [result (atom nil)]
+    (async done
+           (rendering-async
+            (dom/div (c/init (c/return :action (wc/dispatch-event! (wc/event "foo" {:detail ::x})))))
+            (fn [e cleanup]
+              (js/setTimeout (fn []
+                               (cleanup)
+                               (is (= ::x @result))
+                               (done))
+                             5))
+            (fn [^js/HTMLElement e]
+              (.addEventListener e "foo" (fn [ev]
+                                           (reset! result (.-detail ev)))))))))

@@ -99,30 +99,71 @@
 (defn shadow [wc init]
   (assoc (lift wc) :shadow-init init))
 
-;; TODO: event util.
+(defrecord ^:private Event [type options])
 
-(defrecord ^:private Event [f args])
-(defrecord ^:private Access [f args result])
+(defn event [type & [options]]
+  ;; options :bubbles, :cancelable, :composed, :detail
+  (Event. type options))
 
-(c/defn-effect ^:private set-atom [a value]
+(defn- really-dispatch-event! [target event]
+  (let [type (:type event)
+        options (:options event)
+        init (clj->js (dissoc options :detail))
+        js-event (if (contains? options :detail)
+                   (new js/CustomEvent type (do (aset init "detail" (:detail options))
+                                                init))
+                   (new js/Event type init))]
+    (.dispatchEvent target js-event)))
+
+(c/defn-effect ^:private dispatch-event!* [event target-atom]
+  (really-dispatch-event! @target-atom event))
+
+(c/defn-effect ^:private new-atom! []
+  (atom nil))
+
+(defn dispatch-event! [event]
+  (c/seq-effects (new-atom!)
+                 (f/partial dispatch-event!* event)))
+
+(defrecord ^:private HandleEvent [f args])
+(defrecord ^:private HandleAccess [f args result])
+
+(c/defn-effect ^:private set-atom! [a value]
   (reset! a value))
 
-(defn- wrap [item]
-  (->> item
-       (c/handle-message (fn [state msg]
-                           (cond
-                             (instance? Event msg) (apply (:f msg) state (:args msg))
-                             (instance? Access msg) (c/return :action (set-atom (:result msg) (apply (:f msg) state (:args msg))))
-                             ;; TODO: else forward to item?
-                             )))))
+(let [dispatch-event!-f (base/effect-f (dispatch-event!* nil nil))]
+  (defn- wrap [element item]
+    (as-> item $
+      (c/handle-effect $ (fn [state a]
+                           ;; we want the user to just emit an effect
+                           ;; (dispatch-event! event), so we have to
+                           ;; sneak the element reference into the
+                           ;; effect, so that they can still use
+                           ;; handle-effect-result, which wraps it in
+                           ;; a composed-effect. ...slightly hacky.
+                           (let [repl (fn [e]
+                                        (if (= dispatch-event!-f (base/effect-f e))
+                                          (let [[event target-atom] (base/effect-args e)]
+                                            (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
+                                          e))]
+                             (c/return :action
+                                       (if (base/composed-effect? a)
+                                         (base/map-composed-effect a repl)
+                                         (repl a))))))
+      (c/handle-message (fn [state msg]
+                          (condp instance? msg
+                            HandleEvent (apply (:f msg) state (:args msg))
+                            HandleAccess (c/return :action (set-atom! (:result msg) (apply (:f msg) state (:args msg))))
+                            ;; TODO: else forward to item?
+                            ))
+                        $))))
 
-(let [set-atom-f (base/effect-f (set-atom nil nil))]
+(let [set-atom-f (base/effect-f (set-atom! nil nil))]
   (defn- emulate-set-atom! [returned]
     (let [as (base/returned-actions returned)]
       (lens/overhaul returned base/returned-actions
                      (fn [as]
                        (reduce (fn [res a]
-                                 (js/console.log )
                                  (if (and (base/simple-effect? a)
                                           (= set-atom-f (base/effect-f a)))
                                    (do (base/run-effect! a)
@@ -156,7 +197,7 @@
        ;; case, we change the initial-state for now, and complain
        ;; about actions and messages.
        (if (some? app)
-         (main/send-message! app (Event. f args))
+         (main/send-message! app (HandleEvent. f args))
          (eval-event-unmounted class f args)))))
 
 #?(:cljs
@@ -168,7 +209,7 @@
          ;; changes, we hopefully find a lower level access to the
          ;; current state.
          (let [result (atom ::fail)]
-           (main/send-message! app (Access. f args result))
+           (main/send-message! app (HandleAccess. f args result))
            (assert (not= ::fail @result) "Property access failed. Maybe message handling is not synchronous anymore?")
            @result)
          (let [wc (.-definition class)]
@@ -201,12 +242,12 @@
      ;; Note: for more hot code reload, we might lookup f in the definition, but that would be slower.
      (let [result (atom nil)
            ;; extra first arg: an action to return the result of the method.
-           full-args (cons (f/partial set-atom result) args)
+           full-args (cons (f/partial set-atom! result) args)
            app (.-app this)]
        (if (some? app)
          ;; as of now, event handling is synchronous
          (do
-           (main/send-message! app (Event. f full-args))
+           (main/send-message! app (HandleEvent. f full-args))
            @result)
 
          (do (eval-event-unmounted class f full-args)
@@ -247,7 +288,7 @@
                                                  (main/run (if-let [init (:shadow-init wc)]
                                                              (attach-shadow-root this init)
                                                              this)
-                                                   (wrap (:item wc)) {:initial-state (:initial-state wc)})))
+                                                   (wrap this (:item wc)) {:initial-state (:initial-state wc)})))
                                          (.call user this))))
                 :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
                 :adoptedCallback (lifecycle-method-wc ctor :adopted)
