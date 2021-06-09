@@ -28,14 +28,14 @@
                    before-mount))
 
 (deftest base-test
-  (rendering (dom/div "Hello World")
+  (rendering (constantly (dom/div "Hello World"))
              (fn [e]
                (is (= "DIV" (.-tagName (.-firstChild e))))
                (is (= "Hello World" (.-textContent (.-firstChild e)))))))
 
 (deftest connect-disconnect-test
   (let [connected? (atom false)]
-    (rendering (-> (dom/div "Hello World")
+    (rendering (-> (constantly (dom/div "Hello World"))
                    (wc/connected (fn [state]
                                    (reset! connected? true)
                                    state))
@@ -48,35 +48,29 @@
 
 (deftest attributes-test
   (testing "change after mount"
-    (let [change (atom nil)]
-      (rendering (-> (dom/div "Hello World")
-                     (wc/attribute-changed "test" (fn [state old new]
-                                                    (reset! change [old new])
-                                                    state)))
+    (let [value (atom nil)]
+      (rendering (-> (fn [attrs]
+                       (reset! value (:test attrs))
+                       (dom/div))
+                     (wc/attribute :test))
                  (fn [e]
                    (.setAttribute e "test" "foo")
-                   (is (= [nil "foo"] @change))))))
+                   (is (= "foo" @value))))))
   (testing "change before mount"
-    (let [change (atom nil)]
-      (rendering (-> (c/dynamic dom/div)
-                     (wc/attribute-changed "test" (fn [state old new]
-                                                    (reset! change [old new])
-                                                    new)))
+    (let [value (atom nil)]
+      (rendering (-> (fn [attrs]
+                       (reset! value (:test attrs))
+                       (dom/div (:test attrs)))
+                     (wc/attribute :test))
                  (fn [e]
                    (is (= "foo" (.-textContent (.-firstChild e))))
-                   (is (= [nil "foo"] @change)))
+                   (is (= "foo" @value)))
                  (fn [e]
-                   (.setAttribute e "test" "foo")))))
-  (testing "attribute to state util"
-    (rendering (-> (wc/base (c/focus :test (c/dynamic dom/div)) {})
-                   (wc/attribute :test))
-               (fn [e]
-                 (.setAttribute e "test" "foo")
-                 (is (= "foo" (.-textContent (.-firstChild e))))))))
+                   (.setAttribute e "test" "foo"))))))
 
 (deftest properties-test
   (testing "after mount"
-    (rendering (-> (wc/base (dom/div) {:test 'foo})
+    (rendering (-> (wc/initial-state (constantly (dom/div)) {:test 'foo})
                    (wc/property :test))
                (fn [e]
                  (is (= 'foo (.-test e)))
@@ -84,7 +78,7 @@
                  (is (= 'bar (.-test e))))))
   (testing "before mount"
     (let [change (atom nil)]
-      (rendering (-> (wc/base (dom/div) {:test 'foo})
+      (rendering (-> (wc/initial-state (constantly (dom/div)) {:test 'foo})
                      (wc/property "test" :test))
                  (fn [e]
                    (is (= 'bar (.-test e))))
@@ -95,7 +89,7 @@
 
 (deftest method-test
   (testing "after mount"
-    (rendering (-> (wc/base (c/dynamic str) 41)
+    (rendering (-> (wc/initial-state (constantly (c/dynamic str)) 41)
                    (wc/method "test" (fn [state return a]
                                        (c/return :state (inc state)
                                                  :action (return a)))))
@@ -103,7 +97,7 @@
                  (is (= 'foo (.test e 'foo)))
                  (is (= "42" (.-textContent e))))))
   (testing "before mount"
-    (rendering (-> (wc/base (c/dynamic str) 41)
+    (rendering (-> (wc/initial-state (constantly (c/dynamic str)) 41)
                    (wc/method "test" (fn [state return a]
                                       (c/return :state (inc state)
                                                 :action (return a)))))
@@ -113,13 +107,13 @@
                  (is (= 'foo (.test e 'foo)))))))
 
 (deftest shadow-test
-  (rendering (-> (dom/div "Hello World")
+  (rendering (-> (constantly (dom/div "Hello World"))
                  (wc/shadow {:mode "open"}))
              (fn [e]
                (is (some? (.-shadowRoot e)))
                (is (= "DIV" (.-tagName (.-firstChild (.-shadowRoot e)))))
                (is (= "Hello World" (.-textContent (.-firstChild (.-shadowRoot e)))))))
-  (rendering (-> (dom/div "Hello World")
+  (rendering (-> (constantly (dom/div "Hello World"))
                  (wc/shadow {:mode "closed"}))
              (fn [e]
                (is (nil? (.-shadowRoot e)))
@@ -129,7 +123,7 @@
   (let [result (atom nil)]
     (async done
            (rendering-async
-            (dom/div (c/init (c/return :action (wc/dispatch-event! (wc/event "foo" {:detail ::x})))))
+            (constantly (dom/div (c/init (c/return :action (wc/dispatch-event! (wc/event "foo" {:detail ::x}))))))
             (fn [e cleanup]
               (js/setTimeout (fn []
                                (cleanup)
@@ -144,10 +138,10 @@
   (let [result (atom nil)]
     (async done
            (rendering-async
-            (dom/div (c/handle-effect-result (fn [state res]
-                                               (reset! result res)
-                                               state)
-                                             (wc/dispatch-event! (wc/event "foo" {:detail ::x}))))
+            (constantly (dom/div (c/handle-effect-result (fn [state res]
+                                                           (reset! result res)
+                                                           state)
+                                                         (wc/dispatch-event! (wc/event "foo" {:detail ::x})))))
             (fn [e cleanup]
               (js/setTimeout (fn []
                                (cleanup)

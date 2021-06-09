@@ -1,5 +1,11 @@
 (ns reacl-c.main.wc
-  "Functions to define items as a web component."
+  "Functions to define items as a web component.
+
+  Any function that takes an attribute map as the first argument and
+  returns an item, is a simple web component. Methods, properties and
+  several other settings can be added to a web component with the
+  functions in this namespace. Then, it can be registered in the
+  browser under a unique tag name with [[define-wc!]]."
   (:require [reacl-c.main :as main]
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
@@ -12,20 +18,18 @@
 ;; here - it's the reacl-c item that does the rendering; One might
 ;; want to use a different web-component library for that.
 
-(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties methods shadow-init])
+(defrecord ^:private WebComponent [item-f initial-state connected disconnected adopted attributes properties methods shadow-init])
 
-(defn base
-  "Returns a basic web component, that renders the given item with the
-  given initial state, which defaults to `nil`. More features can be
-  added with [[attribute]], [[property]], [[method]] and more
-  functions in this package."
-  [item & [initial-state]]
-  (WebComponent. item initial-state nil nil nil nil nil {} {} nil))
+(defn- lift [v]
+  (if (instance? WebComponent v)
+    v
+    (do (assert (ifn? v))
+        (WebComponent. v nil nil nil nil {} {} {} nil))))
 
-(defn- lift [item]
-  (if (instance? WebComponent item)
-    item
-    (base item)))
+(defn initial-state
+  "Sets an initial state for the given web component."
+  [wc initial-state]
+  (assoc (lift wc) :initial-state initial-state))
 
 (defn- comp-handlers [p f state & args]
   (let [r1 (c/as-returned (apply p state args))]
@@ -65,40 +69,21 @@
   [wc f]
   (conc wc :adopted f))
 
-(let [when-f (fn [attr f state changed-attr old-value new-value]
-               (if (= attr changed-attr)
-                 (f state old-value new-value)
-                 (c/return)))]
-  (defn attribute-changed
-    "Adds a handler that is called when the given attribute changes on the
-  given web component. The given function `f` will be called with the
-  current state, the old and the new value of the attribute, and must
-  return a new state or a [[reacl-c.core/return]] value. Note that for
-  initial value of the attribute, and change with an old value of
-  `nil` will be triggered.
-
-  See [[attribute]] for a simple way to include an attribute value
-  into the state of a component."
-    [wc attr f]
-    (assert (string? attr))
-    (-> wc
-        (conc :attribute-changed (f/partial when-f attr f))
-        (update :observed-attributes #(conj (or %1 #{}) %2) attr))))
-
 (let [f (fn [lens state old new]
           (lens/shove state lens new))]
   (defn attribute
-    "Adds a custom attribute to the given web component, that is
-  automatically reflected in the state of the component. The attribute name
-  can be a keyword, which is then also used to reflect the attribute
-  value in a map state under that key. Alternatively, a lens can be
-  specified to put the attribute value in a different kind of state."
-    [wc attr & [state-lens]]
+    "Adds an attribute declaration to the given web component. Declared
+  attributes, and only those, will be included with their current
+  value in the first argument of the web component rendering
+  function. The given `attr` can be a keyword or a string. The current
+  value of the attribute will be in the attribute map of the component
+  under the key `key`, which defaults to `attr` if not specified."
+    [wc attr & [key]]
     (assert (or (string? attr) (keyword? attr)))
-    (assert (or (keyword? attr) (some? state-lens)))
-    ;; Hmm... can/should the attribute change when the state changes? Is that reasonable?
-    (let [lens (or state-lens (when (keyword? attr) attr))]
-      (attribute-changed wc (if (keyword? attr) (name attr) attr) (f/partial f lens)))))
+    (update (lift wc) :attributes
+            assoc
+            (if (keyword? attr) (name attr) attr)
+            (if (nil? key) attr key))))
 
 (defn ^:no-doc raw-property [wc property descriptor]
   (assert (string? property))
@@ -254,31 +239,37 @@
   (reset! a value))
 
 (let [dispatch-event!-f (base/effect-f (dispatch-event!* nil nil))]
-  (defn- wrap [element item]
-    (as-> item $
-      (c/handle-effect $ (fn [state e]
-                           ;; we want the user to just emit an effect
-                           ;; (dispatch-event! event), so we have to
-                           ;; sneak the element reference into the
-                           ;; effect, so that they can still use
-                           ;; handle-effect-result, which wraps it in
-                           ;; a composed-effect. ...slightly hacky.
-                           (let [repl (fn repl [e]
-                                        (if (base/composed-effect? e)
-                                          (base/map-composed-effect e repl)
-                                          (if (= dispatch-event!-f (base/effect-f e))
-                                            (let [[event target-atom] (base/effect-args e)]
-                                              (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
-                                            e)))]
-                             (c/return :action (repl e)))))
-      (c/handle-message (fn [state msg]
-                          (condp instance? msg
-                            HandleEvent (apply (:f msg) state (:args msg))
-                            HandleAccess (c/return :action (set-atom! (:result msg) (apply (:f msg) state (:args msg))))
-                            ;; other messages should be impossible, as noone can refer to the result of this.
-                            (do (assert false (str "Unexpected message received in web component: " (pr-str msg)))
-                                (c/return))))
-                        $))))
+  (defn- wrap [element attributes item-f]
+    (let [attrs (->> attributes
+                     (map (fn [[name key]]
+                            (when (.hasAttribute element name)
+                              [key (.getAttribute element name)])))
+                     (remove nil?)
+                     (into {}))]
+      (as-> (item-f attrs) $
+        (c/handle-effect $ (fn [state e]
+                             ;; we want the user to just emit an effect
+                             ;; (dispatch-event! event), so we have to
+                             ;; sneak the element reference into the
+                             ;; effect, so that they can still use
+                             ;; handle-effect-result, which wraps it in
+                             ;; a composed-effect. ...slightly hacky.
+                             (let [repl (fn repl [e]
+                                          (if (base/composed-effect? e)
+                                            (base/map-composed-effect e repl)
+                                            (if (= dispatch-event!-f (base/effect-f e))
+                                              (let [[event target-atom] (base/effect-args e)]
+                                                (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
+                                              e)))]
+                               (c/return :action (repl e)))))
+        (c/handle-message (fn [state msg]
+                            (condp instance? msg
+                              HandleEvent (apply (:f msg) state (:args msg))
+                              HandleAccess (c/return :action (set-atom! (:result msg) (apply (:f msg) state (:args msg))))
+                              ;; other messages should be impossible, as noone can refer to the result of this.
+                              (do (assert false (str "Unexpected message received in web component: " (pr-str msg)))
+                                  (c/return))))
+                          $)))))
 
 (let [set-atom-f (base/effect-f (set-atom! nil nil))]
   (defn- emulate-set-atom! [returned]
@@ -391,21 +382,28 @@
                  this))
            
         prototype
-        #js {:connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
+        #js {:__update
+             (fn []
+               (let [wc (.-definition ctor)]
+                 (this-as this
+                   (set! (.-app ^js this)
+                         (main/run (if-let [init (:shadow-init wc)]
+                                     (attach-shadow-root this init)
+                                     this)
+                           (wrap this (:attributes wc) (:item-f wc)) {:initial-state (:initial-state wc)})))))
+             :connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
                                   (fn []
                                     (this-as ^js this
-                                      ;; Note: we cannot render before 'connected event'.
+                                      ;; Note: we cannot render before the 'connected event'.
                                       ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
-                                      (let [wc (.-definition ctor)]
-                                        (set! (.-app this)
-                                              (main/run (if-let [init (:shadow-init wc)]
-                                                          (attach-shadow-root this init)
-                                                          this)
-                                                (wrap this (:item wc)) {:initial-state (:initial-state wc)})))
+                                      (.__update this)
                                       (.call user this))))
              :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
              :adoptedCallback (lifecycle-method-wc ctor :adopted)
-             :attributeChangedCallback (lifecycle-method-wc ctor :attribute-changed)}]
+             :attributeChangedCallback (fn [attr old new]
+                                         ;; we always rerender, where all current attribute values are read.
+                                         (this-as ^js this
+                                           (.__update this)))}]
        
     (js/Object.setPrototypeOf prototype super)
     (set! (.-prototype ctor) prototype)
@@ -414,8 +412,9 @@
     (js/Object.defineProperty ctor "observedAttributes"
                               ;; Note: might be called by the browser only once; so no hot code reload for this.
                               #js {:get (fn []
+                                          ;; we always observe all declared attributes
                                           (let [wc (.-definition ctor)]
-                                            (let [as (:observed-attributes wc)]
+                                            (let [as (map first (:attributes wc))]
                                               (to-array as))))})
     ctor))
 
