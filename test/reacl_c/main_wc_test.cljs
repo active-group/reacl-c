@@ -3,7 +3,6 @@
   (:require [reacl-c.main.wc :as wc]
             [reacl-c.main-browser-test :as btest]
             [reacl-c.core :as c]
-            ;;[reacl-c.interop.wc :as i]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.dom-testing :as dom-testing]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
@@ -12,9 +11,10 @@
   (let [tag (if (string? wc-or-name)
               wc-or-name
               (let [s (name (gensym "main-wc-test"))]
-                (wc/define-wc! s wc-or-name)
+                (wc/define! s wc-or-name)
                 s))
         e (js/document.createElement tag)]
+    
     (when before-mount (before-mount e))
     (.appendChild js/document.body e)
     (f e (fn cleanup []

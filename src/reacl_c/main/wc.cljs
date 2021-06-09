@@ -11,7 +11,8 @@
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
             [active.clojure.functions :as f]
-            [active.clojure.lens :as lens]))
+            [active.clojure.lens :as lens])
+  (:refer-clojure :exclude [use]))
 
 ;; Note: extending existing elements, as well as having custom
 ;; elements with child markup, is probably not what people want to do
@@ -422,7 +423,7 @@
   [n]
   (js/customElements.get n))
 
-(defn define-wc!
+(defn define!
   "Registers the given web component under the given name in the browser.
 
   If a web component has beed registered with this name and this
@@ -450,5 +451,21 @@
     (let [p (.-prototype f)]
       (doseq [[m-name impl] (:methods wc)]
         (aset p m-name (method-wc f impl))))
-    f))
+    
+    ;; return a function [attrs & children] that returns an item using the component, because why not.
+    (f/partial dom/dom-element name)))
 
+(c/defn-effect ^:private gen-name []
+  (name (gensym "reacl-c-web-component")))
+
+(let [f (fn [name wc args]
+          (when name (apply (define! name wc) args)))]
+  (defn use
+    "Registers the given web component under a unique name, and
+  returns an item using that component. This can be especially useful
+  during development of a web component."
+    [wc & args]
+    ;; TODO: maybe use a new name, when wc changed/changed cannot be hot reloaded.
+    (c/isolate-state nil
+                     (c/fragment (c/handle-effect-result identity (gen-name))
+                                 (c/dynamic f wc args)))))
