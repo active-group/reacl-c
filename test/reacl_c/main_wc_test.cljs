@@ -66,3 +66,22 @@
                (fn [e]
                  (.setAttribute e "test" "foo")
                  (is (= "foo" (.-textContent (.-firstChild e))))))))
+
+(deftest properties-test
+  (testing "after mount"
+    (rendering (-> (wc/base (dom/div) {:test 'foo})
+                   (wc/property :test))
+               (fn [e]
+                 (is (= 'foo (.-test e)))
+                 (set! (.-test e) 'bar)
+                 (is (= 'bar (.-test e))))))
+  (testing "before mount"
+    (let [change (atom nil)]
+      (rendering (-> (wc/base (dom/div) {:test 'foo})
+                     (wc/property "test" :test))
+                 (fn [e]
+                   (is (= 'bar (.-test e))))
+                 (fn [e]
+                   (is (= 'foo (.-test e)))
+                   (set! (.-test e) 'bar)
+                   (is (= 'bar (.-test e))))))))

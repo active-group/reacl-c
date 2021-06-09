@@ -7,10 +7,10 @@
             [active.clojure.lens :as lens]))
 
 ;; TODO: extending existing elements?
-(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed])
+(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties])
 
 (defn base [item & [initial-state]]
-  (WebComponent. item initial-state nil nil nil nil nil))
+  (WebComponent. item initial-state nil nil nil nil nil {}))
 
 (defn ^:no-doc lift [item]
   (if (instance? WebComponent item)
@@ -58,18 +58,47 @@
           lens (or state-lens kw)]
       (attribute-changed wc (name kw) (f/partial f lens)))))
 
-;; TODO: property, method
+(defn raw-property [wc property descriptor]
+  (update (lift wc) :properties assoc (if (keyword? property) (name property) property) descriptor))
+
+(defn data-property [wc property value & [options]]
+  (raw-property wc property (assoc options :value value)))
+
+(defn accessor-property [wc property get & [set options]]
+  (raw-property wc property (assoc options :get get :set set)))
+
+(let [get (fn [lens state]
+            (lens/yank state lens))
+      set (fn [lens state value]
+            (lens/shove state lens value))]
+  (defn property [wc property & [lens options]]
+    (let [lens (or lens
+                   ;; e.g. a keyword
+                   property)]
+      (accessor-property wc
+                         property
+                         (f/partial get lens)
+                         (when-not (:read-only? options)
+                           (f/partial set lens))
+                         (dissoc options :read-only?)))))
+
+;; TODO: methods
 
 ;; TODO (defn shadow-root [wc])
 ;; TODO: event util.
 
-(defrecord ^:private Call [f args])
+(defrecord ^:private Event [f args])
+(defrecord ^:private Access [f args result])
+
+(c/defn-effect ^:private set-atom [a value]
+  (reset! a value))
 
 (defn ^:no-doc wrap [item]
   (->> item
        (c/handle-message (fn [state msg]
                            (cond
-                             (instance? Call msg) (apply (:f msg) state (:args msg))
+                             (instance? Event msg) (apply (:f msg) state (:args msg))
+                             (instance? Access msg) (c/return :action (set-atom (:result msg) (apply (:f msg) state (:args msg))))
                              ;; TODO: else forward to item?
                              )))))
 
@@ -85,20 +114,52 @@
                        (assoc wc :initial-state state)))))))
 
 #?(:cljs
+   (defn- call-handler-wc [class ^js this f & args]
+     (let [app (.-app this)]
+       ;; an attribute change (not also other events), may occur
+       ;; before the connected event (the element is mounted), in
+       ;; which case we don't have a running app yet; in that
+       ;; case, we change the initial-state for now, and complain
+       ;; about actions and messages.
+       (if (some? app)
+         (main/send-message! app (Event. f args))
+         (eval-event-unmounted class f args)))))
+
+#?(:cljs
+   (defn- access-wc [class ^js this f & args]
+     (let [app (.-app this)]
+       ;; if it's called before mount, we have no app yet, and access the initial-state instead.
+       (if (some? app)
+         ;; as of now, event handling is synchronous - if that
+         ;; changes, we hopefully find a lower level access to the
+         ;; current state.
+         (let [result (atom ::fail)]
+           (main/send-message! app (Access. f args result))
+           (assert (not= ::fail @result) "Property access failed. Maybe message handling is not synchronous anymore?")
+           @result)
+         (let [wc (.-definition class)]
+           (apply f (:initial-state wc) args))))))
+
+#?(:cljs
    (defn ^:no-doc method-wc [class field]
      (fn [& args]
        (this-as ^js this
-         (let [f (field (.-definition class))
-               app (.-app this)]
-           ;; an attribute change may occur before the connected event
-           ;; (the element is mounted), in which case we don't have a
-           ;; running app yet; in that case, we change the
-           ;; initial-state for now, and complain about actions and
-           ;; messages.
-           (when f
-             (if (some? app)
-               (main/send-message! app (Call. f args))
-               (eval-event-unmounted class f args))))))))
+         (let [f (field (.-definition class))]
+           (when f (apply call-handler-wc class this f args)))))))
+
+#?(:cljs
+   (defn property-wc [class [property-name descriptor]]
+     (let [{get :get set :set} descriptor
+           js-descriptor (clj->js (dissoc descriptor :get :set :value))]
+       (when (some? (:get descriptor))
+         (aset js-descriptor "get" (fn []
+                                     (this-as this (access-wc class this get)))))
+       (when (some? (:set descriptor))
+         (aset js-descriptor "set" (fn [value]
+                                     (this-as this (call-handler-wc class this set value)))))
+       (when (contains? descriptor :value)
+         (aset js-descriptor "value" (:value descriptor)))
+       [property-name js-descriptor])))
 
 #?(:cljs
    (defn prototype-of [tag-or-class]
@@ -116,21 +177,18 @@
                     this))
            
            prototype
-           #js {:forceUpdate (fn []
-                               (this-as ^js this
-                                 (let [wc (.-definition ctor)]
-                                   (set! (.-app this)
-                                         (main/run this (wrap (:item wc)) {:initial-state (:initial-state wc)})))))
-
-                :connectedCallback (let [user (method-wc ctor :connected)]
+           #js {:connectedCallback (let [user (method-wc ctor :connected)]
                                      (fn []
                                        (this-as ^js this
                                          ;; Note: we cannot render before 'connected event'.
-                                         (.forceUpdate this)
+                                         (let [wc (.-definition ctor)]
+                                           (set! (.-app this)
+                                                 (main/run this (wrap (:item wc)) {:initial-state (:initial-state wc)})))
                                          (.call user this))))
                 :disconnectedCallback (method-wc ctor :disconnected)
                 :adoptedCallback (method-wc ctor :adopted)
                 :attributeChangedCallback (method-wc ctor :attribute-changed)}]
+       
        (js/Object.setPrototypeOf prototype super)
        (set! (.-prototype ctor) prototype)
 
@@ -158,8 +216,11 @@
                    f)
                (let [f (new-wc)]
                  (set! (.-definition f) (lift wc))
+                 ;; properties cannot be added or remove on a hot update
+                 (js/Object.defineProperties (.-prototype f) (apply js-obj (mapcat (partial property-wc f) (:properties wc))))
                  (js/customElements.define n f)
                  f))]
+
        (assert (some? (lift wc)))
        ;; TODO: return interop/wc item using ?
        f)))
