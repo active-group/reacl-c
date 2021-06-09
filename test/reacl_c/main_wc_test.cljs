@@ -104,3 +104,16 @@
                  (is (= "42" (.-textContent e))))
                (fn [e]
                  (is (= 'foo (.test e 'foo)))))))
+
+(deftest shadow-test
+  (rendering (-> (dom/div "Hello World")
+                 (wc/shadow {:mode "open"}))
+             (fn [e]
+               (is (some? (.-shadowRoot e)))
+               (is (= "DIV" (.-tagName (.-firstChild (.-shadowRoot e)))))
+               (is (= "Hello World" (.-textContent (.-firstChild (.-shadowRoot e)))))))
+  (rendering (-> (dom/div "Hello World")
+                 (wc/shadow {:mode "closed"}))
+             (fn [e]
+               (is (nil? (.-shadowRoot e)))
+               (is (nil? (.-firstChild e))))))

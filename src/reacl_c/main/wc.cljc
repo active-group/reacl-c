@@ -8,12 +8,12 @@
             [active.clojure.lens :as lens]))
 
 ;; TODO: extending existing elements?
-(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties methods])
+(defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties methods shadow-init])
 
 (defn base [item & [initial-state]]
-  (WebComponent. item initial-state nil nil nil nil nil {} {}))
+  (WebComponent. item initial-state nil nil nil nil nil {} {} nil))
 
-(defn ^:no-doc lift [item]
+(defn- lift [item]
   (if (instance? WebComponent item)
     item
     (base item)))
@@ -96,7 +96,9 @@
   (defn mutator-method [wc method f]
     (method wc method (f/partial g f))))
 
-;; TODO (defn shadow-root [wc])
+(defn shadow [wc init]
+  (assoc (lift wc) :shadow-init init))
+
 ;; TODO: event util.
 
 (defrecord ^:private Event [f args])
@@ -105,7 +107,7 @@
 (c/defn-effect ^:private set-atom [a value]
   (reset! a value))
 
-(defn ^:no-doc wrap [item]
+(defn- wrap [item]
   (->> item
        (c/handle-message (fn [state msg]
                            (cond
@@ -180,7 +182,7 @@
            (when f (apply call-handler-wc class this f args)))))))
 
 #?(:cljs
-   (defn property-wc [class [property-name descriptor]]
+   (defn- property-wc [class [property-name descriptor]]
      ;; Note: for more hot code reload, we might lookup descriptor in the definition, but that would be slower.
      (let [{get :get set :set} descriptor
            js-descriptor (clj->js (dissoc descriptor :get :set :value))]
@@ -211,15 +213,19 @@
              @result)))))
 
 #?(:cljs
-   (defn method-wc [class f]
+   (defn- method-wc [class f]
      (fn [& args]
        (this-as this (call-method-wc class this f args)))))
 
 #?(:cljs
-   (defn prototype-of [tag-or-class]
+   (defn- prototype-of [tag-or-class]
      (if (string? tag-or-class)
        (js/Object.getPrototypeOf (js/document.createElement tag-or-class))
        (.-prototype tag-or-class))))
+
+#?(:cljs
+   (defn- attach-shadow-root [element init]
+     (.attachShadow element (clj->js init))))
 
 #?(:cljs
    (defn- new-wc []
@@ -235,9 +241,13 @@
                                      (fn []
                                        (this-as ^js this
                                          ;; Note: we cannot render before 'connected event'.
+                                         ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
                                          (let [wc (.-definition ctor)]
                                            (set! (.-app this)
-                                                 (main/run this (wrap (:item wc)) {:initial-state (:initial-state wc)})))
+                                                 (main/run (if-let [init (:shadow-init wc)]
+                                                             (attach-shadow-root this init)
+                                                             this)
+                                                   (wrap (:item wc)) {:initial-state (:initial-state wc)})))
                                          (.call user this))))
                 :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
                 :adoptedCallback (lifecycle-method-wc ctor :adopted)
