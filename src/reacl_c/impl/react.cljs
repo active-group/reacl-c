@@ -163,6 +163,15 @@
   (ReactApplication. (r0/render-component (react-run item state onchange onaction nil nil)
                                           dom)))
 
+(defrecord RRef [ref]
+  base/Ref
+  (-deref-ref [_] (.-current ref)))
+
+(defn native-ref [v]
+  (if (instance? RRef v)
+    (:ref v)
+    v))
+
 ;; items
 
 (r0/defclass dynamic
@@ -357,7 +366,8 @@
                          f args])))
 
 (defn- native-dom [type binding attrs ref children]
-  (apply r0/dom-elem type (assoc attrs :ref ref) (map #(render-child % binding) children)))
+  ;; Note: because we sometimes set a ref directly in the dom attributes (see c/refer), the ref may still be a RRef object here - not very clean :-/
+  (apply r0/dom-elem type (assoc attrs :ref (native-ref ref)) (map #(render-child % binding) children)))
 
 (defn- event-handler [current-events call-event-handler! capture?]
   (fn [ev]
@@ -431,10 +441,6 @@
   IReact
   (-instantiate-react [{e :e key :key} binding ref]
     (r0/elem id key nil [binding ref e])))
-
-(defrecord RRef [ref]
-  base/Ref
-  (-deref-ref [_] (.-current ref)))
 
 (r0/defclass with-ref
   "getInitialState" (fn [this] {:ref (RRef. (r0/create-ref))})
