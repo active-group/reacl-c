@@ -12,7 +12,7 @@
   (let [tag (if (string? wc-or-name)
               wc-or-name
               (let [s (name (gensym "main-wc-test"))]
-                (wc/define-wc* s wc-or-name)
+                (wc/define-wc! s wc-or-name)
                 s))
         e (js/document.createElement tag)]
     (when before-mount (before-mount e))
@@ -96,15 +96,15 @@
 (deftest method-test
   (testing "after mount"
     (rendering (-> (wc/base (c/dynamic str) 41)
-                   (wc/method :test (fn [state return a]
-                                      (c/return :state (inc state)
-                                                :action (return a)))))
+                   (wc/method "test" (fn [state return a]
+                                       (c/return :state (inc state)
+                                                 :action (return a)))))
                (fn [e]
                  (is (= 'foo (.test e 'foo)))
                  (is (= "42" (.-textContent e))))))
   (testing "before mount"
     (rendering (-> (wc/base (c/dynamic str) 41)
-                   (wc/method :test (fn [state return a]
+                   (wc/method "test" (fn [state return a]
                                       (c/return :state (inc state)
                                                 :action (return a)))))
                (fn [e]
