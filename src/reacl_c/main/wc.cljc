@@ -7,7 +7,13 @@
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
 
-;; TODO: extending existing elements?
+;; Note: extending existing elements, as well as having custom
+;; elements with child markup, is probably not what people want to do
+;; here - it's the reacl-c item that does the rendering; One might
+;; want to use a different web-component library for that.
+
+;; TODO: extract a general purpose web component library from this and use it?
+
 (defrecord ^:private WebComponent [item initial-state connected disconnected adopted observed-attributes attribute-changed properties methods shadow-init])
 
 (defn base [item & [initial-state]]
@@ -134,28 +140,28 @@
 (let [dispatch-event!-f (base/effect-f (dispatch-event!* nil nil))]
   (defn- wrap [element item]
     (as-> item $
-      (c/handle-effect $ (fn [state a]
+      (c/handle-effect $ (fn [state e]
                            ;; we want the user to just emit an effect
                            ;; (dispatch-event! event), so we have to
                            ;; sneak the element reference into the
                            ;; effect, so that they can still use
                            ;; handle-effect-result, which wraps it in
                            ;; a composed-effect. ...slightly hacky.
-                           (let [repl (fn [e]
-                                        (if (= dispatch-event!-f (base/effect-f e))
-                                          (let [[event target-atom] (base/effect-args e)]
-                                            (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
-                                          e))]
-                             (c/return :action
-                                       (if (base/composed-effect? a)
-                                         (base/map-composed-effect a repl)
-                                         (repl a))))))
+                           (let [repl (fn repl [e]
+                                        (if (base/composed-effect? e)
+                                          (base/map-composed-effect e repl)
+                                          (if (= dispatch-event!-f (base/effect-f e))
+                                            (let [[event target-atom] (base/effect-args e)]
+                                              (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
+                                            e)))]
+                             (c/return :action (repl e)))))
       (c/handle-message (fn [state msg]
                           (condp instance? msg
                             HandleEvent (apply (:f msg) state (:args msg))
                             HandleAccess (c/return :action (set-atom! (:result msg) (apply (:f msg) state (:args msg))))
-                            ;; TODO: else forward to item?
-                            ))
+                            ;; other messages should be impossible, as noone can refer to the result of this.
+                            (do (assert false (str "Unexpected message received in web component: " (pr-str msg)))
+                                (c/return))))
                         $))))
 
 (let [set-atom-f (base/effect-f (set-atom! nil nil))]

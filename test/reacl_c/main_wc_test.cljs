@@ -125,7 +125,7 @@
                (is (nil? (.-shadowRoot e)))
                (is (nil? (.-firstChild e))))))
 
-(deftest dispatch-event-test
+(deftest dispatch-event-test-1
   (let [result (atom nil)]
     (async done
            (rendering-async
@@ -139,3 +139,18 @@
             (fn [^js/HTMLElement e]
               (.addEventListener e "foo" (fn [ev]
                                            (reset! result (.-detail ev)))))))))
+
+(deftest dispatch-event-test-2
+  (let [result (atom nil)]
+    (async done
+           (rendering-async
+            (dom/div (c/handle-effect-result (fn [state res]
+                                               (reset! result res)
+                                               state)
+                                             (wc/dispatch-event! (wc/event "foo" {:detail ::x}))))
+            (fn [e cleanup]
+              (js/setTimeout (fn []
+                               (cleanup)
+                               (is (= true @result)) ;; = not cancelled
+                               (done))
+                             5))))))
