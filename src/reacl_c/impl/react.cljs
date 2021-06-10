@@ -172,6 +172,11 @@
     (:ref v)
     v))
 
+(defn native-deref [v]
+  (if (satisfies? base/Ref v)
+    (base/-deref-ref v)
+    (.-current v)))
+
 ;; items
 
 (r0/defclass dynamic
@@ -378,20 +383,81 @@
   [(event-handler current-events call-event-handler! false)
    (event-handler current-events call-event-handler! true)])
 
-(def dom-class
-  (let [dom-events (fn [this]
-                     (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
-                       events))
-        call! (fn [this f ev]
-                (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
-                  (call-event-handler! binding f ev)))
-        event-fns (fn [this events]
-                    (let [[handler capture-handler] (:event-handlers (r0/get-state this))]
-                      (into {}
-                            (map (fn [[k h]]
-                                   [k (when (some? h)
-                                        (if (dom0/capture-event? k) capture-handler handler))])
-                                 events))))]
+(let [dom-events (fn [this]
+                   (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
+                     events))
+      call! (fn [this f ev]
+              (let [[binding attrs ref events children] (r0/extract-args (.-props this))]
+                (call-event-handler! binding f ev)))
+      event-fns (fn [events handlers]
+                  (let [[handler capture-handler] handlers]
+                    (into {}
+                          (map (fn [[k h]]
+                                 [k (when (some? h)
+                                      (if (dom0/capture-event? k) capture-handler handler))])
+                               events))))
+      event-name (memoize (fn [k]
+                            (let [s (name k)]
+                              (assert (str/starts-with? s "on"))
+                              (str/lower-case (subs s 2)))))
+
+      add-event-listeners (fn [elem events]
+                            (doseq [[k f] events]
+                              (.addEventListener elem (event-name k) f)))
+      remove-event-listeners (fn [elem events]
+                               (doseq [[k f] events]
+                                 (.removeEventListener elem (event-name k) f)))]
+
+  ;; 'dom-class' uses React functinality; 'custom-dom-class' is even more native, and
+  ;; required to use web component properties and custom events in a 'standard' way.
+  
+  (def custom-dom-class
+    (memoize (fn [type]
+               (r0/class (str "reacl-c.custom-dom/" type)
+                         $handle-message (message-deadend type)
+                         "getInitialState" (fn [this] {:a-ref (RRef. (r0/create-ref))
+                                                       :event-handlers (event-handlers (f/partial dom-events this)
+                                                                                       (f/partial call! this))})
+
+                         "componentDidMount"
+                         (fn [this]
+                           (let [state (r0/get-state this)
+                                 [_ _ ref events _] (r0/get-args this)
+                                 elem (native-deref (or ref (:a-ref state)))]
+                             (add-event-listeners elem (event-fns events (:event-handlers state)))))
+
+                         "componentDidUpdate"
+                         (fn [this prev-props prev-st]
+                           (let [prev-state (r0/extract-state prev-st)
+                                 [_ _ prev-ref prev-events _] (r0/extract-args prev-props)
+                                 
+                                 new-state (r0/get-state this)
+                                 [_ _ new-ref new-events _] (r0/get-args this)
+
+                                 prev-elem (native-deref (or prev-ref (:a-ref prev-state)))
+                                 new-elem (native-deref (or new-ref (:a-ref new-state)))]
+                             ;; ...could make a diff old/new here as an optimization... (elem will usually be the same)
+                             (remove-event-listeners prev-elem (event-fns prev-events (:event-handlers prev-state)))
+                             (add-event-listeners new-elem (event-fns new-events (:event-handlers new-state)))))
+
+                         "componentWillUnmount"
+                         (fn [this]
+                           (let [state (r0/get-state this)
+                                 [_ _ ref events _] (r0/get-args this)
+                                 elem (native-deref (or ref (:a-ref state)))]
+                             (remove-event-listeners elem (event-fns events (:event-handlers state)))))
+                         
+                         "render" (fn [this]
+                                    (let [[binding attrs ref events children] (r0/get-args this)]
+                                      ;; we render
+                                      (native-dom type
+                                                  binding
+                                                  ;; TODO: try to look at goog.object.getAllPropertyName(this) - goog.object.getAllPropertyNames("div"), and set those as properties instead of attributes.
+                                                  attrs ;; Note: no events added here
+                                                  (or ref (:a-ref (r0/get-state this)))
+                                                  children)))))))
+  
+  (def dom-class
     (memoize (fn [type]
                (r0/class (str "reacl-c.dom/" type)
                          $handle-message (message-deadend type)
@@ -402,19 +468,23 @@
                                       (native-dom type
                                                   binding
                                                   (-> attrs
-                                                      (merge (event-fns this events)))
+                                                      (merge (event-fns events (:event-handlers (r0/get-state this)))))
                                                   ref
                                                   children))))))))
 
 (extend-type dom-base/Element
   IReact
-  (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref]
+  (-instantiate-react [{type :type custom? :custom? attrs :attrs events :events ref :ref children :children} binding c-ref]
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
     ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
-    (if (or (not (empty? events))
-            (and dev-mode? (some? c-ref)))
+    (cond
+      custom? (r0/elem (custom-dom-class type) c-ref [binding attrs ref events children])
+
+      (or (not (empty? events))
+          (and dev-mode? (some? c-ref)))
       (r0/elem (dom-class type) c-ref [binding attrs ref events children])
-      (native-dom type binding attrs ref children))))
+
+      :else (native-dom type binding attrs ref children))))
 
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")

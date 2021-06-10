@@ -468,7 +468,7 @@
             ;; a) add custom event handler with `:onFoo`  (TODO: I think even standard events don't work, like :onChange)
             ;; b) any custom `:foo` attributes is set as an attribute on the element; never as a property. So only strings are possible.
             ;; Any of those have to be set/added on the native element (in a sourrounding componentDidMount)
-            (apply dom/dom-element name args)))]
+            (apply dom/custom name args)))]
   (defn use
     "Registers the given web component under a unique name, and
   returns an item using that component. This can be especially useful

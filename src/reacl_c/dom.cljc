@@ -46,19 +46,32 @@
                        attrs)]
         [(persistent! attrs) (persistent! events)]))))
 
-(defn- dom-element* [type attrs events & children]
+(defn- dom-element* [type custom? attrs events & children]
   {:pre [(string? type)
          (map? attrs)
          (map? events)
          (every? #(or (ifn? %) (nil? %)) (vals events))
          (base/assert-item-list type children)]}
-  (dom-base/make-element type attrs events nil children))
+  (dom-base/make-element type custom? attrs events nil children))
 
-(defn ^:no-doc dom-element [type & args]
+(defn ^:no-doc dom-element** [custom? type & args]
   {:pre [(string? type)]}
   (let [[attrs_ & children] (analyze-dom-args args)
         [attrs events] (split-events attrs_)]
-    (apply dom-element* type attrs events children)))
+    (apply dom-element* type custom? attrs events children)))
+
+(defn ^:no-doc dom-element [type & args]
+  (apply dom-element** false type args))
+
+(defn custom
+  "Returns a DOM item of the specified `type`, which is intended to be
+  the name of a custom web component element registered
+  before. Arguments are the same as the specific DOM functions,
+  like [[div]], but events are handled outside of the React
+  framework. That enables to define a handler for an event of type
+  \"myevent\" as `:onMyEvent` for example."
+  [type & args]
+  (apply dom-element** true type args))
 
 (defn- dom-function [type]
   {:pre [(string? type)]}
@@ -122,6 +135,7 @@
           (reduce-kv (fn [res k v]
                        (case k
                          ;; merge class names
+                         ;; Note, allegedly: "the styles are applied in the order they are declared in the document, the order they are listed in the element has no effect."
                          (:class :className)
                          (-> res
                              (dissoc :class :className)
