@@ -451,21 +451,30 @@
     (let [p (.-prototype f)]
       (doseq [[m-name impl] (:methods wc)]
         (aset p m-name (method-wc f impl))))
-    
-    ;; return a function [attrs & children] that returns an item using the component, because why not.
-    (f/partial dom/dom-element name)))
+    nil))
 
 (c/defn-effect ^:private gen-name []
   (name (gensym "reacl-c-web-component")))
 
-(let [f (fn [name wc args]
-          (when name (apply (define! name wc) args)))]
+(c/defn-effect ^:private define-it! [wc name]
+  (define! name wc)
+  name)
+
+(defn- snd [a b] b)
+
+(let [f (fn [name args]
+          (when name
+            ;; Note: although React can use web components via 'dom-element', you cannot
+            ;; a) add custom event handler with `:onFoo`  (TODO: I think even standard events don't work, like :onChange)
+            ;; b) any custom `:foo` attributes is set as an attribute on the element; never as a property. So only strings are possible.
+            ;; Any of those have to be set/added on the native element (in a sourrounding componentDidMount)
+            (apply dom/dom-element name args)))]
   (defn use
     "Registers the given web component under a unique name, and
   returns an item using that component. This can be especially useful
   during development of a web component."
     [wc & args]
-    ;; TODO: maybe use a new name, when wc changed/changed cannot be hot reloaded.
     (c/isolate-state nil
-                     (c/fragment (c/handle-effect-result identity (gen-name))
-                                 (c/dynamic f wc args)))))
+                     (c/fragment (c/handle-effect-result snd
+                                                         (c/seq-effects (gen-name) (f/partial define-it! wc)))
+                                 (c/dynamic f args)))))
