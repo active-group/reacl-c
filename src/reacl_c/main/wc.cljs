@@ -99,7 +99,7 @@
 (defn data-property
   "Adds a data property the the given web component, with the given
   default value. Options can be `:writable`, `:configurable` and
-  `:enumerable` according to `js/Object.setProperty`."
+  `:enumerable` according to `js/Object.defineProperty`."
   [wc property value & [options]]
   (raw-property wc property (assoc options :value value)))
 
@@ -110,7 +110,7 @@
   property value, and the `set` function is called on the current
   state and the new value, and must return a new state or
   a [[reacl-c.core/return]] value. Options can be `:configurable` and
-  `:enumerable` according to `js/Object.setProperty`."
+  `:enumerable` according to `js/Object.defineProperty`."
   [wc property get & [set options]]
   (raw-property wc property (assoc options :get get :set set)))
 
@@ -125,12 +125,14 @@
   state. Alternatively a lens can be specified for other kinds of
   state values. If the option `:read-only?` is set to true, no setter
   is defined for the property. Other options can be `:configurable` and
-  `:enumerable` according to `js/Object.setProperty`."
+  `:enumerable` according to `js/Object.defineProperty`."
     [wc property & [lens options]]
     (assert (or (string? property) (keyword? property)))
     (assert (or (keyword? property) (some? lens)))
     (let [lens (or lens
-                   (when (keyword? property) property))]
+                   (if (keyword? property)
+                     property
+                     (lens/member property)))]
       (accessor-property wc
                          (if (keyword? property) (name property) property)
                          (f/partial get lens)
