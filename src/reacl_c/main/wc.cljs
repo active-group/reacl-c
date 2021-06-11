@@ -196,18 +196,18 @@
 (defrecord ^:private Event [type options])
 
 (defn event
-  "Return an object to be used with [[dispatch-event!]], contains the
+  "Return an object to be used with [[dispatch]], contains the
   type and options for a DOM event. Options are `:bubbles`,
   `:cancelable` `:composed` according the the constructor of a
   `js/Event`. If the options contain the key `:detail`, then a
   `js/CustomEvent` is created."
   [type & [options]]
-  (assert (string? type))
+  (assert (string? type) (str "Event type must be a string, got: " (pr-str type)))
   ;; options :bubbles, :cancelable, :composed, :detail
   (Event. type options))
 
 (defn- really-dispatch-event! [target event]
-  (assert (some? target) "No target set; dispatch-event! can only be used for a web component.")
+  (assert (some? target) "No target set; dispatch can only be used within a web component.")
   (let [type (:type event)
         options (:options event)
         init (clj->js (dissoc options :detail))
@@ -217,13 +217,13 @@
                    (new js/Event type init))]
     (.dispatchEvent target js-event)))
 
-(c/defn-effect ^:private dispatch-event!* [event target-atom]
+(c/defn-effect ^:private dispatch* [event target-atom]
   (really-dispatch-event! @target-atom event))
 
 (c/defn-effect ^:private new-atom! []
   (atom nil))
 
-(defn dispatch-event!
+(defn dispatch
   "Returns an action effect that will dispatch the given event when
   executed. Must be used from the item that implements a web component
   only, which is set as the target of the event. See [[event]] to
@@ -231,7 +231,7 @@
   [event]
   (assert (instance? Event event))
   (c/seq-effects (new-atom!)
-                 (f/partial dispatch-event!* event)))
+                 (f/partial dispatch* event)))
 
 (defrecord ^:private HandleEvent [f args])
 (defrecord ^:private HandleAccess [f args result])
@@ -239,7 +239,7 @@
 (c/defn-effect ^:private set-atom! [a value]
   (reset! a value))
 
-(let [dispatch-event!-f (base/effect-f (dispatch-event!* nil nil))]
+(let [dispatch-f (base/effect-f (dispatch* nil nil))]
   (defn- wrap [element attributes item-f]
     (let [attrs (->> attributes
                      (map (fn [[name key]]
@@ -250,7 +250,7 @@
       (as-> (item-f attrs) $
         (c/handle-effect $ (fn [state e]
                              ;; we want the user to just emit an effect
-                             ;; (dispatch-event! event), so we have to
+                             ;; (dispatch event), so we have to
                              ;; sneak the element reference into the
                              ;; effect, so that they can still use
                              ;; handle-effect-result, which wraps it in
@@ -258,7 +258,7 @@
                              (let [repl (fn repl [e]
                                           (if (base/composed-effect? e)
                                             (base/map-composed-effect e repl)
-                                            (if (= dispatch-event!-f (base/effect-f e))
+                                            (if (= dispatch-f (base/effect-f e))
                                               (let [[event target-atom] (base/effect-args e)]
                                                 (c/seq-effects (set-atom! target-atom element) (f/constantly e)))
                                               e)))]
@@ -342,7 +342,8 @@
                                   (this-as this (access-wc class this get)))))
     (when (some? (:set descriptor))
       (aset js-descriptor "set" (fn [value]
-                                  (this-as this (call-handler-wc class this set value)))))
+                                  (this-as this
+                                    (call-handler-wc class this set value)))))
     (when (contains? descriptor :value)
       (aset js-descriptor "value" (:value descriptor)))
     [property-name js-descriptor]))
@@ -387,7 +388,7 @@
              (fn []
                (let [wc (.-definition ctor)]
                  (this-as this
-                   (set! (.-app ^js this)
+                   (set! (.-app ^js this) ;; TODO: prefix "app" with something; and maybe hide it (make non-enumerable)
                          (main/run (if-let [init (:shadow-init wc)]
                                      (attach-shadow-root this init)
                                      this)
