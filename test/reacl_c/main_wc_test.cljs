@@ -170,22 +170,38 @@
                                  (is (= "42" @event-res))
                                  (done))
                                1))))))
+
+  ;; Note: Setting properties via element props is not reasonable in
+  ;; the general case; property setters and getters can have side
+  ;; effects; some properties can only be set after mount; how should
+  ;; diffing work (with the previous value set, with the current value
+  ;; of the property; delete a property or reset to 'undefined'?;
+  ;; etc.) It might make some sense for 'attribute like properties',
+  ;; but it's also difficould for our web components, which allow
+  ;; properties to change the state of the web component, which is not
+  ;; possible before the item is fully mounted (uses
+  ;; send-message/setState internally).
   
+  ;; Note: The React community has a very long discussion history
+  ;; about that too and no agreement; there might be something
+  ;; upcoming in React 18 or 19.  See:
+  ;; https://github.com/facebook/react/issues/11347
+
   #_(testing "properties from props"
-    (let [pval (atom nil)
-          wc (-> (fn [attrs]
-                   (c/with-state-as state
-                     (reset! pval (:y state))
-                     (dom/div)))
-                 (wc/property :y))]
-      (async done
-             (rendering-async
-              "div"
-              (fn [e cleanup]
-                (main/run e
-                  (wc/use wc {:y '42}))
-                (js/setTimeout (fn []
-                                 (cleanup)
-                                 (is (= '42 @pval))
-                                 (done))
-                               1)))))))
+      (let [pval (atom nil)
+            wc (-> (fn [attrs]
+                     (c/with-state-as state
+                       (reset! pval (:y state))
+                       (dom/div)))
+                   (wc/property :y))]
+        (async done
+               (rendering-async
+                "div"
+                (fn [e cleanup]
+                  (main/run e
+                    (wc/use wc {:y '42}))
+                  (js/setTimeout (fn []
+                                   (cleanup)
+                                   (is (= '42 @pval))
+                                   (done))
+                                 1)))))))

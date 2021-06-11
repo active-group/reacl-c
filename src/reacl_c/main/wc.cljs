@@ -465,10 +465,7 @@
 
 (let [f (fn [name args]
           (when name
-            ;; Note: although React can use web components via 'dom-element', you cannot
-            ;; a) add custom event handler with `:onFoo`  (TODO: I think even standard events don't work, like :onChange)
-            ;; b) any custom `:foo` attributes is set as an attribute on the element; never as a property. So only strings are possible.
-            ;; Any of those have to be set/added on the native element (in a sourrounding componentDidMount)
+            ;; Note: unlike dom/dom-element, dom/custom allows for event handlers (anything that starts with ':on'), which React itself ignores.
             (apply dom/custom name args)))]
   (defn use
     "Registers the given web component under a unique name, and
