@@ -430,7 +430,8 @@
                                  (.removeEventListener elem (event-name k) f)))]
 
   ;; 'dom-class' uses React functinality; 'custom-dom-class' is even more native, and
-  ;; required to use web component properties and custom events in a 'standard' way.
+  ;; required to use web component custom events in a 'standard' way.
+  ;; settings properties is not meaningful generally - /maybe/ for data properties (see Object.getOwnPropertyDescriptor)
   
   (def custom-dom-class
     (memoize (fn [type]
@@ -473,7 +474,6 @@
                                       ;; we render
                                       (native-dom type
                                                   binding
-                                                  ;; TODO: try to look at goog.object.getAllPropertyName(this) - goog.object.getAllPropertyNames("div"), and set those as properties instead of attributes.
                                                   attrs ;; Note: no events added here
                                                   (or ref (:a-ref (r0/get-state this)))
                                                   children)))))))
