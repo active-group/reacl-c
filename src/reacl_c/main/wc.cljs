@@ -316,8 +316,20 @@
         (set! (.-definition class)
               (assoc wc :initial-state state))))))
 
+(defonce ^:private internal-name-suffix (str (random-uuid)))
+
+(defn- internal-name [prefix]
+  (str prefix "$" internal-name-suffix))
+
+(let [n (internal-name "reacl_c_app")]
+  (defn- set-app! [element app]
+    (aset element n app))
+
+  (defn- get-app [element]
+    (aget element n)))
+
 (defn- call-handler-wc [class ^js this f & args]
-  (let [app (.-app this)]
+  (let [app (get-app this)]
     ;; an attribute change (not also other events), may occur
     ;; before the connected event (the element is mounted), in
     ;; which case we don't have a running app yet; in that
@@ -328,7 +340,7 @@
       (eval-event-unmounted class f args))))
 
 (defn- access-wc [class ^js this f & args]
-  (let [app (.-app this)]
+  (let [app (get-app this)]
     ;; if it's called before mount, we have no app yet, and access the initial-state instead.
     (if (some? app)
       ;; as of now, event handling is synchronous - if that
@@ -367,7 +379,7 @@
   (let [result (atom nil)
         ;; extra first arg: an action to return the result of the method.
         full-args (cons (f/partial set-atom! result) args)
-        app (.-app this)]
+        app (get-app this)]
     (if (some? app)
       ;; as of now, event handling is synchronous
       (do
@@ -389,50 +401,54 @@
 (defn- attach-shadow-root [element init]
   (.attachShadow element (clj->js init)))
 
-(defn- new-wc []
-  ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
-  (let [super (prototype-of js/HTMLElement) 
-        ctor (fn ctor []
-               ;; = super()
-               (let [this (js/Reflect.construct js/HTMLElement (to-array nil) ctor)]
-                 this))
-           
-        prototype
-        #js {:__update
-             (fn []
-               (let [wc (.-definition ctor)]
-                 (this-as this
-                   (set! (.-app ^js this) ;; TODO: prefix "app" with something; and maybe hide it (make non-enumerable)
-                         (main/run (if-let [init (:shadow-init wc)]
-                                     (attach-shadow-root this init)
-                                     this)
-                           (wrap this (:attributes wc) (:item-f wc)) {:initial-state (:initial-state wc)})))))
-             :connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
-                                  (fn []
-                                    (this-as ^js this
-                                      ;; Note: we cannot render before the 'connected event'.
-                                      ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
-                                      (.__update this)
-                                      (.call user this))))
-             :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
-             :adoptedCallback (lifecycle-method-wc ctor :adopted)
-             :attributeChangedCallback (fn [attr old new]
-                                         ;; we always rerender, where all current attribute values are read.
-                                         (this-as ^js this
-                                           (.__update this)))}]
-       
-    (js/Object.setPrototypeOf prototype super)
-    (set! (.-prototype ctor) prototype)
+(let [update! (fn [this ctor]
+                (let [wc (.-definition ctor)]
+                  (set-app! this
+                            (main/run (if-let [init (:shadow-init wc)]
+                                        (attach-shadow-root this init)
+                                        this)
+                              (wrap this (:attributes wc) (:item-f wc)) {:initial-state (:initial-state wc)}))))]
+  (defn- new-wc []
+    ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
+    (let [super (prototype-of js/HTMLElement) 
+          ctor (fn ctor []
+                 ;; = super()
+                 (let [this (js/Reflect.construct js/HTMLElement (to-array nil) ctor)]
+                   this))
+        
+          prototype
+          #js {:connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
+                                    (fn []
+                                      (this-as ^js this
+                                        ;; Note: we cannot render before the 'connected event'.
+                                        ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
+                                        (update! this ctor)
+                                        (.call user this))))
+               :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
+               :adoptedCallback (lifecycle-method-wc ctor :adopted)
+               :attributeChangedCallback (fn [attr old new]
+                                           ;; we always rerender, where all current attribute values are read.
+                                           (this-as ^js this
+                                             (update! this ctor)))}]
 
-    ;; static methods
-    (js/Object.defineProperty ctor "observedAttributes"
-                              ;; Note: might be called by the browser only once; so no hot code reload for this.
-                              #js {:get (fn []
-                                          ;; we always observe all declared attributes
-                                          (let [wc (.-definition ctor)]
-                                            (let [as (map first (:attributes wc))]
-                                              (to-array as))))})
-    ctor))
+      ;; Note: Chrome and Firefox seem to completely ignore enumerable: false :-/
+      (js/Object.defineProperty property (internal-name "app")
+                                #js {:value nil
+                                     :writable true
+                                     :enumerable false})
+      
+      (js/Object.setPrototypeOf prototype super)
+      (set! (.-prototype ctor) prototype)
+
+      ;; static methods
+      (js/Object.defineProperty ctor "observedAttributes"
+                                ;; Note: might be called by the browser only once; so no hot code reload for this.
+                                #js {:get (fn []
+                                            ;; we always observe all declared attributes
+                                            (let [wc (.-definition ctor)]
+                                              (let [as (map first (:attributes wc))]
+                                                (to-array as))))})
+      ctor)))
 
 (defn- get-native-wc
   [n]
