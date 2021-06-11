@@ -147,10 +147,12 @@
   (fn [this msg]
     (send-message-react-ref! (:ref (r0/get-state this)) msg)))
 
-(defrecord ^:private ReactApplication [comp]
-  base/Application  
+(defrecord ^:private ReactApplication [current-comp message-queue]
+  base/Application
   (-send-message! [this msg callback]
-    (send-message! comp msg callback)))
+    (if-let [comp @current-comp]
+      (send-message! comp msg callback)
+      (swap! message-queue conj [msg callback]))))
 
 (defn react-send-message!
   [comp msg & [callback]]
@@ -160,8 +162,27 @@
   (r0/elem toplevel key ref [item state onchange onaction]))
 
 (defn run [dom item state onchange onaction]
-  (ReactApplication. (r0/render-component (react-run item state onchange onaction nil nil)
-                                          dom)))
+  ;; Note: that render-component returns the component is legacy in
+  ;; React. It actually returns nil when this is used within anothing
+  ;; component (React in React, so to say).  Not sure if this is the
+  ;; best solution, but for now we queue messages until a callback ref
+  ;; is set (alternatively run would need a callback, which marks the
+  ;; point in time when send-messages/setStates are possible)
+  (let [message-queue (atom [])
+        current-comp (atom nil)
+        callback-ref (fn [current]
+                       (reset! current-comp current)
+                       (when-let [msgs (and (some? current)
+                                            (not-empty @message-queue))]
+                         (doseq [[msg callback] msgs]
+                           (send-message! current msg callback))))]
+    ;; 
+    (when-let [comp (r0/render-component (react-run item state onchange onaction callback-ref nil)
+                                         dom)]
+      (reset! current-comp comp))
+    ;; Damn it, when running an item from within the rendering of another react element (like using a web component),
+    ;; comp may actually return null - https://reactjs.org/docs/react-dom.html#render
+    (ReactApplication. current-comp message-queue)))
 
 (defrecord RRef [ref]
   base/Ref
