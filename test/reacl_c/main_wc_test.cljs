@@ -2,6 +2,7 @@
   "Test interop with Web Components"
   (:require [reacl-c.main.wc :as wc]
             [reacl-c.main-browser-test :as btest]
+            [reacl-c.main :as main]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
             [reacl-c.test-util.dom-testing :as dom-testing]
@@ -148,3 +149,43 @@
                                (is (= true @result)) ;; = not cancelled
                                (done))
                              5))))))
+
+(deftest use-custom-element-test
+  (testing "attributes and events"
+    (let [event-res (atom nil)
+          wc (-> (fn [attrs]
+                   (c/init (c/return :action (wc/dispatch (wc/event "foo" {:detail (:x attrs)})))))
+                 (wc/attribute :x))]
+      (async done
+             (rendering-async
+              "div"
+              (fn [e cleanup]
+                (main/run e
+                  (wc/use wc {:x "42"
+                              :onFoo (fn [st ev]
+                                       (reset! event-res (.-detail ev))
+                                       st)}))
+                (js/setTimeout (fn []
+                                 (cleanup)
+                                 (is (= "42" @event-res))
+                                 (done))
+                               1))))))
+  
+  #_(testing "properties from props"
+    (let [pval (atom nil)
+          wc (-> (fn [attrs]
+                   (c/with-state-as state
+                     (reset! pval (:y state))
+                     (dom/div)))
+                 (wc/property :y))]
+      (async done
+             (rendering-async
+              "div"
+              (fn [e cleanup]
+                (main/run e
+                  (wc/use wc {:y '42}))
+                (js/setTimeout (fn []
+                                 (cleanup)
+                                 (is (= '42 @pval))
+                                 (done))
+                               1)))))))
