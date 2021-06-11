@@ -304,7 +304,7 @@
 
 (extend-type dom-base/Element
   IReacl
-  (-xpath-pattern [{type :type attrs :attrs events :events ref :ref children :children}]
+  (-xpath-pattern [{type :type attrs :attrs custom? :custom? events :events ref :ref children :children}]
     (let [children (flatten-children children)]
       (xp/comp
        ;; match the tag, or the tag below the matching wrapper class.
@@ -343,7 +343,8 @@
                                       (xp/comp (xp/first-where (xp/not xp/class?))
                                                child-match))))
                    (xp/count= (count children))))))))
-  (-instantiate-reacl [{type :type attrs :attrs events :events ref :ref children :children} binding]
+  (-instantiate-reacl [{type :type attrs :attrs custom? :custom? events :events ref :ref children :children} binding]
+    (assert (not custom?) "Custom dom element not implemented in Reacl backend yet")
     [(apply dom binding type attrs events ref children)]))
 
 (extend-type base/Fragment
