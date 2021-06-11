@@ -86,6 +86,12 @@
             (if (keyword? attr) (name attr) attr)
             (if (nil? key) attr key))))
 
+(defn attributes
+  "Adds several simple attributes to the given web component, as
+  multiple calls to [[attribute]] would."
+  [wc & attrs]
+  (reduce attribute wc attrs))
+
 (defn ^:no-doc raw-property [wc property descriptor]
   (assert (string? property))
   (update (lift wc) :properties assoc property descriptor))
@@ -131,6 +137,12 @@
                          (when-not (:read-only? options)
                            (f/partial set lens))
                          (dissoc options :read-only?)))))
+
+(defn properties
+  "Adds several simple properties to the given web component, as
+  multiple calls to [[property]] would."
+  [wc & properties]
+  (reduce property wc properties))
 
 (defn method
   "Adds a custom method to the given web component.
