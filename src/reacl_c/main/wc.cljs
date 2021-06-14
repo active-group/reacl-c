@@ -609,15 +609,15 @@
                                   (c/return :state nil)))
                               (c/effect define! name wc)))))
 
-(let [f (fn [name args]
+(let [f (fn [[_ name] args]
           (when name
             ;; Note: unlike dom/dom-element, dom/custom allows for event handlers (anything that starts with ':on'), which React itself ignores.
-            (apply dom/custom name args)))]
+            (c/focus lens/first (apply dom/custom name args))))]
   (c/defn-item use
     "Registers the given web component under a unique name, and
   returns an item using that component. This can be especially useful
   during development of a web component."
     [wc & args]
-    (c/isolate-state nil
-                     (c/fragment (define-it wc)
-                                 (c/dynamic f args)))))
+    (c/local-state nil
+                   (c/fragment (c/focus lens/second (define-it wc))
+                               (c/dynamic f args)))))
