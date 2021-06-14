@@ -10,7 +10,9 @@
             [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
+            [clojure.set :as set]
             [active.clojure.functions :as f]
+            goog
             [active.clojure.lens :as lens])
   (:refer-clojure :exclude [use]))
 
@@ -22,10 +24,10 @@
 (defrecord ^:private WebComponent [item-f initial-state connected disconnected adopted attributes properties methods shadow-init])
 
 (defn- lift [v]
+  (assert (or (ifn? v) (instance? WebComponent v)))
   (if (instance? WebComponent v)
     v
-    (do (assert (ifn? v))
-        (WebComponent. v nil nil nil nil {} {} {} nil))))
+    (WebComponent. v nil nil nil nil {} {} {} nil)))
 
 (defn initial-state
   "Sets an initial state for the given web component."
@@ -300,8 +302,44 @@
                                []
                                as))))))
 
+(defonce ^:private internal-name-suffix (str (random-uuid)))
+
+(defn- internal-name [prefix]
+  (str prefix "$" internal-name-suffix))
+
+(let [n (internal-name "reacl_c_app")]
+  (def app-property-name n)
+  
+  (defn- set-app! [element app]
+    (aset element n app))
+
+  (defn- get-app [element]
+    (aget element n)))
+
+(let [n (internal-name "reacl_c_definition")]
+  (def def-property-name n)
+  
+  (defn- set-def! [class wc]
+    (aset class n wc))
+
+  (defn- get-def [class]
+    (aget class n))
+
+  (defn- has-def? [class]
+    ;; not if get-def is nil or not, but if that property is defined
+    (.hasOwnProperty class n)))
+
+(let [n (internal-name "reacl_c_instances")]
+  (def instances-property-name n)
+
+  (defn get-instances [class]
+    (or (aget class instances-property-name) #{}))
+
+  (defn update-instances! [class f & args]
+    (aset class instances-property-name (apply f (get-instances class) args))))
+
 (defn- eval-event-unmounted [class handler args]
-  (let [wc (.-definition class)
+  (let [wc (get-def class)
         state (:initial-state wc)
         ;; we 'emulate' the set-atom effect as an exception;
         ;; because that is used for methods which should work
@@ -313,20 +351,8 @@
     (assert (empty? (c/returned-messages r)) "Cannot return messages from this web component handler in the unmounted state.")
     (let [state (c/returned-state r)]
       (when (not= c/keep-state state)
-        (set! (.-definition class)
-              (assoc wc :initial-state state))))))
-
-(defonce ^:private internal-name-suffix (str (random-uuid)))
-
-(defn- internal-name [prefix]
-  (str prefix "$" internal-name-suffix))
-
-(let [n (internal-name "reacl_c_app")]
-  (defn- set-app! [element app]
-    (aset element n app))
-
-  (defn- get-app [element]
-    (aget element n)))
+        (set-def! class
+                  (assoc wc :initial-state state))))))
 
 (defn- call-handler-wc [class ^js this f & args]
   (let [app (get-app this)]
@@ -350,16 +376,10 @@
         (main/send-message! app (HandleAccess. f args result))
         (assert (not= ::fail @result) "Property access failed. Maybe message handling is not synchronous anymore?")
         @result)
-      (let [wc (.-definition class)]
+      (let [wc (get-def class)]
         (apply f (:initial-state wc) args)))))
 
-(defn ^:no-doc lifecycle-method-wc [class field]
-  (fn [& args]
-    (this-as ^js this
-      (let [f (field (.-definition class))]
-        (when f (apply call-handler-wc class this f args))))))
-
-(defn- property-wc [class [property-name descriptor]]
+(defn- property-wc [class descriptor]
   ;; Note: for more hot code reload, we might lookup descriptor in the definition, but that would be slower.
   (let [{get :get set :set} descriptor
         js-descriptor (clj->js (dissoc descriptor :get :set :value))]
@@ -372,7 +392,7 @@
                                     (call-handler-wc class this set value)))))
     (when (contains? descriptor :value)
       (aset js-descriptor "value" (:value descriptor)))
-    [property-name js-descriptor]))
+    js-descriptor))
 
 (defn- call-method-wc [class ^js this f args]
   ;; Note: for more hot code reload, we might lookup f in the definition, but that would be slower.
@@ -401,108 +421,203 @@
 (defn- attach-shadow-root [element init]
   (.attachShadow element (clj->js init)))
 
-(let [update! (fn [this ctor]
-                (let [wc (.-definition ctor)]
-                  (set-app! this
-                            (main/run (if-let [init (:shadow-init wc)]
-                                        (attach-shadow-root this init)
-                                        this)
-                              (wrap this (:attributes wc) (:item-f wc)) {:initial-state (:initial-state wc)}))))]
-  (defn- new-wc []
-    ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
-    (let [super (prototype-of js/HTMLElement) 
-          ctor (fn ctor []
-                 ;; = super()
-                 (let [this (js/Reflect.construct js/HTMLElement (to-array nil) ctor)]
-                   this))
+(defn- render! [this ctor]
+  (let [wc (get-def ctor)]
+    (assert (some? (:item-f wc)) wc)
+    (set-app! this
+              (main/run (if-let [init (:shadow-init wc)]
+                          (attach-shadow-root this init)
+                          this)
+                (wrap this (:attributes wc) (:item-f wc))
+                {:initial-state (:initial-state wc)}))))
+
+(def hot-update-enabled? goog/DEBUG)
+
+(defn- new-empty-wc []
+  ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
+  (let [super (prototype-of js/HTMLElement) 
+        ctor (fn ctor []
+               ;; = super()
+               (let [this (js/Reflect.construct js/HTMLElement (to-array nil) ctor)]
+                 (js/Object.defineProperty this app-property-name
+                                           #js {:value nil
+                                                :writable true
+                                                :enumerable false})
+                 this))
         
-          prototype
-          #js {:connectedCallback (let [user (lifecycle-method-wc ctor :connected)]
-                                    (fn []
-                                      (this-as ^js this
-                                        ;; Note: we cannot render before the 'connected event'.
-                                        ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
-                                        (update! this ctor)
-                                        (.call user this))))
-               :disconnectedCallback (lifecycle-method-wc ctor :disconnected)
-               :adoptedCallback (lifecycle-method-wc ctor :adopted)
-               :attributeChangedCallback (fn [attr old new]
-                                           ;; we always rerender, where all current attribute values are read.
-                                           (this-as ^js this
-                                             (update! this ctor)))}]
+        prototype
+        #js {:attributeChangedCallback (fn [attr old new]
+                                         ;; we always rerender, where all current attribute values are read.
+                                         (this-as ^js this
+                                           (render! this ctor)))}]
 
-      ;; Note: Chrome and Firefox seem to completely ignore enumerable: false :-/
-      (js/Object.defineProperty property (internal-name "app")
-                                #js {:value nil
-                                     :writable true
-                                     :enumerable false})
-      
-      (js/Object.setPrototypeOf prototype super)
-      (set! (.-prototype ctor) prototype)
+    (js/Object.setPrototypeOf prototype super)
+    (set! (.-prototype ctor) prototype)
 
-      ;; static methods
-      (js/Object.defineProperty ctor "observedAttributes"
-                                ;; Note: might be called by the browser only once; so no hot code reload for this.
-                                #js {:get (fn []
-                                            ;; we always observe all declared attributes
-                                            (let [wc (.-definition ctor)]
-                                              (let [as (map first (:attributes wc))]
-                                                (to-array as))))})
-      ctor)))
+    ;; statics
+    (js/Object.defineProperty ctor def-property-name
+                              #js {:value nil
+                                   :writable true
+                                   :enumerable false})
+
+    ctor))
+
+(defn- set-lifecycle-methods! [class wc]
+  (doto (.-prototype class)
+    (aset "connectedCallback"
+          (let [user (:connected wc)]
+            (fn []
+              (this-as ^js this
+                (when hot-update-enabled? (update-instances! class conj this))
+                ;; Note: we cannot render before the 'connected event'.
+                ;; Note: a shadow root can apparently be created and filled in the constructor already; but for consistency we do it here.
+                (render! this class)
+                (when user (call-handler-wc class this user))))))
+    (aset "disconnectedCallback"
+          (let [user (:disconnected wc)]
+            (if (or user hot-update-enabled?)
+              (fn []
+                (this-as ^js this
+                  (when hot-update-enabled? (update-instances! class disj this))
+                  (when user (call-handler-wc class this user))))
+              js/undefined)))
+    (aset "adoptedCallback" (if-let [user (:adopted wc)]
+                              (fn []
+                                (this-as this
+                                  (call-handler-wc class this user)))
+                              js/undefined))))
+
+(defn- list-diff [l1 l2]
+  (let [s1 (set l1)
+        s2 (set l2)]
+    [(set/difference s1 s2)
+     (set/intersection s1 s2)
+     (set/difference s2 s1)]))
+
+(defn- map-diff [m1 m2]
+  (list-diff (keys m1) (keys m2)))
+
+(defn- methods-update [prev new]
+  (let [[removed changed added] (map-diff prev new)]
+    (fn [class]
+      (let [p (.-prototype class)]
+        (doseq [m-name removed]
+          (js-delete p m-name))
+        (doseq [m-name (concat changed added)]
+          (aset p m-name (method-wc class (get new m-name))))))))
+
+(defn- properties-update [prev new]
+  (let [[removed changed added] (map-diff prev new)]
+    ;; cannot remove properties, nor change whem in general (we could change some aspects...?)
+    (when (and (empty? removed)
+               (empty? changed))
+      (fn [class]
+        (js/Object.defineProperties (.-prototype class)
+                                    (apply js-obj (mapcat (fn [n]
+                                                            [n (property-wc class (get new n))])
+                                                          added)))))))
+
+(defn- define-attributes! [class names]
+  (js/Object.defineProperty class "observedAttributes"
+                            #js {:value (to-array names)}))
+
+(defn- broadcast-rerender! [class]
+  (doseq [i (get-instances class)]
+    (render! i class)))
+
+(defn- try-update! [class wc]
+  ;; 1. connected, disconnected, adopted can always be updated; though
+  ;; connected will of course not be called again if an element is
+  ;; already used.
+  
+  ;; 2. item-f, initial-state and changed attributes require a forced
+  ;; rerendering.
+  
+  ;; 3. attributes, properties, and methods have to be diffed
+
+  ;; 4. attribute names cannot change; adding and removing attributes
+  ;; would require the browser to reevaluate 'observedAttributes' -
+  ;; does it do that? probably not.
+
+  ;; 5. shadow-init cannot change.
+
+  (if (not (has-def? class))
+    false ;; a different web component?
+    (let [prev (get-def class)]
+      ;; prev will be nil initially!
+      (if (and (some? prev)
+               ;; Not done in production:
+               (not hot-update-enabled?))
+        false
+        (let [mu (methods-update (:method prev) (:methods wc))
+              pu (properties-update (:properties prev) (:properties wc))
+              same-attrs? (= (keys (:attributes prev)) (keys (:attributes wc)))
+              same-shadow? (= (:shadow-init prev) (:shadow-init wc))]
+          (if (and mu pu (or (nil? prev) (and same-attrs? same-shadow?)))
+            (do (set-def! class wc)
+                (set-lifecycle-methods! class wc)
+            
+                (mu class)
+                (pu class)
+
+                (when (nil? prev)
+                  (define-attributes! class (keys (:attributes wc))))
+
+                ;; tell all connected instances of this class to rerender if needed;
+                ;; Note: not needed initially;
+                (when (and (some? prev)
+                           (or (not= (:attributes prev) (:attributes wc))
+                               (not= (:item-f prev) (:item-f wc))
+                               (not= (:initial-state prev) (:initial-state wc))))
+                  (broadcast-rerender! class))
+                true)
+            false))))))
+
+(defn- wc-class [wc]
+  (let [class (new-empty-wc)
+        r (try-update! class wc)]
+    (assert r "Updating a new class must succeed.")
+    class))
 
 (defn- get-native-wc
   [n]
   (js/customElements.get n))
 
 (defn define!
-  "Registers the given web component under the given name in the browser.
-
-  If a web component has beed registered with this name and this
-  library before, and unless the option `:no-hot-update?` is set, an attempt
-  is made to change the behaviour of the web component at
-  runtime. Note that not all aspects of the web component can be
-  changed at runtime, and some may require a recreation of such DOM
-  elements.
-  "
+  "Tries to register or update the given web component under the
+  given name in the browser, returning whether that succeeded."
   [name wc & [options]]
-  (let [f (if-let [f (and (not (:no-hot-update? options))
-                          (get-native-wc name))]
-            ;; trying at least some hot updates:
-            (do (assert (some? (.-definition f)) "Can only redefine components defined by this library.")
-                ;; Note: this will not update existing elements immediately (only after they update somehow; but we cannot force this here, I think)
-                (set! (.-definition f) (lift wc))
-                f)
-            (let [f (new-wc)]
-              (set! (.-definition f) (lift wc))
-              ;; properties cannot be added or remove on a hot update
-              (js/Object.defineProperties (.-prototype f) (apply js-obj (mapcat (partial property-wc f) (:properties wc))))
-              (js/customElements.define name f)
-              f))]
-    ;; Note: this will not remove methods on a hot code reload:
-    (let [p (.-prototype f)]
-      (doseq [[m-name impl] (:methods wc)]
-        (aset p m-name (method-wc f impl))))
-    nil))
+  (let [wc (lift wc)]
+    (if-let [class (get-native-wc name)]
+      (try-update! class wc)
+      (do (js/customElements.define name (wc-class wc))
+          true))))
 
 (c/defn-effect ^:private gen-name []
   (name (gensym "reacl-c-web-component")))
 
-(c/defn-effect ^:private define-it! [wc name]
-  (define! name wc)
-  name)
-
 (defn- snd [a b] b)
+
+(c/defn-item ^:private define-it [wc]
+  (c/with-state-as name
+    (if (nil? name)
+      (c/handle-effect-result snd (gen-name))
+      (c/handle-effect-result (fn [st ok?]
+                                (if ok?
+                                  (c/return)
+                                  ;; set name to nil, will generate a new one and register that.
+                                  (c/return :state nil)))
+                              (c/effect define! name wc)))))
 
 (let [f (fn [name args]
           (when name
             ;; Note: unlike dom/dom-element, dom/custom allows for event handlers (anything that starts with ':on'), which React itself ignores.
             (apply dom/custom name args)))]
-  (defn use
+  (c/defn-item use
     "Registers the given web component under a unique name, and
   returns an item using that component. This can be especially useful
   during development of a web component."
     [wc & args]
     (c/isolate-state nil
-                     (c/fragment (c/handle-effect-result snd
-                                                         (c/seq-effects (gen-name) (f/partial define-it! wc)))
+                     (c/fragment (define-it wc)
                                  (c/dynamic f args)))))

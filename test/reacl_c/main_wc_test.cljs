@@ -205,3 +205,35 @@
                                    (is (= '42 @pval))
                                    (done))
                                  1)))))))
+
+(deftest redefine-test
+  (testing "updated item"
+    (let [name "redefine-test-1"]
+      (wc/define! name (fn [] (dom/div)))
+
+      (rendering name
+                 (fn [e]
+                   (is (= "DIV" (.-tagName (.-firstChild e))))))
+
+      (wc/define! name (fn [] (dom/span)))
+
+      (rendering name
+                 (fn [e]
+                   (is (= "SPAN" (.-tagName (.-firstChild e))))))))
+  
+  (testing "hot updated item"
+    (let [name "redefine-test-2"]
+      (wc/define! name (fn [] (dom/div)))
+
+      (rendering name
+                 (fn [e]
+                   (let [t (.-tagName e)]
+                     (is (= "DIV" (.-tagName (.-firstChild e))))
+
+                     (wc/define! name (fn [] (dom/span)))
+                     (is (= "SPAN" (.-tagName (.-firstChild e))))
+
+                     (is (= t (.-tagName e))))))))
+
+  ;; other things can be hot-reloaded too, but the item is the main/most important part.
+  )
