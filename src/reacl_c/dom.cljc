@@ -139,9 +139,10 @@
                          (:class :className)
                          (-> res
                              (dissoc :class :className)
-                             (assoc :className (join-classes (apply join-classes (clojure.core/map second (filter #(#{:class :className} (first %))
-                                                                                                                  res)))
-                                                             v)))
+                             ;; Note: :class is more general; See react0/dom-elem
+                             (assoc :class (join-classes (apply join-classes (clojure.core/map second (filter #(#{:class :className} (first %))
+                                                                                                              res)))
+                                                         v)))
                          ;; Merging styles absolutely correct is very hard (like merging :border and :border-with)
                          ;; This will only cover simple cases.
                          :style

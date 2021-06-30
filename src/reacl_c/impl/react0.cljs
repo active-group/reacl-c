@@ -122,9 +122,21 @@
     v))
 
 (defn dom-elem [type attrs & children]
-  (let [aobj (reduce-kv (fn [r k v]
+  (let [;; Note: for html/dom notes, React *requires* attrs like
+        ;; "className", and warns about "class"; but for web
+        ;; components (dom/custom elements) is passes them on as
+        ;; attributes unchanged, so the user has to use "class"
+        ;; instead of "className" :-/ We should probably remove all
+        ;; mangling of attributes (and style names); but that would be
+        ;; a bit of a breaking change as users have their code. For
+        ;; now, try to distinguish between native and custom elements
+        ;; (they must have a '-' in the name):
+        adjust-attr-name (if (and (string? type) (str/includes? type "-"))
+                           identity
+                           adjust-dom-attr-name)
+        aobj (reduce-kv (fn [r k v]
                           (let [n (name k)]
-                            (aset r (adjust-dom-attr-name n) (adjust-dom-attr-value n v)))
+                            (aset r (adjust-attr-name n) (adjust-dom-attr-value n v)))
                           r)
                         #js {}
                         attrs)]
