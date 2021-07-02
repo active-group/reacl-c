@@ -7,30 +7,45 @@
             [reacl-c.dom :as dom]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
+            ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
-(deftest embed-reacl-test
+(deftest lift-reacl-test
   ;; TODO: maybe this should use only reacl-c/test-utils?
   ;; using Reacl classes in reacl-c
   (testing "syncs state"
     (let [it (i/lift (reacl/class "foo" this state []
-                                  render (rdom/div (str state))))]
+                                  render (rdom/div state)))]
       (is (= "ok1" (btest/text (.-firstChild (btest/renders-as it "ok1"))))))
     
     (let [it (c/focus :v
                       (i/lift (reacl/class "foo" this state []
                                            component-did-mount (fn [] (reacl/return :app-state (str state "-ok11")))
-                                           render (rdom/div (str state)))))]
+                                           render (rdom/div state))))]
       (is (= "start-ok11" (btest/text (.-firstChild (btest/renders-as it {:v "start"})))))))
   
-  (testing "emits actions"
+  (testing "emits actions on mount"
     (let [it (i/lift (reacl/class "foo" this state [v]
                                   component-did-mount (fn [] (reacl/return :action v))
-                                  render (rdom/div (str state)))
+                                  render (rdom/div state))
                      "ok2")]
       (is (= "ok2" (btest/text (.-firstChild (btest/renders-as (-> it
                                                                    (c/handle-action (fn [state a] a)))
                                                                "start")))))))
+  (testing "emits actions on event"
+    (let [it (i/lift (reacl/class "foo" this state [v]
+                                  handle-message (fn [msg] (reacl/return :action msg))
+                                  render (rdom/div {:onclick (fn [ev]
+                                                               (reacl/send-message! this v))}
+                                                   state))
+                     "ok2")
+          ;; action -> state -> div text
+          node (btest/renders-as (-> it
+                                     (c/handle-action (fn [state a] a)))
+                                 "start")]
+      (react-tu/Simulate.click node)
+      (is (= "ok2" (btest/text (.-firstChild node))))))
+  
   (testing "forwards messages"
     (let [it (i/lift (reacl/class "foo3" this state []
                                   handle-message (fn [msg]
@@ -45,6 +60,7 @@
                               "start")]
       (inject! n (constantly (c/return :action "ok3")))
       (is (= "ok3" (btest/text (.-firstChild (.-firstChild n))))))))
+
 
 (deftest embed-in-reacl-test
   ;; TODO: maybe this should only use reacl/test-utils
