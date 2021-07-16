@@ -16,13 +16,13 @@
 (defn extract-state [state]
   (aget state "state"))
 
-(defn get-state [this]
+(defn get-state [^js this] ;; ^react/Component compiles, but does not work
   (extract-state (.-state this)))
 
-(defn get-args [this]
+(defn get-args [^js this]
   (extract-args (.-props this)))
 
-(defn set-state [this f & [cb]]
+(defn set-state [^js this f & [cb]]
   (.setState this
              (fn [state props]
                (mk-state (apply f (extract-state state) (extract-args props))))
@@ -40,13 +40,12 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
-(defn- default-should-component-update? [new-props new-state]
-  (this-as this
-    (or (and (some? new-state) ;; class has no local-state...
-             (not= (extract-state new-state)
-                   (get-state this)))
-        (not= (extract-args new-props)
-              (get-args this)))))
+(defn- default-should-component-update? [this new-props new-state]
+  (or (and (some? new-state) ;; class has no local-state...
+           (not= (extract-state new-state)
+                 (get-state this)))
+      (not= (extract-args new-props)
+            (get-args this))))
 
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
@@ -73,7 +72,9 @@
                                                    ;; call p with args and state.
                                                    (this-as this
                                                             (.call p this (extract-args new-props) (when (some? new-state) (extract-state new-state)))))
-                                                 default-should-component-update?)))
+                                                 (fn [new-props new-state]
+                                                   (this-as this
+                                                     (default-should-component-update? this new-props new-state))))))
                                      ))))
       (set-statics! static-decls))))
 
