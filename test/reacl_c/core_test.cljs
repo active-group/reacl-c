@@ -159,20 +159,6 @@
 
       (is (= r1 r3) "ref is same on different states"))))
 
-(deftest effect-test
-  (c/defn-effect effect-test-1 [foo]
-    (if (= foo :foo)
-      42
-      (c/return :state 21
-                :action :test)))
-
-  (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
-    "err")
-  
-  (testing "basics, equality"
-    (is (= (effect-test-1 :foo)
-           (effect-test-1 :foo)))))
-
 (deftest ref-let-test
   (let [env (tu/env (c/ref-let [it-1 (c/handle-message (fn [state msg]
                                                          (c/return :state [:it-1 msg]))
@@ -191,6 +177,42 @@
            (tu/send-message! env 1)))
     (is (= (c/return :state [:it-2 2])
            (tu/send-message! env 2)))))
+
+
+(deftest effect-test
+  (c/defn-effect effect-test-1 [foo]
+    (if (= foo :foo)
+      42
+      (c/return :state 21
+                :action :test)))
+
+  (testing "basics, equality"
+    (is (= [42 (c/return)] (tuc/run-effect! (effect-test-1 :foo))))
+    (is (= [21 (c/return :action :test)] (tuc/run-effect! (effect-test-1 :bar))))
+    
+    (is (= (effect-test-1 :foo)
+           (effect-test-1 :foo))))
+
+  (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+    "err")
+  
+  (testing "schema validation"
+    (tuc/preventing-error-log
+     (fn []
+       (try (tuc/run-effect! (effect-test-2 :foo))
+            (is false)
+            (catch :default e
+              (is (str/starts-with? (.-message e)
+                                    "Output of effect-test-2 does not match schema"))))))
+    
+    (tuc/preventing-error-log
+     (fn []
+       (try
+         (effect-test-2 "foo")
+         (is false)
+         (catch :default e
+           (is (str/starts-with? (.-message e)
+                                 "Input to effect-test-2 does not match schema"))))))))
 
 (deftest handle-action-test
   (testing "basics"
