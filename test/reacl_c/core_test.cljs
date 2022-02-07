@@ -11,6 +11,8 @@
 
 ;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components; everything that depends on test-renderer
 
+(s/set-fn-validation! true)
+
 (deftest item-equality-test
   ;; items should be referentially equal
   (testing "fragment"
@@ -40,42 +42,33 @@
   )
 
 (deftest defn-subscription-test
+  (c/defn-subscription defn-subscription-test-1 ^:always-validate deliver! [arg :- s/Keyword]
+    (deliver! arg)
+    (fn [] nil))
+  
   (testing "basic creation and equality"
+    (is (= (defn-subscription-test-1 :arg)
+           (defn-subscription-test-1 :arg))))
+
+  (testing "synchronous delivery"
     (let [x (atom nil)]
-      (c/defn-subscription defn-subscription-test-1 deliver! [arg]
-        (reset! x arg)
-        (fn [] nil))
+      (is (some? (tuc/run-subscription! (defn-subscription-test-1 :arg)
+                                        #(reset! x %))))
+      (is (= :arg @x))))
 
-      (is (c/return)
-          (-> (tu/env (defn-subscription-test-1 :arg))
-              (tu/mount! nil)))
-      (is (= :arg @x))
-
-      (is (= (defn-subscription-test-1 :arg)
-             (defn-subscription-test-1 :arg)))))
-
-  (testing "synchronous delivery, and schema validation"
-    (let [res (atom false)]
-      (c/defn-subscription defn-subscription-test-2 ^:always-validate deliver! :- s/Int [arg]
-        (reset! res nil)
-        (try (tuc/preventing-error-log
-              #(deliver! arg))
-             (catch :default e
-               (reset! res e)))
-        (fn [] nil))
-
-      (is (= (c/return :action 42)
-             (-> (tu/env (defn-subscription-test-2 42))
-                 (tu/mount!! nil))))
-      (is (nil? @res))
-
-      (-> (tu/env (defn-subscription-test-2 "42"))
-          (tu/mount! nil))
-      (let [e @res]
-        (is (str/starts-with? (.-message e)
-                              "Input to deliver! does not match schema:")))))
-  )
-
+  (testing "schema validation"
+    (tuc/preventing-error-log
+     (fn []
+       (try
+         (tuc/run-subscription! (defn-subscription-test-1 "foo")
+                                (constantly nil))
+         (is false)
+         (catch :default e
+           (is (str/starts-with? (.-message e)
+                                 "Input to defn-subscription-test-1 does not match schema")))))
+     ;; Note: deliver! can have a schema too, but as 'run-subscription' replaces the deliver! fn, that is not testable here.
+     ;; "Input to deliver! does not match schema:"
+     )))
 
 (deftest with-async-messages-test
   (let [env (tu/env (c/with-ref (fn [ref]
