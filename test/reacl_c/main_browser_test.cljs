@@ -78,7 +78,9 @@
 (defn text [node]
   (.-nodeValue node))
 
-(defn passes-messages [f]
+(defn passes-messages
+  "Calls f with an item and returns if the returned item passes messages sent to it down to that item."
+  [f]
   (let [[x inject!] (injector)
         it (c/with-ref
              (fn [ref]
@@ -98,7 +100,9 @@
     (inject! node (constantly (c/return :action {:res "ok"})))
     (= "ok" (text (.-firstChild node)))))
 
-(defn passes-actions [f]
+(defn passes-actions
+  "Calls f with an item and returns if an action emitted by that item is passed up by the returned item."
+  [f]
   (let [[x inject!] (injector)
         it (c/with-state-as st
              (dom/div st (-> (f x)
