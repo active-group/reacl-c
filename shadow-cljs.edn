@@ -1,6 +1,7 @@
 {
  ;; use source-paths and dependencies from leiningen project.clj:
  :lein {:profiles "shadow"}
+ :fs-watch {:hawk false} ;; see https://github.com/thheller/shadow-cljs/issues/837
  :builds {:test {:target :browser-test
                  :test-dir "target/public/test"
                  :devtools {:hud #{:errors :warnings :progress}
