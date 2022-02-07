@@ -6,6 +6,7 @@
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
             [schema.core :as s]
+            [active.clojure.functions :as f]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
@@ -59,11 +60,15 @@
                                             [(first st) (conj (second st) a)]))
                          [initial-state []])))
 
-(defn injector []
+(defn injector
+  "Returns an item and a function that, when called with a host dom node
+  in which the item is rendered and a function f, calls f as an event
+  handler function `(f state)`."
+  []
   (let [ret (atom nil)
         class (str (gensym "injector"))
         item (dom/button {:class class
-                          :onClick (fn [state ev]
+                          :onclick (fn [state ev]
                                      (@ret state))})]
     [item (fn [host f]
             (reset! ret f)
@@ -76,7 +81,7 @@
   (str/lower-case (.-tagName node)))
 
 (defn text [node]
-  (.-nodeValue node))
+  (.-textContent node))
 
 (defn passes-messages
   "Calls f with an item and returns if the returned item passes messages sent to it down to that item."
@@ -281,6 +286,34 @@
   (is (= :bar (changes-state (c/handle-action (c/init (c/return :action :bar))
                                               (fn [st a]
                                                 a))))))
+
+(deftest try-catch-test
+  (let [[x inject!] (injector)
+
+        it (dom/div x
+                    (c/try-catch (c/dynamic (fn [state]
+                                              (if (:throw? state)
+                                                (throw (ex-info "Test" {:value :foo}))
+                                                "Ok")))
+                                 (c/dynamic (fn [[state error]]
+                                              (c/fragment "Handled " (pr-str error)
+                                                          (if (:reset? state)
+                                                            (c/init (c/return :state [{:throw? false} nil]))
+                                                            c/empty))))))
+
+        host (renders-as it {:throw? false})]
+    
+    (is (= "Ok" (text host)))
+
+    (tu/preventing-error-log
+     #(inject! host (f/constantly {:throw? true})))
+    
+    (is (= "Handled #error {:message \"Test\", :data {:value :foo}}"
+           (text host)))
+
+    (inject! host (f/constantly {:throw? true :reset? true}))
+    (is (= "Ok" (text host)))))
+
 
 (deftest with-async-return-test
   (is (passes-messages (fn [x] (c/with-async-return (constantly x)))))

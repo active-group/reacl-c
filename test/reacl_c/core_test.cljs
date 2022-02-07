@@ -214,28 +214,6 @@
            (is (str/starts-with? (.-message e)
                                  "Input to effect-test-2 does not match schema"))))))))
 
-(deftest try-catch-test
-  (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
-                                               (throw (ex-info "Test" {:value :foo}))
-                                               "Ok"))
-                                 (c/dynamic (fn [[state error]]
-                                              (c/fragment "Error" (pr-str error)
-                                                          (if (:reset? state)
-                                                            (c/once (f/constantly (c/return :state [{} nil])))
-                                                            c/empty))))))]
-    (tu/mount! env {})
-    (is (some? (tu/find env "Ok")))
-
-    (tuc/preventing-error-log
-     (fn []
-       (tu/update! env {:throw? true})))
-    (is (some? (tu/find env "Error")))
-
-    (is (= (c/return :state {})
-           (tu/update! env {:throw? false :reset? true})))
-    (is (some? (tu/find env "Ok")))
-    ))
-
 (deftest with-state-as-test
   (let [env (tu/env (c/with-state-as foo foo))]
     (tu/mount! env "Ok")
