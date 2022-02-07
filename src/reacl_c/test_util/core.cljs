@@ -72,7 +72,7 @@
 
     ;; but if subs if created via a call to to a defn-subscription fn, then it will look different
     (if-let [f (core/subscription-from-defn-meta-key (meta eff))]
-      (= subs (apply f subs-args))
+      (apply f subs-args)
       (apply core/subscription subs-f subs-args))))
 
 (defn subscribe-effect?

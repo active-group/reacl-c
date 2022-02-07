@@ -172,7 +172,13 @@
         env (tur/env (-> (c/fragment sub-1)
                          (tu/map-subscriptions {sub-1 (emulate-subscriptions-test-4-sub 42)})))]
     (is (= (c/return :action ::result)
-           (tur/mount! env nil)))))
+           (tur/mount! env nil))))
+
+  (let [env (tur/env (-> (c/fragment (emulate-subscriptions-test-4-sub 21))
+                         (tu/map-subscriptions {(emulate-subscriptions-test-4-sub 21) (emulate-subscriptions-test-4-sub 42)})))]
+    (is (= (c/return :action ::result)
+           (tur/mount! env nil))))
+  )
 
 (deftest running-subscriptions-test
   (let [stopped? (atom false)
