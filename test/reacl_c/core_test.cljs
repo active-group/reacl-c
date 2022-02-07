@@ -214,34 +214,6 @@
            (is (str/starts-with? (.-message e)
                                  "Input to effect-test-2 does not match schema"))))))))
 
-(deftest handle-action-test
-  (testing "basics"
-    (let [foobar (c/name-id "foobar")
-          item (c/named foobar "foo")
-          env (tu/env (c/handle-action item
-                                       (fn [state a]
-                                         (c/return :state (conj state a)))))]
-    
-      (tu/mount! env [])
-      (is (some? (tu/find env item)))
-    
-      (is (= (c/return :state [:a])
-             (tu/inject-action! (tu/find env item)
-                                :a)))
-
-      (tu/update! env [:a])
-      (is (= (c/return :state [:a :b])
-             (tu/inject-action! (tu/find env item)
-                                :b)))))
-  (testing "plain state return"
-    (let [item (c/dynamic (f/constantly "bar"))
-          env (tu/env (c/handle-action item
-                                       conj))]
-      (tu/mount! env [])
-      (is (= (c/return :state [:a])
-             (tu/inject-action! (tu/find env item)
-                                :a))))))
-
 (deftest try-catch-test
   (let [env (tu/env (c/try-catch (c/dynamic #(if (:throw? %)
                                                (throw (ex-info "Test" {:value :foo}))

@@ -276,7 +276,11 @@
   (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref)))))))
 
 (deftest handle-action-test
-  (is (passes-messages (fn [x] (c/handle-action x (fn [st a] (c/return :action a)))))))
+  (is (passes-messages (fn [x] (c/handle-action x (fn [st a] (c/return :action a))))))
+
+  (is (= :bar (changes-state (c/handle-action (c/init (c/return :action :bar))
+                                              (fn [st a]
+                                                a))))))
 
 (deftest with-async-return-test
   (is (passes-messages (fn [x] (c/with-async-return (constantly x)))))
