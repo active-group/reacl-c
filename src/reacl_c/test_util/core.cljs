@@ -187,13 +187,16 @@
     (core/map-effects item (f/partial pre f))))
 
 (defn run-subscription!
-  "Calls the function implementing the given subscription with the given `deliver!` function, returning the stop function for it."
+  "Calls the function implementing the given subscription with the given
+  `deliver!` function, returning the stop function for it."
   [sub deliver!]
   (let [[f args] (subscription-f-args sub)]
     (apply f deliver! args)))
 
 (defn- run-subscription-async [sub]
-  ;; starts the subscription and returns [stop-fn, value-promise] where value-promise is promise of [value, next-value-promise] and so on.
+  ;; starts the subscription and returns [stop-fn, value-promise]
+  ;; where value-promise is promise of [value, next-value-promise] and
+  ;; so on.
   (let [first-value (async-cljs/promise)
         next-value (atom first-value)
         stop! (run-subscription! sub (fn deliver! [action]
