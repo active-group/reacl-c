@@ -5,7 +5,7 @@
             [clojure.string :as str]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
-            [schema.core :as s]
+            [schema.core :as s :include-macros true]
             [active.clojure.functions :as f]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
@@ -119,6 +119,15 @@
     (= "ok" (text (.-firstChild node))))
   )
 
+(defn throws-like? [thunk message]
+  (tu/preventing-error-log
+   (fn []
+     (try
+       (thunk)
+       false
+       (catch :default e
+         (str/starts-with? (.-message e) message))))))
+
 ;; --------------------
 
 (deftest run-test
@@ -160,13 +169,10 @@
     (testing "state validation"
       (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
         "err")
-    
-      (try (tu/preventing-error-log
-            (fn []
-              (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo)))))))
-           (is false)
-           (catch :default e
-             (is (= "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n" (.-message e))))))))
+
+      (is (throws-like? (fn []
+                          (renders-as (c/once (constantly (c/return :action (effect-test-2 :foo))))))
+                        "Output of effect-test-2 does not match schema: \n\n\t [0;33m  (not (integer? \"err\")) [0m \n\n")))))
 
 (deftest dom-test
   (is (passes-actions dom/div))
@@ -248,12 +254,9 @@
   ;; throws on state changes
   ;; Note: for some reason the exception is not catchable like this in karma/compiled mode; not sure why.
   (when-not karma?
-    (tu/preventing-error-log
-     (fn []
-       (try (renders-as (c/static #(c/once (fn [_] (c/return :state "foo")))))
-            (is false)
-            (catch :default e
-              (is true)))))))
+    (is (throws-like? (fn []
+                        (renders-as (c/static #(c/once (fn [_] (c/return :state "foo"))))))
+                      ""))))
 
 (deftest messaging-test
   ;; tests: with-ref refer handle-message, also handle-action
@@ -531,10 +534,16 @@
               true)
       (is (not @subscribed))))
 
-  ;; equality
-  (let [ff (fn [deliver! a] (fn [] nil))]
-    (is (= (c/subscription ff :foo)
-           (c/subscription ff :foo)))))
+  )
+
+(deftest defn-subscription-test
+  (c/defn-subscription defn-subscription-test-1 ^:always-validate deliver! :- s/Keyword [arg]
+    (deliver! arg)
+    (fn [] nil))
+
+  (testing "schema validation in deliver!"
+    (is (throws-like? #(renders-as (defn-subscription-test-1 "foo"))
+                      "Input to deliver! does not match schema:"))))
 
 (deftest once-test
   (is (= [:init :cleanup]
@@ -567,6 +576,25 @@
 
   (is (= 1 (changes-state (c/once (constantly 1)))))
   (is (= nil (changes-state (c/once (constantly nil)) :init))))
+
+(deftest with-state-as-test
+  (testing "state binding"
+    (is (= (text (renders-as (c/with-state-as foo foo) "Ok"))
+           "Ok"))
+
+    (is (= (text (renders-as (c/with-state-as foo :- s/Str foo) "Ok"))
+           "Ok"))
+
+    (is (= (text (renders-as (c/with-state-as [a b] (dom/div a b)) ["foo" "bar"]))
+           "foobar"))
+
+    (is (= (text (renders-as (c/with-state-as [a b :local "bar"] (dom/div a b)) "foo"))
+           "foobar")))
+
+  (testing "schema validation"
+    (s/with-fn-validation
+      (is (throws-like? #(renders-as (c/with-state-as foo :- s/Str foo) 42)
+                        "Input to fn")))))
 
 (deftest with-bind-test
   (let [n (renders-as (c/with-bind

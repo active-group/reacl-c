@@ -11,7 +11,7 @@
 
 ;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components; everything that depends on test-renderer
 
-(s/set-fn-validation! true)
+(s/set-fn-validation! true) ;; TODO: should work without this.
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -41,6 +41,15 @@
     (is (= (c/handle-state-change "foo" :f) (c/handle-state-change "foo" :f))))
   )
 
+(defn throws-like? [thunk message]
+  (tuc/preventing-error-log
+   (fn []
+     (try
+       (thunk)
+       false
+       (catch :default e
+         (str/starts-with? (.-message e) message))))))
+
 (deftest defn-subscription-test
   (c/defn-subscription defn-subscription-test-1 ^:always-validate deliver! [arg :- s/Keyword]
     (deliver! arg)
@@ -50,25 +59,14 @@
     (is (= (defn-subscription-test-1 :arg)
            (defn-subscription-test-1 :arg))))
 
-  (testing "synchronous delivery"
-    (let [x (atom nil)]
-      (is (some? (tuc/run-subscription! (defn-subscription-test-1 :arg)
-                                        #(reset! x %))))
-      (is (= :arg @x))))
+  (testing "argument schema validation"
+    (is (throws-like? #(defn-subscription-test-1 "foo")
+                      "Input to defn-subscription-test-1 does not match schema"))))
 
-  (testing "schema validation"
-    (tuc/preventing-error-log
-     (fn []
-       (try
-         (tuc/run-subscription! (defn-subscription-test-1 "foo")
-                                (constantly nil))
-         (is false)
-         (catch :default e
-           (is (str/starts-with? (.-message e)
-                                 "Input to defn-subscription-test-1 does not match schema")))))
-     ;; Note: deliver! can have a schema too, but as 'run-subscription' replaces the deliver! fn, that is not testable here.
-     ;; "Input to deliver! does not match schema:"
-     )))
+(deftest subscription-test
+  (let [ff (fn [deliver! a] (fn [] nil))]
+    (is (= (c/subscription ff :foo)
+           (c/subscription ff :foo)))))
 
 (deftest with-async-messages-test
   (let [env (tu/env (c/with-ref (fn [ref]
@@ -214,23 +212,6 @@
            (is (str/starts-with? (.-message e)
                                  "Input to effect-test-2 does not match schema"))))))))
 
-(deftest with-state-as-test
-  (let [env (tu/env (c/with-state-as foo foo))]
-    (tu/mount! env "Ok")
-    (is (some? (tu/find env "Ok"))))
-
-  (let [env (tu/env (c/with-state-as foo :- s/Str foo))]
-    (tu/mount! env "Ok")
-    (is (some? (tu/find env "Ok"))))
-
-  (let [env (tu/env (c/with-state-as [a b] (c/fragment a b)))]
-    (tu/mount! env ["foo" "bar"])
-    (is (some? (tu/find env (c/fragment "foo" "bar")))))
-
-  (let [env (tu/env (c/with-state-as [a b :local "bar"] (c/fragment a b)))]
-    (tu/mount! env "foo")
-    (is (some? (tu/find env (c/fragment "foo" "bar"))))))
-
 (deftest defn-item-parser-test
   (is (= ['test false nil nil '[a] 'body] (c/parse-defn-item-args 'test '[a] 'body)))
   (is (= ['test true nil nil '[a] 'body] (c/parse-defn-item-args 'test :static '[a] 'body)))
@@ -317,15 +298,6 @@
 
     (let [env (tu/env def-test-1)]
       (tu/mount! env nil)
-      (is (some? (tu/find env "foo")))))
-
-  (testing "dynamic items"
-    (c/def-item def-test-2
-      (c/with-state-as a
-        a))
-
-    (let [env (tu/env def-test-2)]
-      (tu/mount! env "foo")
       (is (some? (tu/find env "foo")))))
 
   (testing "state schema validation"
