@@ -37,7 +37,8 @@
     (is @called)
     (is (= 42 @called-with))))
 
-(deftest test-subscriptions-test
+;; deprecated
+#_(deftest test-subscriptions-test
   ;; one can disable subscriptions, and inject actions instead.
   (let [sub (c/subscription (fn [& args]
                               (assert false "should not be called")))
@@ -52,7 +53,8 @@
     (is (= (c/return :state {:nest 42})
            (tur/inject-action! (tur/find env sub) 41)))))
 
-(deftest disable-subscriptions-test
+;; deprecated
+#_(deftest disable-subscriptions-test
   ;; one can disable all or individual subscriptions.
   (c/defn-subscription disable-subscriptions-test-2 deliver! [a]
     (reset! a true)
@@ -76,7 +78,8 @@
       (tur/mount! env nil)
       (is @sub-2-running?))))
 
-(deftest emulate-subscriptions-test
+;; deprecated
+#_(deftest emulate-subscriptions-test
   (let [sub-1 (c/subscription (fn [& args]
                                 (assert false "should not be called")))
         env (tur/env (-> (c/fragment sub-1)
@@ -112,7 +115,6 @@
     (is (= '(42) (tu/subscription-args sub-1)))))
 
 (deftest map-subscriptions-test-1
-  ;; replace one subscription by another.
   (let [sub-1-f (fn [& args]
                   (assert false "should not be called"))
         sub-1 (c/subscription sub-1-f)
@@ -134,7 +136,6 @@
            (tur/mount! env nil)))))
 
 (deftest map-subscriptions-test-2
-  ;; replace one subscription by another.
   (c/defn-subscription emulate-subscriptions-test-4-sub deliver! [x]
     (assert (= 42 x))
     (deliver! ::result)
@@ -155,6 +156,7 @@
   )
 
 (deftest running-subscriptions-test
+  ;; also tests run-subsription! indirectly.
   (let [stopped? (atom false)
         sub-3 (c/subscription (fn [deliver!]
                                 (deliver! :foo)
@@ -186,7 +188,8 @@
                                (is @stopped?)))
                  (async/finally done)))))
 
-(deftest subscribe-effect-properties-test
+;; deprecated
+#_(deftest subscribe-effect-properties-test
   ;; then getting a subscribe-effect in hand, one can look at the function and args the subscription was created from.
   ;; via subscribe-effect?, subscribe-effect-fn and subscribe-effect-args
   
