@@ -277,8 +277,65 @@
     (inject! node (constantly (c/return :action :done)))
     (is (= ":done" (text (.-firstChild node))))))
 
+(deftest map-messages-test
+  (let [[x at] (capture-last-state)
+        [app host] (render (c/map-messages (fn [msg] [:x msg])
+                                           (c/handle-message (fn [state msg]
+                                                               (c/return :state msg))
+                                                             x)))]
+    (main/send-message! app :msg)
+    (is (= [:x :msg] @at))))
+
+(deftest redirect-messages-test
+  (let [[x at] (capture-last-state)
+        [app host] (render (c/with-ref
+                             (fn [ref]
+                               (c/redirect-messages ref
+                                                    (c/fragment "foo"
+                                                                (-> (c/handle-message (fn [state msg]
+                                                                                        (c/return :state msg))
+                                                                                      x)
+                                                                    (c/refer ref)))))))]
+    (main/send-message! app :msg)
+    (is (= :msg @at))))
+
+(deftest ref-let-test
+  (let [[x at] (capture-last-state)
+        [app host] (render (c/ref-let [it-1 (c/handle-message (fn [state msg]
+                                                                (c/return :state [:it-1 msg]))
+                                                              c/empty)
+                                       it-2 (c/handle-message (fn [state msg]
+                                                                (c/return :state [:it-2 msg]))
+                                                              c/empty)]
+                                      (c/handle-message
+                                       (fn [state msg]
+                                         (if (odd? msg)
+                                           (c/return :message [it-1 msg])
+                                           (c/return :message [it-2 msg])))
+                                       (c/fragment x it-1 it-2))))]
+    (main/send-message! app 1)
+    (is (= [:it-1 1] @at))
+
+    (main/send-message! app 2)
+    (is (= [:it-2 2] @at))))
+
 (deftest with-ref-test
-  (is (passes-messages (fn [x] (c/with-ref (constantly x))))))
+  (is (passes-messages (fn [x] (c/with-ref (constantly x)))))
+
+  ;; important for with-ref, must be the same ref for a unique item, even if the state changes.
+  (let [last-ref (atom nil)
+        [x inject!] (injector)
+        
+        host (renders-as (c/with-ref (fn [ref]
+                                       (reset! last-ref ref)
+                                       (dom/div x)))
+                         true)]
+    
+    (let [r1 @last-ref]
+      (is (some? r1))
+      
+      (inject! host (constantly false))
+      (is (= r1 @last-ref)))))
 
 (deftest refer-test
   (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref)))))))
@@ -319,6 +376,8 @@
 
 
 (deftest with-async-return-test
+  ;; Note: more or less includes with-async-messages and with-async-actions
+  
   (is (passes-messages (fn [x] (c/with-async-return (constantly x)))))
   
   (async done

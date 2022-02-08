@@ -1,6 +1,5 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.test-util.test-renderer :as tu] ;; TODO: get rid of this
             [reacl-c.test-util.core :as tuc]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
@@ -8,10 +7,6 @@
             [clojure.string :as str]
             [reacl-c.test-util.perf :as perf]
             [cljs.test :refer (is deftest testing) :include-macros true]))
-
-;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components; everything that depends on test-renderer
-
-;;(s/set-fn-validation! true) ;; TODO: should work without this.
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -65,114 +60,6 @@
   (let [ff (fn [deliver! a] (fn [] nil))]
     (is (= (c/subscription ff :foo)
            (c/subscription ff :foo)))))
-
-(deftest with-async-messages-test
-  (let [env (tu/env (c/with-ref (fn [ref]
-                                  (c/with-async-messages
-                                    (fn [send!]
-                                      (c/fragment (-> (c/handle-message (fn [state msg]
-                                                                          (c/return :state msg))
-                                                                        "foo")
-                                                      (c/refer ref))
-                                                  (-> (c/once (f/constantly (c/return :action ::test)))
-                                                      (c/handle-action (fn [_ _]
-                                                                         (send! ref :msg)
-                                                                         (c/return))))))))))]
-    (is (= (c/return :state :msg)
-           (tu/mount! env :st)))))
-
-(deftest sync-messages-test
-  (let [env (tu/env (c/with-ref (fn [ref]
-                                  (c/with-async-messages
-                                    (fn [send!]
-                                      (c/fragment (-> (c/handle-message (fn [state msg]
-                                                                          (c/return :state msg))
-                                                                        "foo")
-                                                      (c/refer ref))
-                                                  (c/once (f/constantly (c/return :message [ref :msg])))))))))]
-    (is (= (c/return :state :msg)
-           (tu/mount! env :st)))))
-
-(deftest map-messages-test
-  (let [env (tu/env (c/map-messages (fn [msg] [:x msg])
-                                    (c/handle-message (fn [state msg]
-                                                        (c/return :state msg))
-                                                      "foo")))]
-    (tu/mount! env :st)
-    (is (= (c/return :state [:x :msg])
-           (tu/send-message! (tu/get-component env) :msg)))))
-
-(deftest redirect-messages-test
-  (let [env (tu/env (c/with-ref
-                      (fn [ref]
-                        (c/fragment
-                         (c/redirect-messages ref
-                                              (c/fragment "foo"
-                                                          (-> (c/handle-message (fn [state msg]
-                                                                                  (c/return :state msg))
-                                                                                "bar")
-                                                              (c/refer ref))))))))]
-    (tu/mount! env :st)
-    (is (= (c/return :state :msg)
-           (tu/send-message! (tu/get-component env) :msg)))))
-
-(deftest defn-messages-test
-  (c/defn-item defn-messages-test-1 :- [s/Int] [x]
-    (assert (int? x))
-    (c/handle-message (fn [state m]
-                        (conj state x m))
-                      c/empty))
-  (let [env (tu/env (defn-messages-test-1 42))]
-    (tu/mount! env [])
-    (is (= (c/return :state [42 13])
-           (tu/send-message! env 13))))
-
-  (c/def-item defn-messages-test-2
-    (c/handle-message (fn [state m]
-                        (conj state m))
-                      c/empty))
-  (let [env (tu/env defn-messages-test-2)]
-    (tu/mount! env [])
-    (is (= (c/return :state [13])
-           (tu/send-message! env 13)))))
-
-(deftest with-ref
-  ;; important for with-ref, must be the same ref for a unique item, even if the state changes.
-  (let [last-ref (atom nil)
-        env (tu/env (c/with-ref (fn [ref]
-                                  (reset! last-ref ref)
-                                  c/empty)))]
-    (let [_ (tu/mount!! env true)
-          r1 @last-ref
-
-          _ (tu/update!! env false)
-          r3 @last-ref
-
-          _ (tu/update!! env false)
-          r2 @last-ref]
-
-      (is (= r1 r2) "ref is same on same state")
-
-      (is (= r1 r3) "ref is same on different states"))))
-
-(deftest ref-let-test
-  (let [env (tu/env (c/ref-let [it-1 (c/handle-message (fn [state msg]
-                                                         (c/return :state [:it-1 msg]))
-                                                       c/empty)
-                                it-2 (c/handle-message (fn [state msg]
-                                                         (c/return :state [:it-2 msg]))
-                                                       c/empty)]
-                               (c/handle-message
-                                (fn [state msg]
-                                  (if (odd? msg)
-                                    (c/return :message [it-1 msg])
-                                    (c/return :message [it-2 msg])))
-                                (c/fragment it-1 it-2))))]
-    (tu/mount! env nil)
-    (is (= (c/return :state [:it-1 1])
-           (tu/send-message! env 1)))
-    (is (= (c/return :state [:it-2 2])
-           (tu/send-message! env 2)))))
 
 
 (deftest effect-test
