@@ -545,6 +545,23 @@
     (is (throws-like? #(renders-as (defn-subscription-test-1 "foo"))
                       "Input to deliver! does not match schema:"))))
 
+(deftest def-item-test
+  (testing "simple items"
+    (c/def-item def-test-1
+      "foo")
+
+    (is (= (text (renders-as def-test-1))
+           "foo")))
+
+  (testing "state schema validation"
+    (c/def-item ^:always-validate def-test-3 :- s/Str
+      (c/with-state-as a a))
+
+    (is (some? (render def-test-3 "foo")))
+
+    (is (throws-like? #(render def-test-3 :foo)
+                      "Input to state-of-def-test-3 does not match schema"))))
+
 (deftest defn-item-test
   (testing "basics"
     (c/defn-item defn-test-1 "foo" [a :- s/Str]

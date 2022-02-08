@@ -235,30 +235,6 @@
 
     (is (some? (defn-test-5 1 "Ok" 2)))))
 
-(deftest def-item-test
-  (testing "simple items"
-    (c/def-item def-test-1
-      "foo")
-
-    (let [env (tu/env def-test-1)]
-      (tu/mount! env nil)
-      (is (some? (tu/find env "foo")))))
-
-  (testing "state schema validation"
-    (c/def-item ^:always-validate def-test-3 :- s/Str
-      (c/with-state-as a a))
-
-    (is (some? (tu/mount! (tu/env def-test-3) "foo")))
-
-    (tuc/preventing-error-log
-     (fn []
-       (is (str/starts-with?
-            (try (tu/mount! (tu/env def-test-3) :foo)
-                 false
-                 (catch :default e
-                   (.-message e)))
-            "Input to state-of-def-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))))
-
 (deftest embed-returned-test
   (is (= (c/embed-returned [:a :b] lens/first (c/return :state :c))
          (c/return :state [:c :b])))
