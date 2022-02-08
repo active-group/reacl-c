@@ -10,8 +10,8 @@
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
-;; some things don't work in karma/compiled mode of shadow; TODO: any way to find out?
-(def karma? true)
+;; catching and testing for error doesn't work properly in karma/compiled mode of shadow
+(def karma? (not= (aget js/window "__karma__") js/undefined))
 
 (deftest app-send-message-test
   (let [e (js/document.createElement "div")
@@ -348,31 +348,37 @@
                                                 a))))))
 
 (deftest try-catch-test
-  (let [[x inject!] (injector)
+  (is (passes-actions (fn [x] (c/try-catch x c/empty))))
+  
+  (is (passes-messages (fn [x] (c/try-catch x c/empty))))
+  
+  ;; also tests lower-level 'handle-error'
+  (when-not karma?
+    (let [[x inject!] (injector)
 
-        it (dom/div x
-                    (c/try-catch (c/dynamic (fn [state]
-                                              (if (:throw? state)
-                                                (throw (ex-info "Test" {:value :foo}))
-                                                "Ok")))
-                                 (c/dynamic (fn [[state error]]
-                                              (c/fragment "Handled " (pr-str error)
-                                                          (if (:reset? state)
-                                                            (c/init (c/return :state [{:throw? false} nil]))
-                                                            c/empty))))))
+          it (dom/div x
+                      (c/try-catch (c/dynamic (fn [state]
+                                                (if (:throw? state)
+                                                  (throw (ex-info "Test" {:value :foo}))
+                                                  "Ok")))
+                                   (c/dynamic (fn [[state error]]
+                                                (c/fragment "Handled " (pr-str error)
+                                                            (if (:reset? state)
+                                                              (c/init (c/return :state [{:throw? false} nil]))
+                                                              c/empty))))))
 
-        host (renders-as it {:throw? false})]
+          host (renders-as it {:throw? false})]
     
-    (is (= "Ok" (text host)))
+      (is (= "Ok" (text host)))
 
-    (tu/preventing-error-log
-     #(inject! host (f/constantly {:throw? true})))
+      (tu/preventing-error-log
+       #(inject! host (f/constantly {:throw? true})))
     
-    (is (= "Handled #error {:message \"Test\", :data {:value :foo}}"
-           (text host)))
+      (is (= "Handled #error {:message \"Test\", :data {:value :foo}}"
+             (text host)))
 
-    (inject! host (f/constantly {:throw? true :reset? true}))
-    (is (= "Ok" (text host)))))
+      (inject! host (f/constantly {:throw? true :reset? true}))
+      (is (= "Ok" (text host))))))
 
 
 (deftest with-async-return-test
@@ -510,27 +516,6 @@
     (inject-x! n (constantly false))
     (is (= "nil" (text (.-firstChild n))))))
 
-(deftest handle-error-test
-  (is (passes-actions (fn [x] (c/handle-error x (fn [_ _] nil)))))
-  
-  (is (passes-messages (fn [x] (c/handle-error x (fn [_ _] nil)))))
-
-  ;; does not work in compiled/karma mode - don't know why.
-  (when-not karma?
-    (tu/preventing-error-log
-     (fn []
-       (let [err (ex-info "err" {})]
-         (is (= {:throw? false
-                 :error err}
-                (changes-state (-> (c/dynamic (fn [st]
-                                                (if (:throw? st)
-                                                  (throw err)
-                                                  c/empty)))
-                                   (c/handle-error (fn [state error]
-                                                     (assoc state
-                                                            :throw? false
-                                                            :error error))))))))))))
-
 (deftest bubbling-events-test
   ;; state consitency upon a bubbling event.
   ;; Note: work with the React implementation, not with the Reacl implementation (https://github.com/active-group/reacl/issues/47).
@@ -601,8 +586,9 @@
     (fn [] nil))
 
   (testing "schema validation in deliver!"
-    (is (throws-like? #(renders-as (defn-subscription-test-1 "foo"))
-                      "Input to deliver! does not match schema:"))))
+    (when-not karma?
+      (is (throws-like? #(renders-as (defn-subscription-test-1 "foo"))
+                        "Input to deliver! does not match schema:")))))
 
 (deftest def-item-test
   (testing "simple items"
@@ -618,8 +604,9 @@
 
     (is (some? (render def-test-3 "foo")))
 
-    (is (throws-like? #(render def-test-3 :foo)
-                      "Input to state-of-def-test-3 does not match schema"))))
+    (when-not karma?
+      (is (throws-like? #(render def-test-3 :foo)
+                        "Input to state-of-def-test-3 does not match schema")))))
 
 (deftest defn-item-test
   (testing "basics"
@@ -661,8 +648,9 @@
 
     (is (some? (renders-as (defn-test-3 42) "foo")))
 
-    (is (throws-like? #(renders-as (defn-test-3 42) :foo)
-                      "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))")))
+    (when-not karma?
+      (is (throws-like? #(renders-as (defn-test-3 42) :foo)
+                        "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))"))))
   )
 
 (deftest once-test
@@ -712,9 +700,10 @@
            "foobar")))
 
   (testing "schema validation"
-    (s/with-fn-validation
-      (is (throws-like? #(renders-as (c/with-state-as foo :- s/Str foo) 42)
-                        "Input to fn")))))
+    (when-not karma?
+      (s/with-fn-validation
+        (is (throws-like? #(renders-as (c/with-state-as foo :- s/Str foo) 42)
+                          "Input to fn"))))))
 
 (deftest with-bind-test
   (let [n (renders-as (c/with-bind
