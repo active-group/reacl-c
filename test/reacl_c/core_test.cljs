@@ -42,13 +42,11 @@
   )
 
 (defn throws-like? [thunk message]
-  (tuc/preventing-error-log
-   (fn []
-     (try
-       (thunk)
-       false
-       (catch :default e
-         (str/starts-with? (.-message e) message))))))
+  (try
+    (thunk)
+    false
+    (catch :default e
+      (str/starts-with? (.-message e) message))))
 
 (deftest defn-subscription-test
   (c/defn-subscription ^:always-validate defn-subscription-test-1 deliver! [arg :- s/Keyword]
@@ -178,39 +176,22 @@
 
 
 (deftest effect-test
-  (c/defn-effect effect-test-1 [foo]
-    (if (= foo :foo)
-      42
-      (c/return :state 21
-                :action :test)))
+  (testing "equality"
+    (c/defn-effect effect-test-1 [foo]
+      42)
 
-  (testing "basics, equality"
-    (is (= [42 (c/return)] (tuc/run-effect! (effect-test-1 :foo))))
-    (is (= [21 (c/return :action :test)] (tuc/run-effect! (effect-test-1 :bar))))
-    
     (is (= (effect-test-1 :foo)
-           (effect-test-1 :foo))))
+           (effect-test-1 :foo)))
 
-  (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
-    "err")
+    (is (= (c/effect (f/constantly nil))
+           (c/effect (f/constantly nil)))))
+
+  (testing "argument schema validation"
+    (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+      "err")
   
-  (testing "schema validation"
-    (tuc/preventing-error-log
-     (fn []
-       (try (tuc/run-effect! (effect-test-2 :foo))
-            (is false)
-            (catch :default e
-              (is (str/starts-with? (.-message e)
-                                    "Output of effect-test-2 does not match schema"))))))
-    
-    (tuc/preventing-error-log
-     (fn []
-       (try
-         (effect-test-2 "foo")
-         (is false)
-         (catch :default e
-           (is (str/starts-with? (.-message e)
-                                 "Input to effect-test-2 does not match schema"))))))))
+    (is (throws-like? #(effect-test-2 "foo")
+                      "Input to effect-test-2 does not match schema"))))
 
 (deftest defn-item-parser-test
   (is (= ['test false nil nil '[a] 'body] (c/parse-defn-item-args 'test '[a] 'body)))

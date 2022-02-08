@@ -138,7 +138,7 @@
     (main/run host (c/dynamic str) {:initial-state "bar"})
     (is (= "bar" (text (.-firstChild host))))))
 
-(deftest effects-test
+(deftest effect-test
   (testing "executing effects"
     (let [executed (atom false)
           eff (c/effect (fn [a]
