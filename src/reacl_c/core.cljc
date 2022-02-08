@@ -784,12 +784,15 @@ be specified multiple times.
     (-> (dynamic df item validate!)
         (monitor-state mf validate!))))
 
+(defn ^:no-doc with-validation-meta [tgt src]
+  ;; copy schema's :always-validate
+  (with-meta tgt (merge (meta tgt) (select-keys (meta src) [:always-validate]))))
+
 (defmacro ^:no-doc state-validator [name state-schema?]
   (let [name_st (symbol (str "state-of-" name))]
     (when state-schema?
       `(s/fn ~(-> name_st
-                  ;; in particular, copy schema's :always-validate
-                  (with-meta (meta name)))
+                  (with-validation-meta name))
          [state# :- ~state-schema?]
          nil))))
 
