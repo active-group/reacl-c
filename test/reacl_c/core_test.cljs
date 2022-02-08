@@ -11,7 +11,7 @@
 
 ;; TODO: remove things already tested in main-browser-test... e.g. behavioral tests only of the higher level components; everything that depends on test-renderer
 
-(s/set-fn-validation! true) ;; TODO: should work without this.
+;;(s/set-fn-validation! true) ;; TODO: should work without this.
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -51,7 +51,7 @@
          (str/starts-with? (.-message e) message))))))
 
 (deftest defn-subscription-test
-  (c/defn-subscription defn-subscription-test-1 ^:always-validate deliver! [arg :- s/Keyword]
+  (c/defn-subscription ^:always-validate defn-subscription-test-1 deliver! [arg :- s/Keyword]
     (deliver! arg)
     (fn [] nil))
   
