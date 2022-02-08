@@ -14,11 +14,11 @@
     (c/defn-effect mk-eff0 [v]
       (reset! called v)
       (reset! called-with v)
-      (c/return))
+      (c/return :state v :action ::act))
 
     (def eff1 (c/effect (fn []
                           (reset! called true)
-                          (c/return))))
+                          21)))
 
     (is (tu/effect? eff1))
     (is (= nil (tu/effect-args eff1)))
@@ -28,16 +28,14 @@
     (is (= (mk-eff0 42) (mk-eff0 42)))
     (is (tu/effect-args (mk-eff0 42) [42]))
 
-    (let [env (tur/env (dom/div))]
-      (tur/mount! env nil)
-      
-      (tur/execute-effect! env eff1)
-      (is @called)
+    (is (= [21 (c/return)] (tu/run-effect! eff1)))
+    (is @called)
 
-      (reset! called false)
-      (tur/execute-effect! env (mk-eff0 42))
-      (is @called)
-      (is (= 42 @called-with)))))
+    (reset! called false)
+    (is (= [42 (c/return :action ::act)] (tu/run-effect! (mk-eff0 42))))
+      
+    (is @called)
+    (is (= 42 @called-with))))
 
 (deftest test-subscriptions-test
   ;; one can disable subscriptions, and inject actions instead.
