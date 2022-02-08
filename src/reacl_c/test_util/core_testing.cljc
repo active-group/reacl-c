@@ -102,7 +102,7 @@
 (defn render
   "Returns how an item looks like in the given state. Returns a list
   of only dom elements and strings." ;; TODO: + react items?
-  [item state]
+  [item & [state]]
   (reduce-item make-dummy-ref
                (constantly dummy-return)
                (fn leaf [item state]
