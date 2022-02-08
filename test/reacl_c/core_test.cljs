@@ -206,11 +206,10 @@
     (c/defn-item defn-test-1 "foo" [a :- s/Str]
       a)
 
-    (is (= "foo" (:doc (meta #'defn-test-1))))
-  
-    (let [env (tu/env (defn-test-1 "Ok"))]
-      (tu/mount! env "Ok")
-      (is (some? (tu/find env "Ok")))))
+    (is (= (defn-test-1 "bla")
+           (defn-test-1 "bla")))
+
+    (is (= "foo" (:doc (meta #'defn-test-1)))))
 
   (testing "dynamic items"
     (c/defn-item defn-test-2 [p]
@@ -218,59 +217,23 @@
       (c/with-state-as [a b :local "bar"]
         (c/fragment a b p)))
 
-    (let [env (tu/env (defn-test-2 "baz"))]
-      (tu/mount! env "foo")
-      (is (some? (tu/find env (c/fragment "foo" "bar" "baz")))))
-
     ;; and with-state-as is optimized (made static)
     (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
 
-  (testing "static items"
-    (c/defn-item defn-test-4 :static [rendered?]
-      (reset! rendered? true)
-      "foo")
-    
-    (let [rendered? (atom false)
-          env (tu/env (defn-test-4 rendered?))]
-      (tu/mount! env :bar)
-      (is (some? (tu/find env "foo")))
-      (is @rendered?)
-
-      (reset! rendered? false)
-      (tu/update! env :foo)
-      (is (not @rendered?))))
-
-  (testing "schema validation"
-    (c/defn-item ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
+  (testing "argument schema validation"
+    (c/defn-item ^:always-validate defn-test-3 [a :- s/Int]
       (str a))
 
     (is (some? (defn-test-3 42)))
 
-    (is (= "Input to defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (integer? :foo)) a)] [0m \n\n"
-           (try (defn-test-3 :foo)
-                nil
-                (catch :default e
-                  (.-message e)))))
-
-    (is (some? (tu/mount! (tu/env (defn-test-3 42)) "foo")))
-
-    (tuc/preventing-error-log
-     (fn []
-       (is (str/starts-with?
-            (try (tu/mount! (tu/env (defn-test-3 42)) :foo)
-                 false
-                 (catch :default e
-                   (.-message e)))
-            "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))")))))
+    (is (throws-like? #(defn-test-3 :foo)
+                      "Input to defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (integer? :foo)) a)] [0m \n\n")))
 
   (testing "regression with schemata"
-    (c/defn-item defn-test-5 "foo" [x a :- s/Str y]
+    (c/defn-item ^:always-validate defn-test-5 "foo" [x a :- s/Str y]
       a)
 
-    (let [env (tu/env (defn-test-5 1 "Ok" 2))]
-      (tu/mount! env "Ok")
-      (is (some? (tu/find env "Ok"))))
-    ))
+    (is (some? (defn-test-5 1 "Ok" 2)))))
 
 (deftest def-item-test
   (testing "simple items"

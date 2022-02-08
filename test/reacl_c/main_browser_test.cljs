@@ -545,6 +545,50 @@
     (is (throws-like? #(renders-as (defn-subscription-test-1 "foo"))
                       "Input to deliver! does not match schema:"))))
 
+(deftest defn-item-test
+  (testing "basics"
+    (c/defn-item defn-test-1 "foo" [a :- s/Str]
+      a)
+
+    (is (= (text (renders-as (defn-test-1 "Ok")))
+           "Ok")))
+
+  (testing "dynamic items"
+    (c/defn-item defn-test-2 [p]
+      (c/with-state-as [a b :local "bar"]
+        (dom/div a b p)))
+
+    (is (= (text (renders-as (defn-test-2 "baz") "foo"))
+           "foobarbaz")))
+
+  (testing "static items don't rerender"
+    (c/defn-item defn-test-4 :static [rendered]
+      (c/with-state-as _
+        (swap! rendered inc)
+        "foo"))
+
+    (let [rendered (atom 0)
+          [x inject!] (injector)
+
+          [app host]
+          (render (c/fragment (defn-test-4 rendered)
+                              x)
+                  0)]
+      (is (= 1 @rendered))
+
+      (inject! host inc)
+      (is (= 1 @rendered))))
+
+  (testing "state schema validation"
+    (c/defn-item ^:always-validate defn-test-3 :- s/Str [a :- s/Int]
+      (str a))
+
+    (is (some? (renders-as (defn-test-3 42) "foo")))
+
+    (is (throws-like? #(renders-as (defn-test-3 42) :foo)
+                      "Input to state-of-defn-test-3 does not match schema: \n\n\t [0;33m  [(named (not (string? :foo))")))
+  )
+
 (deftest once-test
   (is (= [:init :cleanup]
          (emits-actions (c/dynamic (fn [st]
