@@ -7,7 +7,7 @@
     "@testing-library/react": "^11.1.1"
   },
   "devDependencies": {
-    "karma": "^5.2.1",
+    "karma": "^6.3.15",
     "karma-chrome-launcher": "^3.1.0",
     "karma-cljs-test": "^0.1.0",
     "karma-junit-reporter": "^2.0.1",
