@@ -3,7 +3,7 @@
             [reacl-c.dom :as dom]
             [reacl-c.base :as base]
             [reacl-c.test-util.core :as tu]
-            [reacl-c.test-util.test-renderer :as tur] ;; TODO: test without this
+            [reacl-c.main-browser-test :as bt]
             [active.clojure.functions :as f]
             [cljs.test :as t :refer (is deftest testing) :include-macros true]
             [cljs-async.core :as async]))
@@ -123,40 +123,35 @@
                   (assert (= 42 x))
                   (deliver! ::result)
                   (fn [] nil))
-        sub-2 (c/subscription sub-2-f 42)
-        
-        env (tur/env (-> (c/fragment sub-1)
-                         (tu/map-subscriptions (fn [sub]
-                                                 (cond
-                                                   (= sub-1 sub)
-                                                   sub-2
+        sub-2 (c/subscription sub-2-f 42)]
+    (is (= (bt/emits-actions (-> (c/fragment sub-1)
+                                 (tu/map-subscriptions (fn [sub]
+                                                         (cond
+                                                           (= sub-1 sub)
+                                                           sub-2
                                                       
-                                                   :else (assert false sub))))))]
-    (is (= (c/return :action ::result)
-           (tur/mount! env nil)))))
+                                                           :else (assert false sub))))))
+           [::result]))))
 
 (deftest map-subscriptions-test-2
   (c/defn-subscription emulate-subscriptions-test-4-sub deliver! [x]
     (assert (= 42 x))
     (deliver! ::result)
     (fn [] nil))
-  
-  (let [sub-1 (c/subscription (fn [& args]
-                                (assert false "should not be called")))
-        
-        env (tur/env (-> (c/fragment sub-1)
-                         (tu/map-subscriptions {sub-1 (emulate-subscriptions-test-4-sub 42)})))]
-    (is (= (c/return :action ::result)
-           (tur/mount! env nil))))
 
-  (let [env (tur/env (-> (c/fragment (emulate-subscriptions-test-4-sub 21))
-                         (tu/map-subscriptions {(emulate-subscriptions-test-4-sub 21) (emulate-subscriptions-test-4-sub 42)})))]
-    (is (= (c/return :action ::result)
-           (tur/mount! env nil))))
-  )
+  (let [sub-1 (c/subscription (fn [& args]
+                                (assert false "should not be called")))]
+
+    (is (= (bt/emits-actions (-> (c/fragment sub-1)
+                                 (tu/map-subscriptions {sub-1 (emulate-subscriptions-test-4-sub 42)})))
+           [::result])))
+
+  (is (= (bt/emits-actions (-> (c/fragment (emulate-subscriptions-test-4-sub 21))
+                               (tu/map-subscriptions {(emulate-subscriptions-test-4-sub 21) (emulate-subscriptions-test-4-sub 42)})))
+         [::result])))
 
 (deftest running-subscriptions-test
-  ;; also tests run-subsription! indirectly.
+  ;; tests subscription-results and run-subsription! indirectly.
   (let [stopped? (atom false)
         sub-3 (c/subscription (fn [deliver!]
                                 (deliver! :foo)
