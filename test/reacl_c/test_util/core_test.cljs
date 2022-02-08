@@ -88,30 +88,6 @@
     (is (= (c/return :action ::result)
            (tur/mount! env nil)))))
 
-(deftest replace-subscriptions-test
-  ;; replace one subscription by another.
-  (let [sub-1 (c/subscription (fn [& args]
-                                (assert false "should not be called")))
-        
-        stopped? (atom false)
-        sub-2-f (fn [deliver!]
-                  (deliver! ::result)
-                  (fn []
-                    (reset! stopped? true)))
-        sub-2 (c/subscription sub-2-f)
-        env (tur/env (-> (c/fragment sub-1)
-                         (c/map-effects (fn [eff]
-                                          (cond
-                                            (tu/subscribe-effect? eff sub-1)
-                                            (tu/replace-subscription eff sub-2-f)
-                                            
-                                            :else eff)))))]
-    (is (= (c/return :action ::result)
-           (tur/mount! env nil)))
-
-    (tur/unmount! env)
-    (is @stopped?)))
-
 (deftest subscription-utils-test
   (c/defn-subscription subscription-utils-test-1 deliver! [x]
     (fn [] nil))

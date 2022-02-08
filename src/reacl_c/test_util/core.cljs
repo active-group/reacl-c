@@ -148,7 +148,7 @@
 
 (defn ^{:arglists '([subscribe-effect f & args]
                     [subscribe-effect subscription])
-        :no-doc true   ;; or even private? map-subscription should cover all usecases.
+        :private true ;; use map-subscriptions
         }
   replace-subscription
   "Given the subscribe effect of a subscription item, this returns a
