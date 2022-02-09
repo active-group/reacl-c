@@ -137,7 +137,8 @@
                  (cond
                    (or (base/dynamic? item)
                        (base/with-ref? item)
-                       (base/with-async-return? item))
+                       (base/with-async-return? item)
+                       (base/static? item))
                    res
 
                    :else
@@ -502,7 +503,8 @@
                  (cond
                    (or (base/dynamic? item)
                        (base/with-ref? item)
-                       (base/with-async-return? item))
+                       (base/with-async-return? item)
+                       (base/static? item))
                    res
                           
                    :else
