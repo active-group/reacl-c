@@ -39,8 +39,8 @@
 
 (defn- run [item initial-state]
   ;; run 'uncontrolled'
-  (c/local-state initial-state
-                 (c/focus lens/second (main/execute-effects item))))
+  (main-react/embed (c/local-state initial-state
+                                   (c/focus lens/second (main/execute-effects item)))))
 
 (defn ^{:arglists '[(item options... f)]
         :doc "Calls `f` with a rendering environment that 'runs' the given item.
@@ -72,7 +72,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 
           initial-state (:state options)
 
-          r (react-tu/render (main-react/embed (run item initial-state))
+          r (react-tu/render (run item initial-state)
                              (clj->js (-> options
                                           (dissoc :visible?
                                                   :state

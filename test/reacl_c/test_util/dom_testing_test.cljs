@@ -130,6 +130,18 @@
      (is (= 1 (count (dom-t/query-all env (dom-t/within (dom-t/by-text "foo")
                                                         (dom-t/by-text "bar")))))))))
 
+
+(deftest update!-test
+  (dom-t/rendering
+   (c/dynamic dom/div)
+   :state "foo"
+   (fn [env]
+     (is (= (.-nodeName (dom-t/get env (dom-t/by-text "foo")))
+            "DIV"))
+     (dom-t/update! env (c/dynamic dom/span) "bar")
+     (is (= (.-nodeName (dom-t/get env (dom-t/by-text "bar")))
+            "SPAN")))))
+
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))
 
