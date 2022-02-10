@@ -37,10 +37,22 @@
                          (react-tu/prettyDOM container)))
       (aset "name" "TestingLibraryElementError"))))
 
-(defn- run [item initial-state]
-  ;; run 'uncontrolled'
-  (main-react/embed (c/local-state initial-state
-                                   (c/focus lens/second (main/execute-effects item)))))
+(defn- run [aux]
+  ;; run 'controlled', storing state in the :current atom
+  (let [c (:current aux)]
+    (main-react/embed (main/execute-effects (:item @c))
+                      {:state (:state @c)
+                       :set-state!
+                       (fn [v] (reset! c (assoc @c :state v)))})))
+
+(defn- aux
+  ([env v]
+   (aset env "_reacl_c_aux" v))
+  ([env]
+   (aget env "_reacl_c_aux")))
+
+(defn- rerender! [env]
+  (.rerender env (run (aux env))))
 
 (defn ^{:arglists '[(item options... f)]
         :doc "Calls `f` with a rendering environment that 'runs' the given item.
@@ -72,19 +84,33 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
 
           initial-state (:state options)
 
-          r (react-tu/render (run item initial-state)
-                             (clj->js (-> options
-                                          (dissoc :visible?
-                                                  :state
-                                                  :configuration)
-                                          (assoc :container container))))]
+          ;; Note: because a toplevel state change requires a
+          ;; (.rerender env), and we also want to have access to the
+          ;; toplevel state directly, we start with and empty item
+          ;; (which cannot change state) to create the env, then set a
+          ;; watch on the atom below, after the env has beed created.
+          a {:current (atom {:state nil :item nil})}
+          
+          env (doto (react-tu/render (run a)
+                                     (clj->js (-> options
+                                                  (dissoc :visible?
+                                                          :state
+                                                          :configuration)
+                                                  (assoc :container container))))
+                (aux a))]
+
+      (add-watch (:current a) :updater
+                 (fn [_ atom old new]
+                   (rerender! env)))
+      (reset! (:current a) {:state initial-state :item item})
+      
       (with-config (merge {:getElementError default-get-element-error}
                           (:configuration options))
         (fn []
           (async/try-finally (fn []
-                               (f r))
+                               (f env))
                              (fn []
-                               (react-tu/cleanup r))))))))
+                               (react-tu/cleanup env))))))))
 
 (defn ^:no-doc as-fragment [env]
   (.-asFragment env))
@@ -98,9 +124,29 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   (.unmount env))
 
 (defn update!
-  "Change the item and state rendered in the given rendering environment."
-  [env item state]
-  (.rerender env (run item state)))
+  "Change the item and state rendered in the given rendering
+  environment. If not state is given, the state will stay as it is."
+  ([env item]
+   (let [a (aux env)]
+     (swap! (:current a) merge {:item item}))
+   nil)
+  ([env item state]
+   (let [a (aux env)]
+     (swap! (:current a) merge {:state state :item item}))
+   nil))
+
+(defn current-state
+  "Returns the current state of the item running in the given rendering environemnt."
+  [env]
+  (:state @(:current (aux env))))
+
+(defn set-state!
+  "Changes the state of the item running in the given rendering
+  component to a new value."
+  [env state]
+  (let [a (aux env)]
+    (swap! (:current a) merge {:state state})
+    nil))
 
 (defn container
   "Returns the container element used in the given rendering environment."

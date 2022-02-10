@@ -142,6 +142,18 @@
      (is (= (.-nodeName (dom-t/get env (dom-t/by-text "bar")))
             "SPAN")))))
 
+(deftest current-and-set-state-test
+  (dom-t/rendering
+   (c/dynamic dom/div)
+   :state "foo"
+   (fn [env]
+     (is (= "foo" (dom-t/current-state env)))
+
+     (dom-t/set-state! env "bar")
+     (is (= "bar" (dom-t/current-state env)))
+
+     (is (some? (dom-t/get env (dom-t/by-text "bar")))))))
+
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))
 
