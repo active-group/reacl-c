@@ -39,11 +39,17 @@
 
 (defn- run [aux]
   ;; run 'controlled', storing state in the :current atom
-  (let [c (:current aux)]
+  (let [c (:current aux)
+        as (:action-sink aux)]
     (main-react/embed (main/execute-effects (:item @c))
                       {:state (:state @c)
                        :set-state!
-                       (fn [v] (reset! c (assoc @c :state v)))})))
+                       (fn [v] (reset! c (assoc @c :state v)))
+                       :handle-action!
+                       (fn [a]
+                         (if-let [f @as]
+                           (f a)
+                           (main/action-error a)))})))
 
 (defn- aux
   ([env v]
@@ -89,7 +95,8 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
           ;; toplevel state directly, we start with and empty item
           ;; (which cannot change state) to create the env, then set a
           ;; watch on the atom below, after the env has beed created.
-          a {:current (atom {:state nil :item nil})}
+          a {:current (atom {:state nil :item nil})
+             :action-sink (atom nil)}
           
           env (doto (react-tu/render (run a)
                                      (clj->js (-> options
@@ -147,6 +154,36 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   (let [a (aux env)]
     (swap! (:current a) merge {:state state})
     nil))
+
+(defn capture-actions
+  [env f]
+  ;; TODO: maximum queue size?
+  (let [a (aux env)
+        prev @(:action-sink a)]
+    (async/try-finally
+     (fn []
+       (let [sink (atom [])
+             pull! (fn pull!
+                     ([dflt]
+                      (let [as @sink]
+                        (if (empty? as)
+                          dflt
+                          (do (reset! sink (vec (rest as)))
+                              (first as)))))
+                     ([]
+                      (let [as @sink]
+                        (if (empty? as)
+                          (throw (js/Error (str "No actions captured yet.")))
+                          (do (reset! sink (vec (rest as)))
+                              (first as))))))]
+         (reset! (:action-sink a)
+                 (fn [action]
+                   (reset! sink (vec (concat @sink [action])))))
+         (f pull!)))
+     (fn []
+       ;; TODO Check here, optionally? if queue is empty? (I think user cannot fully do that, because of asynchronously emitted actions)
+       ;; restore previous sink
+       (reset! (:action-sink a) prev)))))
 
 (defn container
   "Returns the container element used in the given rendering environment."

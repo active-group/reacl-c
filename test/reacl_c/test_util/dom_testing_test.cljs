@@ -154,6 +154,27 @@
 
      (is (some? (dom-t/get env (dom-t/by-text "bar")))))))
 
+(deftest capture-actions-test
+  (dom-t/rendering
+   (dom/button {:onclick #(c/return :action :x)} "foo")
+   (fn [env]
+     (dom-t/capture-actions
+      env
+      (fn [pull!]
+        (dom-t/fire-event (dom-t/get env (dom-t/by-text "foo")) :click)
+        
+        (is (= :x (pull!)) "returns :x")
+
+        (is (try (pull!)
+                 false
+                 (catch :default e
+                   true))
+            "throws if empty")
+        
+        (is (= ::empty (pull! ::empty))
+            "returns arg if empty")
+        )))))
+
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))
 
