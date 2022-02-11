@@ -14,11 +14,11 @@
     refs [self]
     
     render
-    (-> (main-react/embed item
-                          {:state state
-                           :set-state! (f/partial set-state this)
-                           :handle-action! (f/partial handle-action this)})
-        (reacl/refer self))
+    (main-react/embed item
+                      {:state state
+                       :ref self
+                       :set-state! (f/partial set-state this)
+                       :handle-action! (f/partial handle-action this)})
 
     handle-message
     (fn [msg]

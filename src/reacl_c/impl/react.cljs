@@ -10,7 +10,8 @@
             [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str]
             [active.clojure.functions :as f]
-            [active.clojure.lens :as lens]))
+            [active.clojure.lens :as lens]
+            goog.object))
 
 ;; bindings
 
@@ -27,7 +28,7 @@
                     (catch :default _
                       true)))
 
-(defn- send-message! [comp msg & [callback]]
+(defn send-message! [comp msg & [callback]]
   ;; TODO: callback non-optional -> handle-message
   (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
   (assert (some? (aget comp $handle-message)) (pr-str comp))
@@ -35,8 +36,8 @@
 
 (defn- send-message-react-ref! [target msg]
   ;; TODO: exn if ref not set.
-  (assert (some? (.-current target)) (str (pr-str target) ", " (pr-str msg)))
-  (send-message! (.-current target) msg))
+  (assert (some? (r0/current-ref target)) (str (pr-str target) ", " (pr-str msg)))
+  (send-message! (r0/current-ref target) msg))
 
 (defn- send-message-base-ref! [target msg]
   ;; TODO: exn if ref not set.
@@ -155,15 +156,19 @@
       (swap! message-queue conj [msg callback]))))
 
 (defn react-send-message!
+  "Send a message to the component returned by [[react-run]]."
   [comp msg & [callback]]
-  (send-message! comp msg callback))
+  (if (goog.object/containsKey comp "ref")
+    (send-message! (r0/current-ref (.-ref comp)) msg callback)
+    (send-message! comp msg callback)))
 
 (defn react-run [item state onchange onaction ref key]
-  (r0/elem toplevel key ref [item state onchange onaction]))
+  ;; Note: must have a ref for react-send-message to work.
+  (r0/elem toplevel key (or ref (r0/create-ref)) [item state onchange onaction]))
 
 (defn run [dom item state onchange onaction]
   ;; Note: that render-component returns the component is legacy in
-  ;; React. It actually returns nil when this is used within anothing
+  ;; React. It actually returns nil when this is used within another
   ;; component (React in React, so to say).  Not sure if this is the
   ;; best solution, but for now we queue messages until a callback ref
   ;; is set (alternatively run would need a callback, which marks the
