@@ -191,6 +191,16 @@
                               "Action queueing not active")
          "throws outside of thunk"))))
 
+(deftest send-message-test
+  (dom-t/rendering
+   (c/handle-message (fn [st msg]
+                       msg)
+                     (dom/div))
+   (fn [env]
+     (dom-t/send-message! env :foo)
+     (is (= (dom-t/current-state env)
+            :foo)))))
+
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))
 

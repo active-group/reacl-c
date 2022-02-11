@@ -40,16 +40,18 @@
 (defn- run [aux]
   ;; run 'controlled', storing state in the :current atom
   (let [c (:current aux)
-        aq (:action-queue aux)]
-    (main-react/embed (main/execute-effects (:item @c))
-                      {:state (:state @c)
-                       :set-state!
-                       (fn [v] (reset! c (assoc @c :state v)))
-                       :handle-action!
-                       (fn [a]
-                         (if (some? @aq)
-                           (swap! aq conj a)
-                           (main/action-error a)))})))
+        aq (:action-queue aux)
+        component (main-react/embed (main/execute-effects (:item @c))
+                                    {:state (:state @c)
+                                     :set-state!
+                                     (fn [v] (reset! c (assoc @c :state v)))
+                                     :handle-action!
+                                     (fn [a]
+                                       (if (some? @aq)
+                                         (swap! aq conj a)
+                                         (main/action-error a)))})]
+    (reset! (:component aux) component)
+    component))
 
 (defn- aux
   ([env v]
@@ -97,6 +99,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
           ;; (which cannot change state) to create the env, then set a
           ;; watch on the atom below, after the env has beed created.
           a {:current (atom {:state nil :item nil})
+             :component (atom nil)
              :action-queue (atom (when (:queue-actions? options) #queue []))}
           
           env (doto (react-tu/render (run a)
@@ -199,6 +202,11 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
    (pop-action* env #(throw (js/Error (str "No actions captured yet.")))))
   ([env default]
    (pop-action* env (constantly default))))
+
+(defn send-message!
+  "Sends a message to the item running in the given rendering environment."
+  [env msg]
+  (main-react/send-message! @(:component (aux env)) msg))
 
 (defn container
   "Returns the container element used in the given rendering environment."
