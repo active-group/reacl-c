@@ -154,26 +154,42 @@
 
      (is (some? (dom-t/get env (dom-t/by-text "bar")))))))
 
-(deftest capture-actions-test
+(deftest queue-actions-test-1
+  (dom-t/rendering
+   (dom/button {:onclick #(c/return :action :x)} "foo")
+   :queue-actions? true
+   (fn [env]
+     (dom-t/fire-event (dom-t/get env (dom-t/by-text "foo")) :click)
+        
+     (is (= :x (dom-t/pop-action! env)) "returns :x")
+
+     (is (try (dom-t/pop-action! env)
+              false
+              (catch :default e
+                true))
+         "throws if empty")
+        
+     (is (= ::empty (dom-t/pop-action! env ::empty))
+         "returns arg if empty"))))
+
+(deftest queue-actions-test-2
   (dom-t/rendering
    (dom/button {:onclick #(c/return :action :x)} "foo")
    (fn [env]
-     (dom-t/capture-actions
+     (dom-t/queue-actions
       env
-      (fn [pull!]
+      (fn []
         (dom-t/fire-event (dom-t/get env (dom-t/by-text "foo")) :click)
-        
-        (is (= :x (pull!)) "returns :x")
 
-        (is (try (pull!)
-                 false
-                 (catch :default e
-                   true))
-            "throws if empty")
-        
-        (is (= ::empty (pull! ::empty))
-            "returns arg if empty")
-        )))))
+        (is (= :x (dom-t/pop-action! env)) "returns :x")))
+
+     ;; (dom-t/fire-event (dom-t/get env (dom-t/by-text "foo")) :click)
+     (is (string/starts-with? (try (dom-t/pop-action! env)
+                                   ""
+                                   (catch :default e
+                                     (.-message e)))
+                              "Action queueing not active")
+         "throws outside of thunk"))))
 
 (c/defn-effect running-effects-test-effect [x]
   (* x 2))

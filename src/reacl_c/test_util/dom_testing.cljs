@@ -40,15 +40,15 @@
 (defn- run [aux]
   ;; run 'controlled', storing state in the :current atom
   (let [c (:current aux)
-        as (:action-sink aux)]
+        aq (:action-queue aux)]
     (main-react/embed (main/execute-effects (:item @c))
                       {:state (:state @c)
                        :set-state!
                        (fn [v] (reset! c (assoc @c :state v)))
                        :handle-action!
                        (fn [a]
-                         (if-let [f @as]
-                           (f a)
+                         (if (some? @aq)
+                           (swap! aq conj a)
                            (main/action-error a)))})))
 
 (defn- aux
@@ -68,6 +68,7 @@ Options can be
 - `:visible?` specifying if the rendered dom should be made visible (the default looks at the `hidden` property of `js/document`),
 - `:configuration` for configuration corresponing to https://testing-library.com/docs/dom-testing-library/api-configuration
 - `:container`, `:baseElement`, `:hydrate` and `:wrapper` for rendering options corresponing to https://testing-library.com/docs/react-testing-library/api#render-options
+- `:queue-actions?` to specify that actions emitted by the rendered item should be stored in a queue, accessible via [[pop-action!]]
 
 Note that if `f` is asynchronous (returns a promise), then rendering will continue until the promise is resolved or rejected.
  "}
@@ -96,11 +97,12 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
           ;; (which cannot change state) to create the env, then set a
           ;; watch on the atom below, after the env has beed created.
           a {:current (atom {:state nil :item nil})
-             :action-sink (atom nil)}
+             :action-queue (atom (when (:queue-actions? options) #queue []))}
           
           env (doto (react-tu/render (run a)
                                      (clj->js (-> options
                                                   (dissoc :visible?
+                                                          :queue-actions?
                                                           :state
                                                           :configuration)
                                                   (assoc :container container))))
@@ -155,35 +157,48 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
     (swap! (:current a) merge {:state state})
     nil))
 
-(defn capture-actions
-  [env f]
-  ;; TODO: maximum queue size?
-  (let [a (aux env)
-        prev @(:action-sink a)]
-    (async/try-finally
-     (fn []
-       (let [sink (atom [])
-             pull! (fn pull!
-                     ([dflt]
-                      (let [as @sink]
-                        (if (empty? as)
-                          dflt
-                          (do (reset! sink (vec (rest as)))
-                              (first as)))))
-                     ([]
-                      (let [as @sink]
-                        (if (empty? as)
-                          (throw (js/Error (str "No actions captured yet.")))
-                          (do (reset! sink (vec (rest as)))
-                              (first as))))))]
-         (reset! (:action-sink a)
-                 (fn [action]
-                   (reset! sink (vec (concat @sink [action])))))
-         (f pull!)))
-     (fn []
-       ;; TODO Check here, optionally? if queue is empty? (I think user cannot fully do that, because of asynchronously emitted actions)
-       ;; restore previous sink
-       (reset! (:action-sink a) prev)))))
+(defn queue-actions
+  "Enables action queueing during the evaluation of the given
+  thunk. This has the same effect as setting the option
+  `:queue-actions?` in the call to [[rendering]]
+  otherwise. See [[pop-action!]] to check for queued actions."
+  [env thunk]
+  (let [aq (:action-queue (aux env))
+        prev @aq]
+    (if (some? prev) ;; already active?
+      (thunk)
+      (async/try-finally
+       (fn []
+         (reset! aq #queue [])
+         (thunk))
+       (fn []
+         (reset! aq prev))))))
+
+(defn- pop-action* [env on-empty]
+  (let [aq (:action-queue (aux env))]
+    (if-let [as @aq]
+      (if (empty? as)
+        (on-empty)
+        (let [v (peek as)]
+          (reset! aq (pop as))
+          v))
+      (throw (js/Error "Action queueing not active. Set the option `:queue-actions?` in the call to `rendering`, or use `queue-actions`.")))))
+
+(defn pop-action!
+  "Removes and returns an action that was previously emitted by the item
+  running in the given rendering environment. Throws if action queueing
+  is not enabled, either by the `queue-actions?` option
+  to [[rendering]], or by [[queue-actions]]. Also throws if the queue
+  is empty, unless a second argument is provided, which is then
+  returned instead.
+
+  Note that you can use [[wait-for]] to wait for an action that is
+  emitted asynchronously.
+  "
+  ([env]
+   (pop-action* env #(throw (js/Error (str "No actions captured yet.")))))
+  ([env default]
+   (pop-action* env (constantly default))))
 
 (defn container
   "Returns the container element used in the given rendering environment."
