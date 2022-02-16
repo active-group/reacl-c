@@ -9,6 +9,7 @@
             [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str]
+            [clojure.data :as data]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]
             goog.object))
@@ -463,16 +464,24 @@
 
                                  prev-elem (native-deref (or prev-ref (:a-ref prev-state)))
                                  new-elem (native-deref (or new-ref (:a-ref new-state)))]
-                             ;; ...could make a diff old/new here as an optimization... (elem will usually be the same)
-                             (remove-event-listeners prev-elem (event-fns prev-events (:event-handlers prev-state)))
-                             (add-event-listeners new-elem (event-fns new-events (:event-handlers new-state)))))
+                             (let [[to-remove to-add]
+                                   (let [prev-listeners (event-fns prev-events (:event-handlers prev-state))
+                                         new-listeners (event-fns new-events (:event-handlers new-state))]
+                                     (if (= prev-elem new-elem)
+                                       (let [[to-remove to-add _]
+                                             (data/diff prev-listeners new-listeners)]
+                                         [to-remove to-add])
+                                       [prev-listeners new-listeners]))]
+                               (remove-event-listeners prev-elem to-remove)
+                               (add-event-listeners new-elem to-add))))
 
-                         "componentWillUnmount"
-                         (fn [this]
-                           (let [state (r0/get-state this)
-                                 [_ _ ref events _] (r0/get-args this)
-                                 elem (native-deref (or ref (:a-ref state)))]
-                             (remove-event-listeners elem (event-fns events (:event-handlers state)))))
+                         ;; Note: I assume removing event listeners is not needed.
+                         ;; "componentWillUnmount"
+                         ;; (fn [this]
+                         ;;   (let [state (r0/get-state this)
+                         ;;         [_ _ ref events _] (r0/get-args this)
+                         ;;         elem (native-deref (or ref (:a-ref state)))]
+                         ;;     (remove-event-listeners elem (event-fns events (:event-handlers state)))))
                          
                          "render" (fn [this]
                                     (let [[binding attrs ref events children] (r0/get-args this)]
