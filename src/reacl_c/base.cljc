@@ -113,6 +113,17 @@
   E
   (-is-dynamic? [{e :e}] (is-dynamic? e)))
 
+(r/define-record-type Initializer
+  (make-initializer f args)
+  initializer?
+  [f initializer-f
+   args initializer-args])
+
+(defn eval-local-state-init [init]
+  (if (initializer? init)
+    (apply (initializer-f init) (initializer-args init))
+    init))
+
 (r/define-record-type LocalState
   (make-local-state e initial)
   local-state?

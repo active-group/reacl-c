@@ -51,8 +51,8 @@
         base/with-async-return? (resolve-dyn item state)
 
         ;; the wrappers
-        base/focus? (update item :e #(resolve-* % (yank state (:lens item)) resolve-dyn))
-        base/local-state? (update item :e #(resolve-* % [state (:initial item)] resolve-dyn))
+        base/focus? (update item :e #(resolve-* % (yank state (base/focus-lens item)) resolve-dyn))
+        base/local-state? (update item :e #(resolve-* % [state (base/eval-local-state-init (base/local-state-initial item))] resolve-dyn))
         
         base/handle-action? (w)
         base/refer? (w)

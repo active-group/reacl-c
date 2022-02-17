@@ -231,13 +231,10 @@
   (-instantiate-react [{e :e lens :lens} binding ref]
     (r0/elem focus nil [binding ref e lens])))
 
-(defn- eval-local-state-init [init]
-  init)
-
 (defn- make-new-state! [this init]
   (let [store (stores/make-resettable-store!
                init
-               eval-local-state-init
+               base/eval-local-state-init
                (fn [new-state]
                  (r0/set-state this (fn [s] (assoc s :state new-state)))))]
     {:store store
@@ -248,7 +245,7 @@
     (let [init (args-initial-state (r0/extract-args props))
           state (r0/extract-state state)
           store (:store state)]
-      (when (stores/maybe-reset-store! store init eval-local-state-init)
+      (when (stores/maybe-reset-store! store init base/eval-local-state-init)
         (r0/mk-state (assoc state :state (stores/store-get store)))))))
 
 (r0/defclass local-state

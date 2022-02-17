@@ -492,18 +492,15 @@
     rcore-keep-state
     st2))
 
-(defn- eval-local-state-init [init]
-  init)
-
 (rcore/defclass ^:private local-state this astate [e initial]
   local-state [lstate {:initial-expr initial
-                       :current (eval-local-state-init initial)}]
+                       :current (base/eval-local-state-init initial)}]
 
   component-will-receive-args
   (fn [new-e new-initial]
     (if (not= (:initial-expr lstate) new-initial)
       (rcore/return :local-state {:initial-expr new-initial
-                                  :current (eval-local-state-init new-initial)})
+                                  :current (base/eval-local-state-init new-initial)})
       (rcore/return)))
 
   refs [child]

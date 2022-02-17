@@ -1173,11 +1173,14 @@ Note that the state of the inner item (the `div` in this case), will
 
 (defrecord ^{:private true :rtd-record? true} CallHandler [id f args])
 
+(defn- unique-id []
+  #?(:cljs (random-uuid))
+  #?(:clj (Object.)))
+
 (def ^:private make-unique-id
   (handle-effect-result (fn [_ uuid]
                           (return :state uuid))
-                        (effect #?(:cljs random-uuid)
-                                #?(:clj #(Object.)))))
+                        (effect unique-id)))
 
 (let [bound (fn [id h inner-state & args]
               (return :action (CallHandler. id h args)))
@@ -1189,21 +1192,10 @@ Note that the state of the inner item (the `div` in this case), will
                          (= id (:id a)))
                   (apply (:f a) state (:args a))
                   (return :action a)))
-      dyn-ref (fn [ref f id]
-                (fragment (focus lens/second make-unique-id)
-                           ;; wait for id; (Note: handlers usually
-                           ;; have no visual effect; so rendering with
-                           ;; nil first should be ok? but that would
-                           ;; disallow events during initialization;
-                           ;; although that is probably a bad idea
-                           ;; anyway...?)
-                          (when id
-                            (-> (focus lens/first
-                                       (-> (f (f/partial binder id))
-                                           (handle-action (f/partial handler id))))
-                                (refer ref)))))
       dyn (fn [[_ id] f]
-            (forward-messages dyn-ref f id))]
+            (focus lens/first
+                   (-> (f (f/partial binder id))
+                       (handle-action (f/partial handler id)))))]
   (defn with-bind
     "Returns an item that will call `f` with a `bind` function, which
   should return an item then. The `bind` function can then be used, to
@@ -1216,8 +1208,7 @@ Note that the state of the inner item (the `div` in this case), will
   you usually don't have to use this yourself."
     [f]
     {:pre [(ifn? f)]}
-    ;; TODO: maybe bring the local-state initializers in again? Would greatly simplify this item, which will be used a lot via defn-dom
-    (local-state nil
+    (local-state (base/make-initializer unique-id nil)
                  (dynamic dyn f))))
 
 (defn call

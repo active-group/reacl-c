@@ -49,8 +49,8 @@
                       (base/focus-e item))
                  item state)
 
-      (base/local-state? item) ;; TODO: implement special local-state initializers
-      (f-wrapper (rec [state (base/local-state-initial item)]
+      (base/local-state? item)
+      (f-wrapper (rec [state (base/eval-local-state-init (base/local-state-initial item))]
                       (base/local-state-e item))
                  item state)
 
