@@ -328,10 +328,26 @@
                              (when (some? finish)
                                (call-event-handler! binding finish)))))
 
+(r0/defclass lifecycle-h
+  "render" (fn [this] nil)
+
+  $handle-message (message-deadend "lifecycle")
+  
+  "componentDidMount" (fn [this]
+                        (let [[binding init] (r0/get-args this)]
+                          (when (some? init)
+                            (call-event-handler! binding init))))
+  "componentDidUpdate" (fn [this]
+                         (let [[binding init] (r0/get-args this)]
+                           (when (some? init)
+                             (call-event-handler! binding init)))))
+
 (extend-type base/Lifecycle
   IReact
   (-instantiate-react [{init :init finish :finish} binding ref]
-    (r0/elem lifecycle ref [binding init finish])))
+    (if (some? finish)
+      (r0/elem lifecycle ref [binding init finish])
+      (r0/elem lifecycle-h ref [binding init]))))
 
 (let [upd (fn [binding f old-state new-state]
             (call-event-handler*! old-state (:action-target binding) (:process-messages binding) f new-state))]
