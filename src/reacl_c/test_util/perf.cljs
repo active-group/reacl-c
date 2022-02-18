@@ -1,6 +1,5 @@
 (ns reacl-c.test-util.perf
-  (:require [reacl2.core :as rcore :include-macros true]
-            [reacl-c.base :as base]
+  (:require [reacl-c.base :as base]
             [reacl-c.dom :as dom]
             [clojure.data :as data]
             [active.clojure.lens :as lens]
@@ -12,9 +11,6 @@
 
 (defn- dummy-return! [v]
   (throw (ex-info "Asynchronous return delivery must only be done asynchronously, not during rendering." {:value v})))
-
-(defn- yank [state lens]
-  (lens/yank state (rcore/lift-lens lens)))
 
 (defn ^:no-doc resolve-1-shallow
   "Shallowly replaces all dynamic items with the items they resolve to for the given state."
@@ -51,7 +47,7 @@
         base/with-async-return? (resolve-dyn item state)
 
         ;; the wrappers
-        base/focus? (update item :e #(resolve-* % (yank state (base/focus-lens item)) resolve-dyn))
+        base/focus? (update item :e #(resolve-* % (lens/yank state (base/focus-lens item)) resolve-dyn))
         base/local-state? (update item :e #(resolve-* % [state (base/eval-local-state-init (base/local-state-initial item))] resolve-dyn))
         
         base/handle-action? (w)
