@@ -1,6 +1,7 @@
 (ns reacl-c.dom-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom :include-macros true]
+            [reacl-c.test-util.dom-testing :as dt]
             [reacl-c.base :as base]
             [schema.core :as s]
             [cljs.test :refer (is deftest testing) :include-macros true]))
@@ -29,5 +30,38 @@
 
     (is (= (dom/div "baz") (base/named-e (defn-dom-test-1 "baz")))))
 
-  ;; TODO: test event handler binding?
+  (testing "event handler binding"
+    (dom/defn-dom defn-dom-test-2 [attrs]
+      (c/local-state "foo"
+                     (c/fragment (dom/button {:onclick (:onclick attrs)
+                                              :data-testid "bar"})
+                                 (dom/button {:onclick (fn [st ev]
+                                                         (c/call (:onx attrs) 42))
+                                              :data-testid "baz"}))))
+    
+    (dt/rendering
+     (defn-dom-test-2 {:onclick (fn [st _] (inc st))
+                       :onx (fn [st v] (+ st v))})
+     :state 0
+     (fn [env]
+       (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
+       (is (= (dt/current-state env)
+              1))
+       (dt/fire-event (dt/get env (dt/by-test-id "baz")) :click)
+       (is (= (dt/current-state env)
+              43)))))
+
+  #_(testing "event handler binding in static"
+    (dom/defn-dom defn-dom-test-3 :static [attrs]
+      (dom/button {:onclick (:onclick (fn [st ev]
+                                        (c/call (:onclick attrs) st)))
+                   :data-testid "bar"}))
+    
+    (dt/rendering
+     (defn-dom-test-3 {:onclick (fn [st v] (conj st v))})
+     :state []
+     (fn [env]
+       (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
+       (is (= (dt/current-state env)
+              [nil])))))
   )
