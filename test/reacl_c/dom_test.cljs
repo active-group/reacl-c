@@ -51,10 +51,10 @@
        (is (= (dt/current-state env)
               43)))))
 
-  #_(testing "event handler binding in static"
+  (testing "event handler binding in static"
     (dom/defn-dom defn-dom-test-3 :static [attrs]
-      (dom/button {:onclick (:onclick (fn [st ev]
-                                        (c/call (:onclick attrs) st)))
+      (dom/button {:onclick (fn [st ev]
+                              (c/call (:onclick attrs) st))
                    :data-testid "bar"}))
     
     (dt/rendering
@@ -62,6 +62,8 @@
      :state []
      (fn [env]
        (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
+       (is (not= (dt/current-state env)
+                 [[]]))
        (is (= (dt/current-state env)
               [nil])))))
   )

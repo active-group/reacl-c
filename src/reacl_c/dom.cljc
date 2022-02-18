@@ -91,12 +91,19 @@
                             attrs
                             events)
                  children))]
-  (defn ^:no-doc defn-dom-impl [f args]
+  (defn ^:no-doc defn-dom-impl [static? f args]
     (let [[attrs & children] (analyze-dom-args args)
-          [attrs events] (split-events attrs)]
+          [attrs events] (split-events attrs)
+          
+          f (if static? (f/partial core/static f) f)]
       (if (empty? events)
         (apply f attrs children)
         (core/with-bind (f/partial k f attrs events children))))))
+
+(defn- opt-assoc [m k v]
+  (if (contains? m k)
+    m
+    (assoc m k v)))
 
 (defmacro ^{:arglists '([name [attrs & children] & body])} defn-dom
   "Defines a function that works like the dom element functions in this
@@ -119,14 +126,14 @@
   [name params & body]
   (let [[name static? state-schema? docstring? params & body] (apply core/parse-defn-item-args name params body)]
     `(let [f# (fn ~params ~@body)]
-       (core/defn-item ~(vary-meta name assoc :arglists '(params)) ;; TODO: opt-assoc (only if not set yet);
-         ;; ~@(when static? [:static]) ;; FIXME: with-bind must be ouside of static.
+       (core/defn-item ~(vary-meta name opt-assoc :arglists '(params))
+         ;; Note: (defn-item  :static) cannot be used, because 'with-bind' must be outside of static.
          ~@(when state-schema? [:- state-schema?])
          ~@(when docstring? [docstring?])
          [& args#]
          ;; TODO: validate arguments earlier (arity and schema).
          ;; TODO: optimize toplevel with-bind/with-state-as like defn-item.
-         (defn-dom-impl f# args#)))))
+         (defn-dom-impl ~static? f# args#)))))
 
 (defn- join-classes [& cs]
   (str/join " " (filter not-empty
