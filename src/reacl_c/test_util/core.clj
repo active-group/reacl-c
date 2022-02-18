@@ -1,5 +1,4 @@
-(ns reacl-c.test-util.core
-  (:require [reacl2.test-util.beta :as r-tu]))
+(ns reacl-c.test-util.core)
 
 (defmacro provided
   "Replaces the values bound to the given vars during the
@@ -14,4 +13,14 @@
   ```
   "
   [bindings & body]
-  `(r-tu/provided ~bindings ~@body))
+  (let [pairs (partition 2 bindings)
+        olds (gensym "olds")]
+    `(let [~olds [~@(map first pairs)]]
+       (do ~@(map (fn [[s v]]
+                    `(set! ~s ~v))
+                  pairs)
+           (try (do ~@body)
+                (finally
+                  (do ~@(map-indexed (fn [i [s v]]
+                               `(set! ~s (get ~olds ~i)))
+                             pairs))))))))
