@@ -35,13 +35,13 @@
   "Returns the function implementing the effect behind the given simple effect action. See [[simple-effect?]]."
   [eff]
   (assert (base/simple-effect? eff))
-  (:f eff))
+  (base/effect-f eff))
 
 (defn effect-args
   "Returns the arguments for the function returned by [[effect-f]]."
   [eff]
   (assert (base/simple-effect? eff))
-  (:args eff))
+  (base/effect-args eff))
 
 (defn run-effect!
   "Returns a tuple `[value ret]`. If an effect returns a [[reacl-c.core/return]]
