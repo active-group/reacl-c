@@ -107,7 +107,6 @@
   ```
 "
   [bindings & body]
-  ;; TODO: add to docs: for highest performance, use ref-let*
   (assert (even? (count bindings)))
   (let [[names items] (let [l (partition-all 2 bindings)]
                         [(map first l) (map second l)])]
@@ -138,8 +137,7 @@
   that `item` shall see, via the given *lens*. Otherwise behaves and
   looks the same."
   [lens item]
-  {:pre [(base/item? item)
-         #_(base/lens? lens)]}
+  {:pre [(base/item? item)]}
   (if (= lens lens/id)
     item
     (base/make-focus item lens)))
@@ -447,7 +445,7 @@ be specified multiple times.
 
 (defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
-  item with an arbitrary state that is inaccessible for it." ;; TODO: formulate the other way round.
+  item with an arbitrary state that is inaccessible for it."
   [initial-state item]
   (static (f/partial add-state initial-state lens/second item)))
 
