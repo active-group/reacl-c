@@ -75,9 +75,14 @@
 
 (defn- dom-function [type]
   {:pre [(string? type)]}
-  ;; Note: could also use (with-async-actions (fn [deliver! ])) and event handlers that call deliver! - but then they aren't pure anymore (at least after a translation)
-  ;; Note: DOM uses upper-case for the type (.nodeName), but React enforces lower-case :-/
-  ;; (assert (= type (str/lower-case type)) type)  -- TODO: what about clipPath ?
+  ;; Note: could also use (with-async-actions (fn [deliver! ])) and
+  ;; event handlers that call deliver! - but then they aren't pure
+  ;; anymore (at least after a translation)
+  
+  ;; Note: DOM uses upper-case for the type (.nodeName), but React
+  ;; enforces lower-case, in general; but for something like
+  ;; 'clipPath' is complains only when used outside of an svg; inside
+  ;; camelCase is ok.
   (fn [& args]
     (apply dom-element type args)))
 
