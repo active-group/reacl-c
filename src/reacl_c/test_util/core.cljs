@@ -99,52 +99,36 @@
     host))
 
 (defn- subscription-f-args [sub]
-  ;; this is quite hacky, because subscription are not first-class items, we match/extract the function and args from the items constructed in core/subscription.
-  ;; but as long as there is a test for it, we just have to keep that in sync with the impl.
-  (let [sub (if (base/named? sub)
-              ;; subs from defn-subscription are also named:
-              (base/named-e sub)
-              sub)]
-    (and (base/with-async-return? sub)
-         (let [[_ [_ _ f args]] (base/with-async-return-args sub)]
-           (assert (ifn? f))
-           (when (ifn? f)
-             [f args])))))
+  (when-let [[defn-f f args] (core/subscription-deconstruct sub)]
+    [f args]))
 
 (defn- subscription-1?
   [v]
-  (and (base/item? v)
-       (some? (subscription-f-args v))))
-
-(defn subscription-f
-  "Returns the function implementing the given subscription item."
-  [sub]
-  (assert (subscription-1? sub))
-  (first (subscription-f-args sub)))
-
-(defn subscription-args
-  "Returns extra arguments for the function implementing the given subscription item. See [[subscription-f]]"
-  [sub]
-  (assert (subscription-1? sub))
-  (second (subscription-f-args sub)))
+  (some? (core/subscription-deconstruct v)))
 
 (defn subscription?
   "Returns whether `item` is a subscription item, optinally also
   checking if it was created by the given `defn-subscription` function
   or with the given function `f` as its implementation."
   ([v]
-   (and (base/item? v)
-        (some? (subscription-f-args v))))
+   (some? (core/subscription-deconstruct v)))
   ([v f]
    (assert (ifn? f))
-   (and (subscription? v)
-        (or (= f (subscription-f v))
-            ;; uuuh, if f is acually a 'defn-subscription' fn, then calling is does no harm, but if it isn't?
-            ;; being pragmatic here, and just look if it is a 'named'
-            ;; thingy too and that nobody passes something very different in as `f`.
-            (and (some? (core/meta-name-id f))
-                 (= v (apply f (subscription-args v))))))))
+   (when-let [[s-defn-f s-f s-args] (core/subscription-deconstruct v)]
+     (or (= f s-f)
+         (= f s-defn-f)))))
 
+(defn subscription-f
+  "Returns the function implementing the given subscription item."
+  [sub]
+  (assert (subscription? sub))
+  (second (core/subscription-deconstruct sub)))
+
+(defn subscription-args
+  "Returns extra arguments for the function implementing the given subscription item. See [[subscription-f]]"
+  [sub]
+  (assert (subscription? sub))
+  (second (rest (core/subscription-deconstruct sub))))
 
 (defn ^{:arglists '([subscribe-effect f & args]
                     [subscribe-effect subscription])
@@ -247,7 +231,7 @@
                 (core/return :message [(subscribe-effect-host eff)
                                        (core/->SubscribedEmulatedResult action)])))
             :else (core/return :action eff)))]
-  (defn emulate-subscriptions  ;; TODO: deprecated (use map-subscriptions)
+  (defn ^:deprecated emulate-subscriptions
     "Returns an item, that for all subscriptions done in `item`,
   evaluates `(f subscription-effect)`. The
   function [[subscription-effect?]] can be used to check which kind of
@@ -268,7 +252,7 @@
                      (cond
                        (some #(subscribe-effect? eff %) subs) core/no-effect
                        :else eff))]
-  (defn disable-subscriptions  ;; TODO: deprecated (use map-subscriptions)
+  (defn ^:deprecated disable-subscriptions
     "Returns an item like `item`, but where all subscriptions (or the
   the given subscriptions) are not executed when emitted from `item`."
     ([item]

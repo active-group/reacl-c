@@ -647,7 +647,7 @@ be specified multiple times.
         deliver! (comp (fn [a]
                          (if (some? @sync)
                            (swap! sync conj a)
-                           (async-deliver! a)))
+                           (async-deliver! (return :action a))))
                        action-mapper)
         stop! (apply f deliver! args)
         sync-actions @sync]
@@ -711,7 +711,19 @@ be specified multiple times.
                            (dynamic dyn deliver! action-mapper defn-f)))]
   (defn ^:private subscription*
     [action-mapper defn-f f & args]
-    (with-async-actions stu action-mapper defn-f f args)))
+    (with-async-return stu action-mapper defn-f f args))
+
+  (defn ^:no-doc subscription-deconstruct
+    [item]
+    (let [item (if (base/named? item) ;; items created via defn-subscription may be named.
+                 (base/named-e item)
+                 item)]
+      ;; Note: must correspond to what subscription* does.
+      (and (base/with-async-return? item)
+           (= stu (base/with-async-return-f item))
+           (let [[_ defn-f f args] (base/with-async-return-args item)]
+             [defn-f f args]))))
+  )
 
 (defn subscription
     "Returns an item that emits actions according to the given

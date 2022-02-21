@@ -61,6 +61,31 @@
     (is (= (c/subscription ff :foo)
            (c/subscription ff :foo)))))
 
+(deftest subscription-deconstruct-test
+  (c/defn-subscription ^:always-validate subscription-properties-test-2 deliver! :- s/Any [arg :- s/Keyword]
+    (assert false)
+    (fn [] nil))
+  (c/defn-subscription subscription-properties-test-3 deliver! [arg]
+    (assert false)
+    (fn [] nil))
+  (let [sub-1-f (fn [deliver! arg]
+                  (assert false)
+                  (fn [] nil))
+        sub-1 (c/subscription sub-1-f
+                              :foo)
+        sub-2 (subscription-properties-test-2 :bar)
+        sub-3 (subscription-properties-test-3 :baz)]
+
+    (is (some? (c/subscription-deconstruct sub-1)))
+    (is (some? (c/subscription-deconstruct sub-2)))
+    (is (some? (c/subscription-deconstruct sub-3)))
+    
+    (is (= [nil sub-1-f [:foo]] (c/subscription-deconstruct sub-1)))
+    ;; Note: the implementing function is something internal for defn-subscription (takes deliver! and arg)
+    (is (= [subscription-properties-test-2 'impl [:bar]] (assoc (c/subscription-deconstruct sub-2) 1 'impl)))
+    (is (= [subscription-properties-test-3 'impl [:baz]] (assoc (c/subscription-deconstruct sub-3) 1 'impl)))
+    )
+  )
 
 (deftest effect-test
   (testing "equality"
