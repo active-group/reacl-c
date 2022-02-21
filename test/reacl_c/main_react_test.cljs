@@ -4,7 +4,6 @@
             [reacl-c.main-browser-test :as btest]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
-            [reacl2.core :as reacl :include-macros true]
             ["react" :as react]
             ["react-dom" :as react-dom]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
