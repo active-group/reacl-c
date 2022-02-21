@@ -718,3 +718,22 @@
 
     (react-tu/Simulate.click n)
     (is (= "1" (text (.-firstChild n))))))
+
+(deftest finish-state-test
+  ;; when a state storage (local state) is removed in an unmount, but
+  ;; a finalizer still refers to it, it may cause problems.
+  (let [finished (atom nil)
+        n (renders-as (c/with-state-as a
+                        (dom/button {:onclick (fn [st _] false)}
+                                    (c/dynamic str)
+                                    (when a
+                                      (c/local-state "foo"
+                                                     (c/cleanup (fn [st]
+                                                                  (reset! finished st)
+                                                                  (c/return)))))))
+                      true)]
+    (is (= "true" (text (.-firstChild n))))
+    
+    (react-tu/Simulate.click n)
+    (is (= "false" (text (.-firstChild n))))
+    (is (= [false "foo"] @finished))))

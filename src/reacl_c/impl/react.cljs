@@ -314,13 +314,14 @@
                          (let [[binding init finish] (r0/get-args this)]
                            (when (some? init)
                              (call-event-handler! binding init))))
+
+  ;; Note: a cleaup can run on 'non-existing' state; i.e. the lens may
+  ;; fail; run it on the rendered state instead? Changing state in
+  ;; cleanup is dangerous, too; maybe it cannot be disallowed in
+  ;; general; although it seems the only meaningful cleanups have to
+  ;; be side effects only. So maybe adding a special cleanup for that,
+  ;; without access to the state would be better?
   "componentWillUnmount" (fn [this]
-                           ;; FIXME: a cleaup can run on
-                           ;; 'non-existing' state; i.e. the lens may
-                           ;; fail; run it on the rendered state
-                           ;; instead? Changing state in cleanup is
-                           ;; dangerous, too; but probably cannot be
-                           ;; disallowed in general.
                            (let [[binding init finish] (r0/get-args this)]
                              (when (some? finish)
                                (call-event-handler! binding finish)))))
