@@ -92,10 +92,14 @@
                             events)
                  children))]
   (defn ^:no-doc defn-dom-impl [static? f args]
+    ;; possible optimization: if all event handlers are already 'bound', we don't need with-bind.
     (let [[attrs & children] (analyze-dom-args args)
           [attrs events] (split-events attrs)
           
           f (if static? (f/partial core/static f) f)]
+      ;; Note: not checking for nil events handlers here, to give the
+      ;; user the chance to have a stable tree if needed (important
+      ;; for focus etc)
       (if (empty? events)
         (apply f attrs children)
         (core/with-bind (f/partial k f attrs events children))))))
