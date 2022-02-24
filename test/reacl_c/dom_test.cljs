@@ -2,6 +2,7 @@
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom :include-macros true]
             [reacl-c.test-util.dom-testing :as dt]
+            [reacl-c.test-util.core-testing :as ct]
             [reacl-c.base :as base]
             [schema.core :as s]
             [cljs.test :refer (is deftest testing) :include-macros true]))
@@ -66,4 +67,17 @@
                  [[]]))
        (is (= (dt/current-state env)
               [nil])))))
+  )
+
+(deftest def-dom-test
+  (dom/def-dom foo dom/div)
+
+  (is (ct/contains? (foo "bar")
+                    (dom/div "bar")))
+
+  (dom/def-dom bar dom/div
+    {:style {:margin "10px"}})
+
+  (is (ct/contains? (bar (dom/span))
+                    (dom/div {:style {:margin "10px"}} (dom/span))))
   )

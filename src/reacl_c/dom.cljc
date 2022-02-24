@@ -167,11 +167,45 @@
                          (assoc res k v)))
                      a1
                      a2))]
-  (defn merge-attributes [& attrs]
+  (defn merge-attributes
+    "Merge two or more attribute maps into one. This handles merging
+  multiple `:style` maps into one, and concatenates `:class` and
+  `:className` strings."
+    [& attrs]
     (assert (every? #(or (nil? %) (dom-attributes? %)) attrs) (vec (remove #(or (nil? %) (dom-attributes? %)) attrs)))
     (reduce merge-a2
             {}
             attrs)))
+
+(defmacro def-dom
+  "Defines an alias for a dom function, for example:
+
+```
+  (def-dom page div)
+```
+
+  The var `page` will be bound to function that is essentially
+  identical to `div`, but additionally, the name of the var is attached
+  to the returned items, which can be helpful in testing and debugging
+  utilities (see [[reacl-c.core/named]]).
+
+  Also, some default attributes can be specified, for example:
+
+```
+  (def-dom page div
+    {:style {:margin \"10px\")})
+```
+
+  These attributes will be merged with attributes passed by the caller
+  of `page` using [[merge-attributes]].
+  "
+  [name base & [attrs]]
+  `(let [base# ~base
+         attrs# ~attrs]
+     (core/defn-item ~(vary-meta name opt-assoc :arglists '([attrs & children] [& children]))
+       [& args]
+       (let [[attrs2 & children] (analyze-dom-args args)]
+         (apply base# (merge-attributes attrs# attrs2) children)))))
 
 (defn ^{:arglists '([type attrs & children]
                     [type & children])}
