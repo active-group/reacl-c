@@ -61,7 +61,16 @@
                    (when actions (action-target actions))
                    (when messages (process-messages messages))))]))
 
+(defn- event-handler-binding [binding]
+  ;; Note: we can (and should) remove state from a binding, if it is
+  ;; used for event handling only. Because otherwise the action-target
+  ;; will be different even across static items; causing unneccessary
+  ;; rerenders. (ideally we should have separated rendering state and
+  ;; the other binding info)
+  (assoc binding :state nil))
+
 (defn- call-event-handler! [binding handler & args]
+  ;; Note: must not use :state - see event-handler-binding
   (let [store (:store binding)
         [new-state callback] (apply call-event-handler*! (stores/store-get store)
                                     (:action-target binding) (:process-messages binding) handler args)]
@@ -278,7 +287,7 @@
     "render" (fn [this]
                (let [[binding ref e f pred] (r0/get-args this)]
                  (render e
-                         (assoc binding :action-target (f/partial h binding f pred))
+                         (assoc binding :action-target (f/partial h (event-handler-binding binding) f pred))
                          ref)))))
 
 (extend-type base/HandleAction
@@ -291,7 +300,7 @@
   (r0/defclass with-async-return
     "render" (fn [this]
                (let [[binding ref f & args] (r0/get-args this)]
-                 (render (apply f (f/partial send! binding) args)
+                 (render (apply f (f/partial send! (event-handler-binding binding)) args)
                          binding
                          ref)))))
 
@@ -354,7 +363,7 @@
                (let [[binding ref e f] (r0/get-args this)]
                  (render e
                          (assoc binding
-                                :store (stores/handle-store-updates (:store binding) (f/partial upd binding f)))
+                                :store (stores/handle-store-updates (:store binding) (f/partial upd (event-handler-binding binding) f)))
                          ref)))))
 
 (extend-type base/HandleStateChange
