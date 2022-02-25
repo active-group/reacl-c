@@ -740,11 +740,13 @@
 
 (deftest handle-action-rerender-test
   (let [called (atom 0)
-        item (-> (c/static (fn []
-                             (swap! called inc)
-                             (dom/div "foo")))
-                 (c/handle-action :foo))]
-    (let [[app host] (render item 42)]
+        item (let [f (fn []
+                       (swap! called inc)
+                       (dom/div "foo"))]
+               (fn []
+                 (-> (c/static f)
+                     (c/handle-action (fn [] :foo)))))]
+    (let [[app host] (render (item) 42)]
       (is (= 1 @called))
-      (run-in host item 43)
+      (run-in host (item) 43)
       (is (= 1 @called)))))
