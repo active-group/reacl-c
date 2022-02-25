@@ -19,7 +19,6 @@
 (defrecord Binding [state ;; to be used for rendering only.
                     store ;; to be used for state transitions.
                     action-target ;; for action handling
-                    process-messages ;; for message delivery
                     ])
 
 (def ^:private $handle-message "handleMessage")
@@ -44,7 +43,11 @@
   ;; TODO: exn if ref not set.
   (send-message! (base/deref-message-target target) msg))
 
-(defn- call-event-handler*! [state action-target process-messages handler & args]
+(defn- process-messages [messages]
+  (doseq [[target msg] messages]
+    (send-message-base-ref! target msg)))
+
+(defn- call-event-handler*! [state action-target handler & args]
   (let [r (apply handler state args)
         new-state (if (base/returned? r)
                     (let [s (base/returned-state r)]
@@ -73,7 +76,7 @@
   ;; Note: must not use :state - see event-handler-binding
   (let [store (:store binding)
         [new-state callback] (apply call-event-handler*! (stores/store-get store)
-                                    (:action-target binding) (:process-messages binding) handler args)]
+                                    (:action-target binding) handler args)]
     (stores/store-set! store new-state)
     (when callback (callback))))
 
@@ -136,10 +139,6 @@
     ;; TODO: exn?!
     (assert false (str "Can't send a message to a " elem " element: " (pr-str msg) "."))))
 
-(defn- toplevel-process-messages [messages]
-  (doseq [[target msg] messages]
-    (send-message-base-ref! target msg)))
-
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
@@ -150,8 +149,7 @@
       (render item
               (Binding. state
                         (stores/delegate-store state onchange)
-                        (f/partial toplevel-actions onaction)
-                        toplevel-process-messages)
+                        (f/partial toplevel-actions onaction))
               (:ref (r0/get-state this)))))
   
   $handle-message
@@ -357,7 +355,7 @@
       (r0/elem lifecycle-h ref [binding init]))))
 
 (let [upd (fn [binding f old-state new-state]
-            (call-event-handler*! old-state (:action-target binding) (:process-messages binding) f new-state))]
+            (call-event-handler*! old-state (:action-target binding) f new-state))]
   (r0/defclass handle-state-change
     "render" (fn [this]
                (let [[binding ref e f] (r0/get-args this)]
