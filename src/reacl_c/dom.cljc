@@ -203,9 +203,9 @@
   `(let [base# ~base
          attrs# ~attrs]
      (core/defn-item ~(vary-meta name opt-assoc :arglists '([attrs & children] [& children]))
-       [& args]
-       (let [[attrs2 & children] (analyze-dom-args args)]
-         (apply base# (merge-attributes attrs# attrs2) children)))))
+       [& args#]
+       (let [[attrs2# & children#] (analyze-dom-args args#)]
+         (apply base# (merge-attributes attrs# attrs2#) children#)))))
 
 (defn ^{:arglists '([type attrs & children]
                     [type & children])}
