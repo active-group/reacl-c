@@ -18,7 +18,7 @@
 
 (defrecord Binding [state ;; to be used for rendering only.
                     store ;; to be used for state transitions.
-                    action-target ;; for action handling
+                    action-target ;; for action handling, an atom.
                     ])
 
 (def ^:private $handle-message "handleMessage")
@@ -61,7 +61,7 @@
     [new-state (when (or actions messages)
                  (fn []
                    ;; Note: defines the order or processing actions and messages
-                   (when actions (action-target actions))
+                   (when actions (@action-target actions))
                    (when messages (process-messages messages))))]))
 
 (defn- event-handler-binding [binding]
@@ -142,15 +142,23 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    {:ref (r0/create-ref)})
+    {:ref (r0/create-ref)
+     :action-target (atom nil)})
+  ;; see [[handle-action]] for the reasons of the action-target atom.
+  [:static "getDerivedStateFromProps"]
+  (fn [props local-state]
+    (let [[item state onchange onaction] (r0/extract-args props)]
+      (reset! (:action-target (r0/extract-state local-state)) (f/partial toplevel-actions onaction))
+      nil))
   "render"
   (fn [this]
-    (let [[item state onchange onaction] (r0/get-args this)]
+    (let [[item state onchange onaction] (r0/get-args this)
+          local (r0/get-state this)]
       (render item
               (Binding. state
                         (stores/delegate-store state onchange)
-                        (f/partial toplevel-actions onaction))
-              (:ref (r0/get-state this)))))
+                        (:action-target local))
+              (:ref local))))
   
   $handle-message
   (fn [this msg]
@@ -280,12 +288,25 @@
           (let [{handle true pass false} (group-by pred actions)]
             (doseq [action handle]
               (call-event-handler! binding f action))
-            ((:action-target binding) pass)))]
+            (@(:action-target binding) pass)))]
   (r0/defclass handle-action
+    ;; Note: children do not have to (and shall not) rerender when the
+    ;; action target changes, which is why we put it in a stable atom
+    ;; here (and remove the rendering state in the first argument to
+    ;; 'h')
+    "getInitialState" (fn [this]
+                        {:action-target (atom nil)})
+    [:static "getDerivedStateFromProps"]
+    (fn [props local-state]
+      (let [[binding ref e f pred] (r0/extract-args props)
+            atom (:action-target (r0/extract-state local-state))]
+        (reset! atom (f/partial h (event-handler-binding binding) f pred))
+        nil))
     "render" (fn [this]
-               (let [[binding ref e f pred] (r0/get-args this)]
+               (let [[binding ref e f pred] (r0/get-args this)
+                     atom (:action-target (r0/get-state this))]
                  (render e
-                         (assoc binding :action-target (f/partial h (event-handler-binding binding) f pred))
+                         (assoc binding :action-target atom)
                          ref)))))
 
 (extend-type base/HandleAction
