@@ -27,9 +27,9 @@
   (is (= "bar" (:doc (meta #'defn-dom-test-1))))
 
   (testing "optional attrs map"
-    (is (= (dom/div "baz") (base/named-e (defn-dom-test-1 {} "baz"))))
+    (is (ct/contains? (defn-dom-test-1 {} "baz") (dom/div "baz")))
 
-    (is (= (dom/div "baz") (base/named-e (defn-dom-test-1 "baz")))))
+    (is (ct/contains? (defn-dom-test-1 "baz") (dom/div "baz"))))
 
   (testing "event handler binding"
     (dom/defn-dom defn-dom-test-2 [attrs]
