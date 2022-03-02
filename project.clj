@@ -10,7 +10,7 @@
                  [de.active-group/active-clojure "0.36.0"]
                  [org.clojure/test.check "0.10.0" :scope "provided"]
                  [prismatic/schema "1.1.12"]
-                 [reacl "2.2.9"]
+                 [reacl "2.2.9" :scope "provided"]
                  [de.active-group/cljs-async "2.0.0"]]
 
   :plugins [[lein-codox "0.10.7"]

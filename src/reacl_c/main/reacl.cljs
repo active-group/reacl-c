@@ -2,14 +2,18 @@
   "Functions for using Reacl-c within a Reacl application or library."
   (:require [reacl-c.main.react :as main-react]
             [reacl-c.core :as core]
-            [reacl-c.impl.reacl0 :as reacl0]
             [active.clojure.functions :as f]
             [reacl2.core :as reacl :include-macros true]))
 
+(defn- send-message! [target msg & [callback]]
+  (reacl/send-message! target msg)
+  ;; TODO: I think send-message should take a callback, ultimately invoked by React's setState
+  (when callback (callback)))
+
 (let [set-state (fn [this state callback]
-                  (reacl0/send-message! this [::set-state state] callback))
+                  (send-message! this [::set-state state] callback))
       handle-action (fn [this action callback]
-                      (reacl0/send-message! this [::handle-action action] callback))]
+                      (send-message! this [::handle-action action] callback))]
   (reacl/defclass ^:private runner this state [item]
     refs [self]
     
