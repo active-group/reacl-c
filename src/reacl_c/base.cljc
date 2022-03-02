@@ -74,17 +74,19 @@
   (or (nil? v) (really-fragment? v)))
 
 (r/define-record-type Dynamic
-  (make-dynamic f args)
+  (make-dynamic name-id f args)
   dynamic?
-  [f dynamic-f
+  [name-id dynamic-name-id ;; optional
+   f dynamic-f
    args dynamic-args]
   E
   (-is-dynamic? [_] true))
 
 (r/define-record-type Static
-  (make-static f args)
+  (make-static name-id f args)
   static?
-  [f static-f
+  [name-id static-name-id ;; optinoal
+   f static-f
    args static-args]
   E
   (-is-dynamic? [{e :e}] false))

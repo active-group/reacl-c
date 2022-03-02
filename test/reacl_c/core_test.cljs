@@ -129,7 +129,7 @@
       (c/with-state-as [a b :local "bar"]
         (c/fragment a b p)))
 
-    ;; and with-state-as is optimized (made static)
+    ;; and with-state-as or defn-item is optimized (made static)
     (is (not (perf/find-first-difference (defn-test-2 "foo") (defn-test-2 "foo")))))
 
   (testing "argument schema validation"

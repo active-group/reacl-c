@@ -221,16 +221,21 @@
 
 ;; items
 
-(r0/defclass dynamic
-  "render" (fn [this]
-             (let [[binding ref f & args] (r0/get-args this)]
-               (render (apply f (:state binding) args)
-                       binding ref))))
+(defn- gen-dynamic [name]
+  (r0/class name
+            "render" (fn [this]
+                       (let [[binding ref f & args] (r0/get-args this)]
+                         (render (apply f (:state binding) args)
+                                 binding ref)))))
+
+(def dynamical (utils/named-generator gen-dynamic))
+
+(def dynamic (dynamical (base/make-name-id "reacl-c/dynamic")))
 
 (extend-type base/Dynamic
   IReact
-  (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem dynamic nil (list* binding ref f args))))
+  (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
+    (r0/elem (if name-id (dynamical name-id) dynamic) nil (list* binding ref f args))))
 
 (r0/defclass focus
   "render" (fn [this]
@@ -423,21 +428,27 @@
   (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref]
     (r0/elem (named name-id) nil [binding ref e validate-state!])))
 
-(r0/defclass static
-  "render" (fn [this]
-             (let [[binding ref f args] (r0/get-args this)]
-               (render (apply f args)
-                       binding
-                       ref))))
+(defn- gen-static [name]
+  (r0/class name
+            "render" (fn [this]
+                       (let [[binding ref f args] (r0/get-args this)]
+                         (render (apply f args)
+                                 binding
+                                 ref)))))
+
+(def statical (utils/named-generator gen-static))
+
+(def static (statical (base/make-name-id "reacl-c/static")))
 
 (extend-type base/Static
   IReact
-  (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem static nil [(assoc binding
-                                :state nil
-                                :store stores/void-store)
-                         ref
-                         f args])))
+  (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
+    (r0/elem (if name-id (statical name-id) static)
+             nil [(assoc binding
+                         :state nil
+                         :store stores/void-store)
+                  ref
+                  f args])))
 
 (defn- native-dom [type binding attrs ref children]
   ;; Note: because we sometimes set a ref directly in the dom attributes (see c/refer), the ref may still be a RRef object here - not very clean :-/
