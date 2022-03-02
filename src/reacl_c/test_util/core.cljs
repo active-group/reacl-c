@@ -53,13 +53,13 @@
 (defn- subscribe-effect-1? [eff]
   (effect? eff core/subscribe!))
 
-(defn subscribe-effect-fn
+(defn- subscribe-effect-fn
   "The function passed to the subscription the given subscribe effect was generated from."
   [eff]
   (assert (subscribe-effect-1? eff))
   (first (effect-args eff)))
 
-(defn subscribe-effect-args
+(defn- subscribe-effect-args
   "The arguments passed to the subscription the given subscribe effect was generated from."
   [eff]
   (assert (subscribe-effect-1? eff))
@@ -75,7 +75,7 @@
       (apply f subs-args)
       (apply core/subscription subs-f subs-args))))
 
-(defn subscribe-effect?
+(defn- subscribe-effect?
   "Tests if the given effect, is one that is emitted by a subscription
   equal to the given one on mount. This can be useful in unit tests."
   ([eff]
@@ -91,12 +91,6 @@
               (if-let [f (core/subscription-from-defn-meta-key (meta eff))]
                 (= subs (apply f subs-args))
                 false))))))
-
-(defn ^:no-doc subscribe-effect-host
-  [eff]
-  (assert (subscribe-effect? eff))
-  (let [[_ _ _ host] (effect-args eff)]
-    host))
 
 (defn- subscription-f-args [sub]
   (when-let [[defn-f f args] (core/subscription-deconstruct sub)]
@@ -220,45 +214,6 @@
                                         @akku))))
           values)
         (async/finally stop!))))
-
-(let [h (fn [f state eff]
-          (cond
-            (subscribe-effect? eff)
-            (let [action (f eff)]
-              (if (or (nil? action)
-                      (= action eff))
-                (core/return :action eff)
-                (core/return :message [(subscribe-effect-host eff)
-                                       (core/->SubscribedEmulatedResult action)])))
-            :else (core/return :action eff)))]
-  (defn ^:deprecated emulate-subscriptions
-    "Returns an item, that for all subscriptions done in `item`,
-  evaluates `(f subscription-effect)`. The
-  function [[subscription-effect?]] can be used to check which kind of
-  subscription effect it is. If it evaluates to `nil` or the same
-  effect that was passed in, it is just passed on. If it evaluates to
-  a different action, that action is emitted from the subscription
-  itself, i.e. emulating a (synchronous) result of the subscription."
-    [item f]
-    ;; Note: subscription-effects will/should never be in a compose-effect.
-    (core/handle-effect item
-                        (f/partial h f))))
-
-(let [disable-all-subs (fn [eff]
-                         (cond
-                           (subscribe-effect? eff) core/no-effect
-                           :else eff))
-      disable-subs (fn [subs eff]
-                     (cond
-                       (some #(subscribe-effect? eff %) subs) core/no-effect
-                       :else eff))]
-  (defn ^:deprecated disable-subscriptions
-    "Returns an item like `item`, but where all subscriptions (or the
-  the given subscriptions) are not executed when emitted from `item`."
-    ([item]
-     (core/map-effects item disable-all-subs))
-    ([item subs]
-     (core/map-effects item (f/partial disable-subs subs)))))
 
 (defn preventing-error-log
   "Prevents a log message about an exception during the evaluation of

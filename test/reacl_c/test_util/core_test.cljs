@@ -37,57 +37,6 @@
     (is @called)
     (is (= 42 @called-with))))
 
-;; deprecated
-#_(deftest test-subscriptions-test
-  ;; one can disable subscriptions, and inject actions instead.
-  (let [sub (c/subscription (fn [& args]
-                              (assert false "should not be called")))
-
-        set-state (fn [st a] (c/return :state (inc a)))
-        env (tur/env (-> (c/focus :nest (-> (c/dynamic #(if % sub c/empty))
-                                            (c/handle-action set-state)))
-                         (tu/disable-subscriptions [sub])))]
-
-    (tur/mount! env {:nest true})
-
-    (is (= (c/return :state {:nest 42})
-           (tur/inject-action! (tur/find env sub) 41)))))
-
-;; deprecated
-#_(deftest disable-subscriptions-test
-  ;; one can disable all or individual subscriptions.
-  (c/defn-subscription disable-subscriptions-test-2 deliver! [a]
-    (reset! a true)
-    (fn []
-      (reset! a false)))
-  
-  (let [sub-1 (c/subscription (fn [& args]
-                                (assert false "should not be called")))
-        
-        sub-2-running? (atom false)
-        sub-2 (disable-subscriptions-test-2 sub-2-running?)]
-
-    (let [env (tur/env (-> (c/fragment sub-1 sub-2)
-                           (tu/disable-subscriptions)))]
-      (tur/mount! env nil)
-      (is (not @sub-2-running?)))
-
-    (let [env (tur/env (-> (c/fragment sub-1 sub-2)
-                           (tu/disable-subscriptions [sub-1])))]
-      (reset! sub-2-running? false)
-      (tur/mount! env nil)
-      (is @sub-2-running?))))
-
-;; deprecated
-#_(deftest emulate-subscriptions-test
-  (let [sub-1 (c/subscription (fn [& args]
-                                (assert false "should not be called")))
-        env (tur/env (-> (c/fragment sub-1)
-                         (tu/emulate-subscriptions (fn [eff]
-                                                     (assert (tu/subscribe-effect? eff sub-1))
-                                                     ::result))))]
-    (is (= (c/return :action ::result)
-           (tur/mount! env nil)))))
 
 (deftest subscription-utils-test
   (c/defn-subscription subscription-utils-test-1 deliver! [x]
@@ -183,39 +132,3 @@
                                (is @stopped?)))
                  (async/finally done)))))
 
-;; deprecated
-#_(deftest subscribe-effect-properties-test
-  ;; then getting a subscribe-effect in hand, one can look at the function and args the subscription was created from.
-  ;; via subscribe-effect?, subscribe-effect-fn and subscribe-effect-args
-  
-  (let [get-sub-eff (fn [item]
-                      (let [sub-eff (atom nil)]
-                        (tur/mount! (tur/env (-> item
-                                                 (tu/emulate-subscriptions (fn [eff]
-                                                                             (reset! sub-eff eff)
-                                                                             c/no-effect))))
-                                    nil)
-                        @sub-eff))]
-    ;; either directly via core/subscription
-    (let [f (fn [& args]
-              (assert false "should not be called"))
-          sub (c/subscription f :foo)
-          eff (get-sub-eff sub)]
-      (is (tu/subscribe-effect? eff sub))
-      (is (= [:foo] (tu/subscribe-effect-args eff)))
-      (is (= f (tu/subscribe-effect-fn eff))))
-
-    ;; or via defn-subscription
-    (c/defn-subscription subscription-properties-sub-2 deliver! [arg]
-      (assert false "should not be called"))
-
-    (let [f (fn [& args]
-              (assert false "should not be called"))
-          sub (subscription-properties-sub-2 :foo)
-          eff (get-sub-eff sub)]
-
-      (is (tu/subscribe-effect? eff sub))
-      (is (= [:foo] (tu/subscribe-effect-args eff)))
-
-      ;; Note: doesn't really make sense (the defined fn is something else than a fn passed to core/subscription)
-      #_(is (= subscription-properties-sub-2 (tu/subscribe-effect-fn eff))))))
