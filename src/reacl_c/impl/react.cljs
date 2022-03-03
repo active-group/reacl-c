@@ -100,13 +100,6 @@
                         binding ref)
     v))
 
-#_(defn- can-message-ref? [v]
-  (not (or (nil? v)
-           (string? v)
-           (base/fragment? v)
-           (dom-base/element? v))))
-
-
 (defn- render
   "Render to something that can be the result of a React 'render' method."
   [item binding ref]
@@ -175,7 +168,9 @@
   "Send a message to the component returned by [[react-run]]."
   [comp msg & [callback]]
   (if (goog.object/containsKey comp "ref")
+    ;; if comp is the thing returned from createElement:
     (send-message! (r0/current-ref (.-ref comp)) msg callback)
+    ;; if comp is 'this' inside the code of a class:
     (send-message! comp msg callback)))
 
 (defn react-run [item state onchange onaction ref key]
@@ -416,6 +411,7 @@
                                                      (when validate-state!
                                                        (validate-state! (:state binding))))
                                                    nil)
+            ;; Dummy state; otherwise React complains that this uses getDerivedStateFromProps
             "getInitialState" (fn [this] nil)
             "render" (fn [this]
                        (let [[binding ref e _] (r0/get-args this)]
