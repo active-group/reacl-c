@@ -138,7 +138,7 @@
     (r0/mk-state {:ref (r0/create-ref)
                   :action-target (atom nil)}))
 
-  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+  "shouldComponentUpdate" (r0/update-on ["args"])
 
   ;; see [[handle-action]] for the reasons of the action-target atom.
   [:static "getDerivedStateFromProps"]
@@ -310,7 +310,7 @@
     "getInitialState" (fn [this]
                         (r0/mk-state {:action-target (atom nil)}))
 
-    "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+    "shouldComponentUpdate" (r0/update-on ["args"])
 
     [:static "getDerivedStateFromProps"]
     (fn [props local-state]
@@ -440,9 +440,9 @@
                                                    nil)
             
             ;; Dummy state; otherwise React complains that this uses getDerivedStateFromProps
-            "getInitialState" (fn [this] (r0/mk-state {}))
+            "getInitialState" (fn [this] #js {})
             
-            "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+            "shouldComponentUpdate" (r0/update-on ["args"])
 
             "render" (fn [this]
                        (let [[binding ref e _] (r0/get-args this)]
@@ -532,7 +532,7 @@
                                          :event-handlers (event-handlers (f/partial dom-events this)
                                                                          (f/partial call! this))}))
 
-                         "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+                         "shouldComponentUpdate" (r0/update-on ["args"])
 
                          "componentDidMount"
                          (fn [this]
@@ -589,7 +589,7 @@
                            (r0/mk-state {:event-handlers (event-handlers (f/partial dom-events this)
                                                                          (f/partial call! this))}))
                          
-                         "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+                         "shouldComponentUpdate" (r0/update-on ["args"])
 
                          "render" (fn [this]
                                     (let [[binding attrs ref events children] (r0/get-args this)]
@@ -649,7 +649,7 @@
   "getInitialState" (fn [this]
                       (r0/mk-state {:ref (RRef. (r0/create-ref))}))
   
-  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+  "shouldComponentUpdate" (r0/update-on ["args"])
 
   "render" (fn [this]
              (let [[binding ref f args] (r0/get-args this)]
@@ -680,7 +680,7 @@
 (r0/defclass ^:private on-mount
   "render" (fn [this] (r0/fragment))
   
-  "shouldComponentUpdate" (r0/update-on ["args"])
+  "shouldComponentUpdate" (constantly false)
 
   "componentDidMount"
   (fn [this]
