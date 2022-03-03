@@ -10,23 +10,8 @@
 (defn extract-args [props]
   (aget props "args"))
 
-(defn mk-state [v]
-  #js {"state" v})
-
-(defn extract-state [state]
-  (aget state "state"))
-
-(defn get-state [^js this] ;; ^react/Component compiles, but does not work
-  (extract-state (.-state this)))
-
 (defn get-args [^js this]
   (extract-args (.-props this)))
-
-(defn set-state [^js this f & [cb]]
-  (.setState this
-             (fn [state props]
-               (mk-state (apply f (extract-state state) (extract-args props))))
-             cb))
 
 (defn create-ref []
   (react/createRef))

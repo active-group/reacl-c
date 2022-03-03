@@ -135,8 +135,8 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    (r0/mk-state {:ref (r0/create-ref)
-                  :action-target (atom nil)}))
+    #js {"ref" (r0/create-ref)
+         "action_target" (atom nil)})
 
   "shouldComponentUpdate" (r0/update-on ["args"])
 
@@ -144,22 +144,22 @@
   [:static "getDerivedStateFromProps"]
   (fn [props local-state]
     (let [[item state onchange onaction] (r0/extract-args props)]
-      (reset! (:action-target (r0/extract-state local-state)) (f/partial toplevel-actions onaction))
+      (reset! (aget local-state "action_target") (f/partial toplevel-actions onaction))
       nil))
 
   "render"
   (fn [this]
     (let [[item state onchange onaction] (r0/get-args this)
-          local (r0/get-state this)]
+          local (.-state this)]
       (render item
               (Binding. state
                         (stores/delegate-store state onchange)
-                        (:action-target local))
-              (:ref local))))
+                        (aget local "action_target"))
+              (aget local "ref"))))
   
   $handle-message
   (fn [this msg]
-    (send-message-react-ref! (:ref (r0/get-state this)) msg)))
+    (send-message-react-ref! (aget (.-state this) "ref") msg)))
 
 (defrecord ^:private ReactApplication [current-comp message-queue]
   base/Application
@@ -262,32 +262,31 @@
                init
                base/eval-local-state-init
                (fn [new-state]
-                 (r0/set-state this (fn [s] (assoc s :state new-state)))))]
-    {:store store
-     :state (stores/store-get store)}))
+                 (.setState this #js {"this_state" new-state})))]
+    #js {"this_store" store
+         "this_state" (stores/store-get store)}))
 
 (defn- new-state-reinit! [args-initial-state]
   (fn [props state]
     (let [init (args-initial-state (r0/extract-args props))
-          state (r0/extract-state state)
-          store (:store state)]
+          store (aget state "this_store")]
       (when (stores/maybe-reset-store! store init base/eval-local-state-init)
-        (r0/mk-state (assoc state :state (stores/store-get store)))))))
+        #js {"this_state" (stores/store-get store)}))))
 
 (r0/defclass local-state
   "getInitialState" (fn [this]
                       (let [[_ _ _ initial] (r0/get-args this)]
-                        (r0/mk-state (make-new-state! this initial))))
+                        (make-new-state! this initial)))
 
-  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+  "shouldComponentUpdate" (r0/update-on ["args"] ["this_state"])
 
   "render" (fn [this]
              (let [[binding ref e _] (r0/get-args this)]
                (render e 
                        (assoc binding
-                              :state [(:state binding) (:state (r0/get-state this))]
+                              :state [(:state binding) (aget (.-state this) "this_state")]
                               :store (stores/conc-store (:store binding)
-                                                        (:store (r0/get-state this))))
+                                                        (aget (.-state this) "this_store")))
                        ref)))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [[_ _ _ initial]] initial)))
@@ -308,20 +307,20 @@
     ;; here (and remove the rendering state in the first argument to
     ;; 'h')
     "getInitialState" (fn [this]
-                        (r0/mk-state {:action-target (atom nil)}))
+                        #js {"this_target" (atom nil)})
 
     "shouldComponentUpdate" (r0/update-on ["args"])
 
     [:static "getDerivedStateFromProps"]
     (fn [props local-state]
       (let [[binding ref e f pred] (r0/extract-args props)
-            atom (:action-target (r0/extract-state local-state))]
+            atom (aget local-state "this_target")]
         (reset! atom (f/partial h (event-handler-binding binding) f pred))
         nil))
     
     "render" (fn [this]
                (let [[binding ref e f pred] (r0/get-args this)
-                     atom (:action-target (r0/get-state this))]
+                     atom (aget (.-state this) "this_target")]
                  (render e
                          (assoc binding :action-target atom)
                          ref)))))
@@ -528,32 +527,31 @@
 
                          "getInitialState"
                          (fn [this]
-                           (r0/mk-state {:a-ref (RRef. (r0/create-ref))
-                                         :event-handlers (event-handlers (f/partial dom-events this)
-                                                                         (f/partial call! this))}))
+                           #js {"a_ref" (RRef. (r0/create-ref))
+                                "event_handlers" (event-handlers (f/partial dom-events this)
+                                                                 (f/partial call! this))})
 
                          "shouldComponentUpdate" (r0/update-on ["args"])
 
                          "componentDidMount"
                          (fn [this]
-                           (let [state (r0/get-state this)
+                           (let [state (.-state this)
                                  [_ _ ref events _] (r0/get-args this)
-                                 elem (native-deref (or ref (:a-ref state)))]
-                             (add-event-listeners elem (event-fns events (:event-handlers state)))))
+                                 elem (native-deref (or ref (aget state "a_ref")))]
+                             (add-event-listeners elem (event-fns events (aget state "event_handlers")))))
 
                          "componentDidUpdate"
-                         (fn [this prev-props prev-st]
-                           (let [prev-state (r0/extract-state prev-st)
-                                 [_ _ prev-ref prev-events _] (r0/extract-args prev-props)
+                         (fn [this prev-props prev-state]
+                           (let [[_ _ prev-ref prev-events _] (r0/extract-args prev-props)
                                  
-                                 new-state (r0/get-state this)
+                                 new-state (.-state this)
                                  [_ _ new-ref new-events _] (r0/get-args this)
 
-                                 prev-elem (native-deref (or prev-ref (:a-ref prev-state)))
-                                 new-elem (native-deref (or new-ref (:a-ref new-state)))]
+                                 prev-elem (native-deref (or prev-ref (aget prev-state "a_ref")))
+                                 new-elem (native-deref (or new-ref (aget new-state "a_ref")))]
                              (let [[to-remove to-add]
-                                   (let [prev-listeners (event-fns prev-events (:event-handlers prev-state))
-                                         new-listeners (event-fns new-events (:event-handlers new-state))]
+                                   (let [prev-listeners (event-fns prev-events (aget prev-state "event_handlers"))
+                                         new-listeners (event-fns new-events (aget new-state "event_handlers"))]
                                      (if (= prev-elem new-elem)
                                        (let [[to-remove to-add _]
                                              (data/diff prev-listeners new-listeners)]
@@ -565,10 +563,10 @@
                          ;; Note: I assume removing event listeners is not needed.
                          ;; "componentWillUnmount"
                          ;; (fn [this]
-                         ;;   (let [state (r0/get-state this)
+                         ;;   (let [state (.-state this)
                          ;;         [_ _ ref events _] (r0/get-args this)
-                         ;;         elem (native-deref (or ref (:a-ref state)))]
-                         ;;     (remove-event-listeners elem (event-fns events (:event-handlers state)))))
+                         ;;         elem (native-deref (or ref (aget state "a_ref")))]
+                         ;;     (remove-event-listeners elem (event-fns events (aget state "event_handlers")))))
                          
                          "render" (fn [this]
                                     (let [[binding attrs ref events children] (r0/get-args this)]
@@ -576,7 +574,7 @@
                                       (native-dom type
                                                   binding
                                                   attrs ;; Note: no events added here
-                                                  (or ref (:a-ref (r0/get-state this)))
+                                                  (or ref (aget (.-state this) "a_ref"))
                                                   children)))))))
   
   (def dom-class
@@ -586,8 +584,8 @@
                          
                          "getInitialState"
                          (fn [this]
-                           (r0/mk-state {:event-handlers (event-handlers (f/partial dom-events this)
-                                                                         (f/partial call! this))}))
+                           #js {"event_handlers" (event-handlers (f/partial dom-events this)
+                                                                 (f/partial call! this))})
                          
                          "shouldComponentUpdate" (r0/update-on ["args"])
 
@@ -596,7 +594,7 @@
                                       (native-dom type
                                                   binding
                                                   (-> attrs
-                                                      (merge (event-fns events (:event-handlers (r0/get-state this)))))
+                                                      (merge (event-fns events (aget (.-state this) "event_handlers"))))
                                                   ref
                                                   children))))))))
 
@@ -647,13 +645,13 @@
 
 (r0/defclass with-ref
   "getInitialState" (fn [this]
-                      (r0/mk-state {:ref (RRef. (r0/create-ref))}))
+                      #js {"ref" (RRef. (r0/create-ref))})
   
   "shouldComponentUpdate" (r0/update-on ["args"])
 
   "render" (fn [this]
              (let [[binding ref f args] (r0/get-args this)]
-               (render (apply f (:ref (r0/get-state this)) args)
+               (render (apply f (aget (.-state this) "ref") args)
                        binding ref))))
 
 (extend-type base/WithRef
@@ -694,21 +692,21 @@
   ;; core/try-catch would be the better primitive when using
   ;; getDerivedStateFromError.
   
-  "getInitialState" (fn [this] (r0/mk-state {:error nil}))
+  "getInitialState" (fn [this] #js {"error" nil})
   
-  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+  "shouldComponentUpdate" (r0/update-on ["args"] ["error"])
 
   "render" (fn [this]
              (let [[binding ref e f] (r0/get-args this)]
-               (let [error (:error (r0/get-state this))]
+               (let [error (aget (.-state this) "error")]
                  (if (some? error)
                    (r0/elem on-mount
                             #js {"args" [(fn []
-                                           (r0/set-state this (constantly {:error nil}))
+                                           (.setState this #js {"error" nil})
                                            (call-event-handler! binding f error))]})
                    (render e binding ref)))))
 
-  [:static "getDerivedStateFromError"] (fn [error] (r0/mk-state {:error error})))
+  [:static "getDerivedStateFromError"] (fn [error] #js {"error" error}))
 
 (extend-type base/HandleError
   IReact
