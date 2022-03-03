@@ -40,12 +40,21 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
-(defn- default-should-component-update? [this new-props new-state]
-  (or (and (some? new-state) ;; class has no local-state...
-           (not= (extract-state new-state)
-                 (get-state this)))
-      (not= (extract-args new-props)
-            (get-args this))))
+(defn update-on [prop-keys & [state-keys]]
+  ;; OPT: make it a macro to inline the 'ors'?
+  (fn [this new-props new-state]
+    (let [state (.-state this)
+          props (.-props this)]
+      (or (reduce (fn [r k]
+                    (or r (not= (aget new-state k)
+                                (aget state k))))
+                  false
+                  state-keys)
+          (reduce (fn [r k]
+                    (or r (not= (aget new-props k)
+                                (aget props k))))
+                  false
+                  prop-keys)))))
 
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
@@ -55,26 +64,12 @@
            (apply js-obj (mapcat identity
                                  (-> (into {}
                                            (map (fn [[n f]]
+                                                  ;; add 'this' as first argument to all methods:
                                                   [n (fn [& args]
                                                        (this-as this
                                                                 (apply f this args)))])
                                                 method-decls))
                                      (assoc "displayName" name)
-                                     (update "getInitialState"
-                                             (fn [f]
-                                               (when f
-                                                 (fn []
-                                                   (this-as this (mk-state (.call f this)))))))
-                                     (update "shouldComponentUpdate"
-                                             (fn [p]
-                                               (if p
-                                                 (fn [new-props new-state]
-                                                   ;; call p with args and state.
-                                                   (this-as this
-                                                            (.call p this (extract-args new-props) (when (some? new-state) (extract-state new-state)))))
-                                                 (fn [new-props new-state]
-                                                   (this-as this
-                                                     (default-should-component-update? this new-props new-state))))))
                                      ))))
       (set-statics! static-decls))))
 
@@ -82,10 +77,12 @@
   (react-dom/render comp dom))
 
 (defn elem
-  ([class ref args]
+  ([class props]
+   (react/createElement class props))
+  #_([class ref args]
    (react/createElement class (doto (mk-props (vec args))
                                 (aset "ref" ref))))
-  ([class key ref args]
+  #_([class key ref args]
    (react/createElement class (doto (mk-props (vec args))
                                 (aset "key" key)
                                 (aset "ref" ref)))))

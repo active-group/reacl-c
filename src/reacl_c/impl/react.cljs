@@ -135,14 +135,18 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    {:ref (r0/create-ref)
-     :action-target (atom nil)})
+    (r0/mk-state {:ref (r0/create-ref)
+                  :action-target (atom nil)}))
+
+  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
   ;; see [[handle-action]] for the reasons of the action-target atom.
   [:static "getDerivedStateFromProps"]
   (fn [props local-state]
     (let [[item state onchange onaction] (r0/extract-args props)]
       (reset! (:action-target (r0/extract-state local-state)) (f/partial toplevel-actions onaction))
       nil))
+
   "render"
   (fn [this]
     (let [[item state onchange onaction] (r0/get-args this)
@@ -175,7 +179,9 @@
 
 (defn react-run [item state onchange onaction ref key]
   ;; Note: must have a ref for react-send-message to work.
-  (r0/elem toplevel key (or ref (r0/create-ref)) [item state onchange onaction]))
+  (r0/elem toplevel #js {"args" [item state onchange onaction]
+                         "key" key
+                         "ref" (or ref (r0/create-ref))}))
 
 (defn run [dom item state onchange onaction]
   ;; Note: that render-component returns the component is legacy in
@@ -218,6 +224,8 @@
 
 (defn- gen-dynamic [name]
   (r0/class name
+            "shouldComponentUpdate" (r0/update-on ["args"])
+
             "render" (fn [this]
                        (let [[binding ref f & args] (r0/get-args this)]
                          (render (apply f (:state binding) args)
@@ -230,9 +238,12 @@
 (extend-type base/Dynamic
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
-    (r0/elem (if name-id (dynamical name-id) dynamic) nil (list* binding ref f args))))
+    (r0/elem (if name-id (dynamical name-id) dynamic)
+             #js {"args" (list* binding ref f args)})))
 
 (r0/defclass focus
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "render" (fn [this]
              (let [[binding ref e lens] (r0/get-args this)]
                (render e
@@ -244,7 +255,7 @@
 (extend-type base/Focus
   IReact
   (-instantiate-react [{e :e lens :lens} binding ref]
-    (r0/elem focus nil [binding ref e lens])))
+    (r0/elem focus #js {"args" [binding ref e lens]})))
 
 (defn- make-new-state! [this init]
   (let [store (stores/make-resettable-store!
@@ -266,7 +277,9 @@
 (r0/defclass local-state
   "getInitialState" (fn [this]
                       (let [[_ _ _ initial] (r0/get-args this)]
-                        (make-new-state! this initial)))
+                        (r0/mk-state (make-new-state! this initial))))
+
+  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
 
   "render" (fn [this]
              (let [[binding ref e _] (r0/get-args this)]
@@ -282,7 +295,7 @@
 (extend-type base/LocalState
   IReact
   (-instantiate-react [{e :e initial :initial} binding ref]
-    (r0/elem local-state nil [binding ref e initial])))
+    (r0/elem local-state #js {"args" [binding ref e initial]})))
 
 (let [h (fn [binding f pred actions]
           (let [{handle true pass false} (group-by pred actions)]
@@ -295,13 +308,17 @@
     ;; here (and remove the rendering state in the first argument to
     ;; 'h')
     "getInitialState" (fn [this]
-                        {:action-target (atom nil)})
+                        (r0/mk-state {:action-target (atom nil)}))
+
+    "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
     [:static "getDerivedStateFromProps"]
     (fn [props local-state]
       (let [[binding ref e f pred] (r0/extract-args props)
             atom (:action-target (r0/extract-state local-state))]
         (reset! atom (f/partial h (event-handler-binding binding) f pred))
         nil))
+    
     "render" (fn [this]
                (let [[binding ref e f pred] (r0/get-args this)
                      atom (:action-target (r0/get-state this))]
@@ -312,11 +329,13 @@
 (extend-type base/HandleAction
   IReact
   (-instantiate-react [{e :e f :f pred :pred} binding ref]
-    (r0/elem handle-action nil [binding ref e f pred])))
+    (r0/elem handle-action #js {"args" [binding ref e f pred]})))
 
 (let [send! (fn [binding r]
               (call-event-handler! binding (constantly r)))]
   (r0/defclass with-async-return
+    "shouldComponentUpdate" (r0/update-on ["args"])
+
     "render" (fn [this]
                (let [[binding ref f & args] (r0/get-args this)]
                  (render (apply f (f/partial send! (event-handler-binding binding)) args)
@@ -326,7 +345,7 @@
 (extend-type base/WithAsyncReturn
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-async-return nil (list* binding ref f args))))
+    (r0/elem with-async-return #js {"args" (list* binding ref f args)})))
 
 (r0/defclass lifecycle
   "render" (fn [this] nil)
@@ -334,6 +353,8 @@
   $handle-message (message-deadend "lifecycle")
   
   ;; OPT: shouldUpdate could ignore the finish fn.
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "componentDidMount" (fn [this]
                         (let [[binding init finish] (r0/get-args this)]
                           (when (some? init)
@@ -359,6 +380,8 @@
 
   $handle-message (message-deadend "lifecycle")
   
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "componentDidMount" (fn [this]
                         (let [[binding init] (r0/get-args this)]
                           (when (some? init)
@@ -372,12 +395,14 @@
   IReact
   (-instantiate-react [{init :init finish :finish} binding ref]
     (if (some? finish)
-      (r0/elem lifecycle ref [binding init finish])
-      (r0/elem lifecycle-h ref [binding init]))))
+      (r0/elem lifecycle #js {"ref" ref "args" [binding init finish]})
+      (r0/elem lifecycle-h #js {"ref" ref "args" [binding init]}))))
 
 (let [upd (fn [binding f old-state new-state]
             (call-event-handler*! old-state (:action-target binding) f new-state))]
   (r0/defclass handle-state-change
+    "shouldComponentUpdate" (r0/update-on ["args"])
+
     "render" (fn [this]
                (let [[binding ref e f] (r0/get-args this)]
                  (render e
@@ -388,9 +413,11 @@
 (extend-type base/HandleStateChange
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-state-change nil [binding ref e f])))
+    (r0/elem handle-state-change #js {"args" [binding ref e f]})))
 
 (r0/defclass handle-message
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "render" (fn [this]
              (let [[binding e f] (r0/get-args this)]
                (render e binding nil)))
@@ -402,7 +429,7 @@
 (extend-type base/HandleMessage
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-message ref [binding e f])))
+    (r0/elem handle-message #js {"ref" ref "args" [binding e f]})))
 
 (defn- gen-named [name]
   (r0/class name
@@ -411,8 +438,12 @@
                                                      (when validate-state!
                                                        (validate-state! (:state binding))))
                                                    nil)
+            
             ;; Dummy state; otherwise React complains that this uses getDerivedStateFromProps
-            "getInitialState" (fn [this] nil)
+            "getInitialState" (fn [this] (r0/mk-state {}))
+            
+            "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
             "render" (fn [this]
                        (let [[binding ref e _] (r0/get-args this)]
                          (render e binding ref)))))
@@ -422,10 +453,12 @@
 (extend-type base/Named
   IReact
   (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref]
-    (r0/elem (named name-id) nil [binding ref e validate-state!])))
+    (r0/elem (named name-id) #js {"args" [binding ref e validate-state!]})))
 
 (defn- gen-static [name]
   (r0/class name
+            "shouldComponentUpdate" (r0/update-on ["args"])
+
             "render" (fn [this]
                        (let [[binding ref f args] (r0/get-args this)]
                          (render (apply f args)
@@ -440,11 +473,11 @@
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
     (r0/elem (if name-id (statical name-id) static)
-             nil [(assoc binding
-                         :state nil
-                         :store stores/void-store)
-                  ref
-                  f args])))
+             #js {"args" [(assoc binding
+                                 :state nil
+                                 :store stores/void-store)
+                          ref
+                          f args]})))
 
 (defn- native-dom [type binding attrs ref children]
   ;; Note: because we sometimes set a ref directly in the dom attributes (see c/refer), the ref may still be a RRef object here - not very clean :-/
@@ -492,9 +525,14 @@
     (memoize (fn [type]
                (r0/class (str "reacl-c.custom-dom/" type)
                          $handle-message (message-deadend type)
-                         "getInitialState" (fn [this] {:a-ref (RRef. (r0/create-ref))
-                                                       :event-handlers (event-handlers (f/partial dom-events this)
-                                                                                       (f/partial call! this))})
+
+                         "getInitialState"
+                         (fn [this]
+                           (r0/mk-state {:a-ref (RRef. (r0/create-ref))
+                                         :event-handlers (event-handlers (f/partial dom-events this)
+                                                                         (f/partial call! this))}))
+
+                         "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
 
                          "componentDidMount"
                          (fn [this]
@@ -545,8 +583,14 @@
     (memoize (fn [type]
                (r0/class (str "reacl-c.dom/" type)
                          $handle-message (message-deadend type)
-                         "getInitialState" (fn [this] {:event-handlers (event-handlers (f/partial dom-events this)
-                                                                                       (f/partial call! this))})
+                         
+                         "getInitialState"
+                         (fn [this]
+                           (r0/mk-state {:event-handlers (event-handlers (f/partial dom-events this)
+                                                                         (f/partial call! this))}))
+                         
+                         "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
                          "render" (fn [this]
                                     (let [[binding attrs ref events children] (r0/get-args this)]
                                       (native-dom type
@@ -562,16 +606,19 @@
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
     ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
     (cond
-      custom? (r0/elem (custom-dom-class type) c-ref [binding attrs ref events children])
+      custom? (r0/elem (custom-dom-class type) #js {"ref" c-ref "args" [binding attrs ref events children]})
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
-      (r0/elem (dom-class type) c-ref [binding attrs ref events children])
+      (r0/elem (dom-class type) #js {"ref" c-ref "args" [binding attrs ref events children]})
 
       :else (native-dom type binding attrs ref children))))
 
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")
+
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "render" (fn [this]
              (let [[binding children] (r0/get-args this)]
                (apply r0/fragment (map #(render-child % binding)
@@ -582,11 +629,13 @@
   (-instantiate-react [{children :children} binding ref]
     ;; Note: React fragments can't have a ref. We don't really need them, except to make better error messages - do that only in dev-mode:
     (if (and dev-mode? (some? ref))
-      (r0/elem fragment ref [binding children])
+      (r0/elem fragment #js {"ref" ref "args" [binding children]})
       (apply r0/fragment (map #(render-child % binding)
                               children)))))
 
 (r0/defclass id
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "render" (fn [this]
              (let [[binding ref e] (r0/get-args this)]
                (render e binding ref))))
@@ -594,11 +643,14 @@
 (extend-type base/Keyed
   IReact
   (-instantiate-react [{e :e key :key} binding ref]
-    (r0/elem id key nil [binding ref e])))
+    (r0/elem id #js {"key" key "args" [binding ref e]})))
 
 (r0/defclass with-ref
-  "getInitialState" (fn [this] {:ref (RRef. (r0/create-ref))})
+  "getInitialState" (fn [this]
+                      (r0/mk-state {:ref (RRef. (r0/create-ref))}))
   
+  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
   "render" (fn [this]
              (let [[binding ref f args] (r0/get-args this)]
                (render (apply f (:ref (r0/get-state this)) args)
@@ -607,13 +659,15 @@
 (extend-type base/WithRef
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-ref nil [binding ref f args])))
+    (r0/elem with-ref #js {"args" [binding ref f args]})))
 
 (r0/defclass set-ref
   $handle-message (fn [this msg]
                     (let [[_ _ ^RRef ref] (r0/get-args this)]
                       (send-message-react-ref! (:ref ref) msg)))
   
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "render" (fn [this]
              (let [[binding e ^RRef ref] (r0/get-args this)]
                (render e binding (:ref ref)))))
@@ -621,11 +675,13 @@
 (extend-type base/Refer
   IReact
   (-instantiate-react [{e :e ref :ref} binding ref2]
-    (r0/elem set-ref ref2 [binding e ref])))
+    (r0/elem set-ref #js {"ref" ref2 "args" [binding e ref]})))
 
 (r0/defclass ^:private on-mount
   "render" (fn [this] (r0/fragment))
   
+  "shouldComponentUpdate" (r0/update-on ["args"])
+
   "componentDidMount"
   (fn [this]
     (let [[f] (r0/get-args this)]
@@ -638,16 +694,18 @@
   ;; core/try-catch would be the better primitive when using
   ;; getDerivedStateFromError.
   
-  "getInitialState" (fn [this] {:error nil})
+  "getInitialState" (fn [this] (r0/mk-state {:error nil}))
   
+  "shouldComponentUpdate" (r0/update-on ["args"] ["state"])
+
   "render" (fn [this]
              (let [[binding ref e f] (r0/get-args this)]
                (let [error (:error (r0/get-state this))]
                  (if (some? error)
-                   (r0/elem on-mount nil
-                            [(fn []
-                               (r0/set-state this (constantly {:error nil}))
-                               (call-event-handler! binding f error))])
+                   (r0/elem on-mount
+                            #js {"args" [(fn []
+                                           (r0/set-state this (constantly {:error nil}))
+                                           (call-event-handler! binding f error))]})
                    (render e binding ref)))))
 
   [:static "getDerivedStateFromError"] (fn [error] (r0/mk-state {:error error})))
@@ -655,7 +713,7 @@
 (extend-type base/HandleError
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-error nil [binding ref e f])))
+    (r0/elem handle-error #js {"args" [binding ref e f]})))
 
 
 ;; React compat
