@@ -7,7 +7,11 @@
 
 (defn- reacl-wrapper [props]
   ;; a React function component
-  (let [[class args state return! ref] (r0/extract-args props)]
+  (let [class (aget props "class")
+        args (aget props "args")
+        state (aget props "state")
+        return! (aget props "return")
+        ref (aget props "c_ref")]
     (r/react-element class (cond-> {:args args
                                     :handle-action! (fn [a]
                                                       (return! (c/return :action a)))
@@ -27,7 +31,11 @@
   (r/send-message! (.-current ref) msg))
 
 (let [ar (fn [return! state class args ref]
-           (react/lift* reacl-wrapper (r0/mk-props [class args state return! ref])
+           (react/lift* reacl-wrapper #js {"class" class
+                                           "args" args
+                                           "state" state
+                                           "return" return!
+                                           "c_ref" ref}
                         (r/has-app-state? class)))
       d (fn [[state ref] class args]
           (when (some? ref) ;; ...before the effect is executed.

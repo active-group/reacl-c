@@ -4,15 +4,6 @@
             ["react-dom" :as react-dom]
             [clojure.string :as str]))
 
-(defn mk-props [args]
-  #js {"args" args})
-
-(defn extract-args [props]
-  (aget props "args"))
-
-(defn get-args [^js this]
-  (extract-args (.-props this)))
-
 (defn create-ref []
   (react/createRef))
 
@@ -62,15 +53,8 @@
   (react-dom/render comp dom))
 
 (defn elem
-  ([class props]
-   (react/createElement class props))
-  #_([class ref args]
-   (react/createElement class (doto (mk-props (vec args))
-                                (aset "ref" ref))))
-  #_([class key ref args]
-   (react/createElement class (doto (mk-props (vec args))
-                                (aset "key" key)
-                                (aset "ref" ref)))))
+  [class props]
+  (react/createElement class props))
 
 (defn- legacy-adjust-dom-attr-name [n]
   (if (str/starts-with? n "on")
