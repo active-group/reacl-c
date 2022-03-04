@@ -47,7 +47,11 @@
   (doseq [[target msg] messages]
     (send-message-base-ref! target msg)))
 
-(defn- call-event-handler*! [state action-target handler & args]
+(defn- call-event-handler*!
+  "Calls (handler state & args) and returns tuple of [new-state
+  callback], where callback must be called after storing the new
+  state."
+  [action-target handler state & args]
   (let [r (apply handler state args)
         new-state (if (base/returned? r)
                     (let [s (base/returned-state r)]
@@ -72,11 +76,14 @@
   ;; the other binding info)
   (assoc binding :state nil))
 
-(defn- call-event-handler! [binding handler & args]
+(defn- call-event-handler!
+  "Calls (handler state & args) and fully processes the (return) value
+  returned from it as a side effect."
+  [binding handler & args]
   ;; Note: must not use :state - see event-handler-binding
   (let [store (:store binding)
-        [new-state callback] (apply call-event-handler*! (stores/store-get store)
-                                    (:action-target binding) handler args)]
+        [new-state callback] (apply call-event-handler*! (:action-target binding)
+                                    handler (stores/store-get store) args)]
     (stores/store-set! store new-state)
     (when callback (callback))))
 
@@ -425,19 +432,17 @@
                                 "binding" binding
                                 "init" init}))))
 
-(let [upd (fn [binding f old-state new-state]
-            (call-event-handler*! old-state (:action-target binding) f new-state))]
-  (r0/defclass handle-state-change
-    "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"])
+(r0/defclass handle-state-change
+  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"])
 
-    "render" (fn [this]
-               (let [props (.-props this)
-                     binding (aget props "binding")]
-                 (render (aget props "item")
-                         (assoc binding
-                                :store (stores/intercept-store (:store binding)
-                                                               (f/partial upd (event-handler-binding binding) (aget props "f"))))
-                         (aget props "c_ref"))))))
+  "render" (fn [this]
+             (let [props (.-props this)
+                   binding (aget props "binding")]
+               (render (aget props "item")
+                       (assoc binding
+                              :store (stores/intercept-store (:store binding)
+                                                             (f/partial call-event-handler*! (:action-target binding) (aget props "f"))))
+                       (aget props "c_ref")))))
 
 (extend-type base/HandleStateChange
   IReact
