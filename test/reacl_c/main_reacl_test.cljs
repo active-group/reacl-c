@@ -7,6 +7,7 @@
             [reacl-c.dom :as dom]
             [reacl2.core :as reacl :include-macros true]
             [reacl2.dom :as rdom]
+            [active.clojure.lens :as lens]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
@@ -96,3 +97,46 @@
                               render (-> (main/embed (reacl/bind this) x)
                                          (reacl/refer child)))))))
   )
+
+#_(deftest lift-container-rerender-test
+  (reacl/defclass lifted this state [class & args]
+    render
+    (-> (if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
+          (apply class (reacl/bind this) args)
+          (apply class args))
+        (reacl/action-to-message this (fn [x] x)))
+
+    handle-message
+    (fn [msg]
+      (do (assert false msg)
+          (reacl/return))))
+
+  (defn lift [class & args]
+    ;; Use Reacl class in Reacl-c
+    (apply i/lift lifted class args))
+
+  (reacl/defclass lifted-container this state [f attrs content]
+    render
+    (apply f attrs
+           (map (partial main/embed (reacl/bind this)) content)))
+  
+  (defn lift-container [f attrs & content]
+    ;; Use Reacl container fn as Reacl-C dom container fn, with Reacl-c items as content!
+    (lift lifted-container f attrs content))
+
+  (reacl/defclass cont1 this state [attrs elem]
+    render
+    (rdom/div attrs elem))
+
+  (let [called (atom 0)
+        item (let [f (fn []
+                       (swap! called inc)
+                       (dom/div "foo"))]
+               (fn []
+                 (lift-container cont1 {}
+                                 (c/local-state "x" (c/focus lens/second (c/dynamic f))))))]
+    (let [[app host] (btest/render (item) 42)]
+      (is (= 1 @called))
+      ;; rendering with new state, will not make f being called again (because it's focused to ignore it)
+      (btest/run-in host (item) 43)
+      (is (= 1 @called)))))
