@@ -16,22 +16,6 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
-(defn update-on [prop-keys & [state-keys]]
-  ;; OPT: make it a macro to inline the 'ors'?
-  (fn [this new-props new-state]
-    (let [state (.-state this)
-          props (.-props this)]
-      (or (reduce (fn [r k]
-                    (or r (not= (aget new-state k)
-                                (aget state k))))
-                  false
-                  state-keys)
-          (reduce (fn [r k]
-                    (or r (not= (aget new-props k)
-                                (aget props k))))
-                  false
-                  prop-keys)))))
-
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
         static-decls (map (fn [[[_ k] v]] [k v])
