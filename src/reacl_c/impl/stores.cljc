@@ -16,40 +16,42 @@
     (store-set! s v)
     x))
 
-(defrecord ^:private DelegateStore [a set-state-a!]
+;; this is used for the toplevel
+(deftype ^:private DelegateStore [^mutable state ^mutable set-state!]
   IStore
-  (-get [_] @a)
-  (-set [_ v]
+  (-get [this] (.-state this))
+  (-set [this v]
     ;; nil=callback - TODO: use?
-    (when (not= v @a)
-      (@set-state-a! v nil))))
+    (when (not= v (.-state this))
+      ((.-set-state! this) v nil))))
 
-(defn delegate-store [state set-state!]
-  (DelegateStore. (atom state) (atom set-state!)))
+(defn make-delegate-store! [state set-state!]
+  (DelegateStore. state set-state!))
 
-(defn reset-delegate-store! [s state & [set-state!]]
+(defn reset-delegate-store! [^DelegateStore s state & [set-state!]]
   (assert (instance? DelegateStore s))
-  (reset! (:a s) state)
+  (set! (.-state s) state)
   (when set-state!
-    (reset! (:set-state-a! s) set-state!)))
+    (set! (.-set-state! s) set-state!)))
 
-(defrecord ^:private BaseStore [init-a a watcher]
+;; this is used for the localstate items
+(deftype ^:private BaseStore [^mutable init-expr ^mutable state watcher]
   IStore
-  (-get [_] @a)
-  (-set [_ v]
+  (-get [this] (.-state this))
+  (-set [this v]
     ;; Note: this means only persistent datastructured possible.
-    (when (not= @a v)
-      (reset! a v)
+    (when (not= state v)
+      (set! (.-state this) v)
       (watcher v))))
 
 (defn make-resettable-store! [init-expr value-f watcher]
-  (BaseStore. (atom init-expr) (atom (value-f init-expr)) watcher))
+  (BaseStore. init-expr (value-f init-expr) watcher))
 
-(defn maybe-reset-store! [store init-expr value-f]
-  (assert (instance? BaseStore store) (str "Expected a BaseStore, but got: " (pr-str store)))
-  (if (not= init-expr @(:init-a store))
-    (do (reset! (:init-a store) init-expr)
-        (reset! (:a store) (value-f init-expr))
+(defn maybe-reset-resettable-store! [^BaseStore store init-expr value-f]
+  (assert (instance? BaseStore store))
+  (if (not= init-expr (.-init-expr store))
+    (do (set! (.-init-expr store) init-expr)
+        (set! (.-state store) (value-f init-expr))
         ;; watcher not called intentionally.
         true)
     false))
@@ -67,16 +69,16 @@
 
 (defrecord ^:private FocusStore [s lens]
   IStore
-  (-get [this] (lens/yank (-get s) lens))
-  (-set [this v] (-set s (lens/shove (-get s) lens v))))
+  (-get [_] (lens/yank (-get s) lens))
+  (-set [_ v] (-set s (lens/shove (-get s) lens v))))
 
 (defn focus-store [s lens]
   (FocusStore. s lens))
 
 (defrecord ^:private InterceptStore [s f]
   IStore
-  (-get [this] (-get s))
-  (-set [this v]
+  (-get [_] (-get s))
+  (-set [_ v]
     (let [curr (-get s)]
       (when (not= curr v)
         (let [[v callback] (f curr v)]
@@ -88,7 +90,7 @@
 
 (def void-store
   (reify IStore
-    (-get [this] nil)
-    (-set [this v]
+    (-get [_] nil)
+    (-set [_ v]
       ;; setting to 'nil' is kindof more ok, as get returns nil too.
       (assert (nil? v) (str "Tried to put a value into a void store: " (pr-str v) ". Possible cause: trying to set the state of a static item.")))))

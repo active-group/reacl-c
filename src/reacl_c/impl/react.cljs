@@ -137,7 +137,7 @@
   (fn [this]
     (let [props (.-props this)]
       #js {"ref" (r0/create-ref)
-           "this_store" (stores/delegate-store (aget props "state") (aget props "onchange"))
+           "this_store" (stores/make-delegate-store! (aget props "state") (aget props "onchange"))
            "action_target" (atom nil)}))
 
   "shouldComponentUpdate" (r0/update-on ["state" "item"])
@@ -286,7 +286,7 @@
   (fn [props state]
     (let [init (get-initial-state props)
           store (aget state "this_store")]
-      (when (stores/maybe-reset-store! store init base/eval-local-state-init)
+      (when (stores/maybe-reset-resettable-store! store init base/eval-local-state-init)
         #js {"this_state" (stores/store-get store)}))))
 
 (r0/defclass local-state
