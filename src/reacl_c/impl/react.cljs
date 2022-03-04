@@ -28,20 +28,32 @@
                     (catch :default _
                       true)))
 
-(defn send-message! [comp msg & [callback]]
+(defn- invalid-message-target [target msg]
+  (ex-info (str "Invalid target " (pr-str target) " to send message: " (pr-str msg) ".") {:target target :message msg}))
+
+(defn send-message!
+  "Send a message to a React component."
+  [comp msg & [callback]]
   ;; TODO: callback non-optional -> handle-message
-  (assert (some? comp) (pr-str comp));; TODO: exn if not defined.
-  (assert (some? (aget comp $handle-message)) (pr-str comp))
-  (.call (aget comp $handle-message) comp msg))
+  (if (and dev-mode? (or (nil? comp) (nil? (aget comp $handle-message))))
+    (throw (invalid-message-target comp callback))
+    (.call (aget comp $handle-message) comp msg)))
 
-(defn- send-message-react-ref! [target msg]
-  ;; TODO: exn if ref not set.
-  (assert (some? (r0/current-ref target)) (str (pr-str target) ", " (pr-str msg)))
-  (send-message! (r0/current-ref target) msg))
+(defn- send-message-react-ref!
+  "Send a message to a React ref."
+  [target msg]
+  (let [comp (r0/current-ref target)]
+    (when (and dev-mode? (nil? comp))
+      (throw (invalid-message-target target msg)))
+    (send-message! comp msg)))
 
-(defn- send-message-base-ref! [target msg]
-  ;; TODO: exn if ref not set.
-  (send-message! (base/deref-message-target target) msg))
+(defn- send-message-base-ref!
+  "Send a message to a reacl-c ref or referred item."
+  [target msg]
+  (let [comp (base/deref-message-target target)]
+    (when (and dev-mode? (nil? comp))
+      (throw (invalid-message-target target msg)))
+    (send-message! comp msg)))
 
 (defn- process-messages [messages]
   (doseq [[target msg] messages]
@@ -114,9 +126,11 @@
     (nil? item) (render-nil binding ref)
     (string? item) (render-string item binding ref)
     :else
-    (do (if-not (satisfies? IReact item)
-          (throw (ex-info (str "No implementation of: " item) {:item item}))
-          (-instantiate-react item binding ref)))))
+    (do (if (or (not dev-mode?) (satisfies? IReact item))
+          (-instantiate-react item binding ref)
+          (if (base/item? item)
+            (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
+            (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item})))))))
 
 (defn- render-child
   "Render to something that can be in the child array of a React element (dom or fragment)."
@@ -136,8 +150,8 @@
 
 (defn- message-deadend [elem]
   (fn [this msg]
-    ;; TODO: exn?!
-    (assert false (str "Can't send a message to a " elem " element: " (pr-str msg) "."))))
+    (when dev-mode?
+      (throw (ex-info (str "Can't send a message to a " elem " item: " (pr-str msg) ".") {:item-type elem :message msg})))))
 
 (r0/defclass toplevel
   "getInitialState"
