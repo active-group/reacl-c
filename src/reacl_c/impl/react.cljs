@@ -435,8 +435,8 @@
                      binding (aget props "binding")]
                  (render (aget props "item")
                          (assoc binding
-                                :store (stores/handle-store-updates (:store binding)
-                                                                    (f/partial upd (event-handler-binding binding) (aget props "f"))))
+                                :store (stores/intercept-store (:store binding)
+                                                               (f/partial upd (event-handler-binding binding) (aget props "f"))))
                          (aget props "c_ref"))))))
 
 (extend-type base/HandleStateChange

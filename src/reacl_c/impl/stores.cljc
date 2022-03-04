@@ -1,8 +1,6 @@
 (ns ^:no-doc reacl-c.impl.stores
   (:require [active.clojure.lens :as lens]))
 
-;; TODO: rethink where comparisons = are really meaningful.
-
 (defprotocol IStore
   (-get [this])
   (-set [this v]))
@@ -67,7 +65,7 @@
 (defn conc-store [s1 s2]
   (ConcStore. s1 s2))
 
-(defrecord FocusStore [s lens]
+(defrecord ^:private FocusStore [s lens]
   IStore
   (-get [this] (lens/yank (-get s) lens))
   (-set [this v] (-set s (lens/shove (-get s) lens v))))
@@ -75,7 +73,7 @@
 (defn focus-store [s lens]
   (FocusStore. s lens))
 
-(defrecord InterceptStore [s f]
+(defrecord ^:private InterceptStore [s f]
   IStore
   (-get [this] (-get s))
   (-set [this v]
@@ -85,7 +83,7 @@
           (-set s v)
           (when callback (callback)))))))
 
-(defn handle-store-updates [s f]
+(defn intercept-store [s f]
   (InterceptStore. s f))
 
 (def void-store
