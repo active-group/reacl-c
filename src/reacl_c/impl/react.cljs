@@ -135,14 +135,18 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    #js {"ref" (r0/create-ref)
-         "action_target" (atom nil)})
+    (let [props (.-props this)]
+      #js {"ref" (r0/create-ref)
+           "this_store" (stores/delegate-store (aget props "state") (aget props "onchange"))
+           "action_target" (atom nil)}))
 
-  "shouldComponentUpdate" (r0/update-on ["state" "item" "onchange" "onaction"])
+  "shouldComponentUpdate" (r0/update-on ["state" "item"])
 
   ;; see [[handle-action]] for the reasons of the action-target atom.
   [:static "getDerivedStateFromProps"]
   (fn [props local-state]
+    (stores/reset-delegate-store! (aget local-state "this_store")
+                                  (aget props "state") (aget props "onchange"))
     (reset! (aget local-state "action_target") (f/partial toplevel-actions (aget props "onaction")))
     nil)
 
@@ -153,7 +157,7 @@
           local (.-state this)]
       (render (aget props "item")
               (Binding. state
-                        (stores/delegate-store state (aget props "onchange"))
+                        (aget local "this_store")
                         (aget local "action_target"))
               (aget local "ref"))))
   

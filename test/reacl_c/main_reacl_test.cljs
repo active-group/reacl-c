@@ -98,7 +98,7 @@
                                          (reacl/refer child)))))))
   )
 
-#_(deftest lift-container-rerender-test
+(deftest lift-container-rerender-test
   (reacl/defclass lifted this state [class & args]
     render
     (-> (if (and (reacl/reacl-class? class) (reacl/has-app-state? class))
