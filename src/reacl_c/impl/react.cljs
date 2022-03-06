@@ -250,7 +250,7 @@
 
 (defn- gen-dynamic [name]
   (r0/class name
-            "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
+            "shouldComponentUpdate" (r0/update-on ["f" "c_ref" "binding" "args"])
 
             "render" (fn [this]
                        (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
@@ -309,7 +309,7 @@
   "getInitialState" (fn [this]
                       (make-new-state! this (aget (.-props this) "initial")))
 
-  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "initial"] ["this_state"])
+  "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "initial" "binding"] ["this_state"])
 
   "render" (fn [this]
              (let-obj [{binding "binding" ref "c_ref" item "item"} (.-props this)
@@ -345,7 +345,7 @@
 
     ;; Note: I assume getDerivedStateFromProps gets called event if shouldComponentUpdate returns false,
     ;; which is why we can ignore 'f' and 'pred' here:
-    "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item"])
+    "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "binding"])
 
     [:static "getDerivedStateFromProps"]
     (fn [props state]
@@ -456,7 +456,7 @@
                                       "f" f})))
 
 (r0/defclass handle-message
-  "shouldComponentUpdate" (r0/update-on ["binding" "item"])
+  "shouldComponentUpdate" (r0/update-on ["item" "binding"])
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding"} (.-props this)]
@@ -486,7 +486,7 @@
             ;; Dummy state; otherwise React complains that this uses getDerivedStateFromProps
             "getInitialState" (fn [this] #js {})
             
-            "shouldComponentUpdate" (r0/update-on ["item" "binding" "c_ref"])
+            "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
 
             "render" (fn [this]
                        (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
@@ -504,7 +504,7 @@
 
 (defn- gen-static [name]
   (r0/class name
-            "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
+            "shouldComponentUpdate" (r0/update-on ["c_ref" "f" "args" "binding"])
 
             "render" (fn [this]
                        (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
@@ -612,7 +612,7 @@
                          ;;         elem (native-deref (or ref (aget state "a_ref")))]
                          ;;     (remove-event-listeners elem (event-fns events (aget state "event_handlers")))))
                          
-                         "shouldComponentUpdate" (r0/update-on ["binding" "d_ref" "attrs" "contents" "events"])
+                         "shouldComponentUpdate" (r0/update-on ["d_ref" "attrs" "contents" "events" "binding"])
 
                          "render" (fn [this]
                                     (let-obj [{binding "binding" attrs "attrs" children "contents" d-ref "d_ref"} (.-props this)
@@ -674,7 +674,7 @@
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")
 
-  "shouldComponentUpdate" (r0/update-on ["binding" "contents"])
+  ;;"shouldComponentUpdate" (r0/update-on ["binding" "contents"]) ;; won't happen in prod either.
 
   "render" (fn [this]
              (let-obj [{binding "binding" children "contents"} (.-props this)]
@@ -694,7 +694,7 @@
                               children)))))
 
 (r0/defclass id
-  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item"])
+  "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "binding"])
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
@@ -712,7 +712,7 @@
   "getInitialState" (fn [this]
                       #js {"ref" (RRef. (r0/create-ref))})
   
-  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
+  "shouldComponentUpdate" (r0/update-on ["c_ref" "f" "args" "binding"])
 
   "render" (fn [this]
              (let-obj [{binding "binding" f "f" c-ref "c_ref" args "args"} (.-props this)
@@ -733,7 +733,7 @@
                     (let [^RRef ref (aget (.-props this) "c_ref")]
                       (send-message-react-ref! (:ref ref) msg)))
   
-  "shouldComponentUpdate" (r0/update-on ["binding" "item" "c_ref"])
+  "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
 
   "render" (fn [this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
