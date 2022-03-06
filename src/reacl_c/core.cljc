@@ -1178,7 +1178,7 @@ Note that the state of the inner item (the `div` in this case), will
     ;; TODO: proper and helpful error messages:
     (assert (or (nil? docstring?) (string? docstring?)))
     (assert (vector? params))
-    `(let [~name-id (base/make-name-id ~(clojure.core/name name))
+    `(let [~name-id (base/make-name-id ~(str *ns* "/" name))
            ~check-state ~(when-not static? `(state-validator ~name ~state-schema?))
            ~top-f ~(if static?
                      `(fn [~@(remove-params-schema params)]
