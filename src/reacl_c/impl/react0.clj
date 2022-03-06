@@ -29,3 +29,11 @@
                       `(not= (aget ~new-props ~k)
                              (aget ~props ~k)))
                     prop-keys))))))
+(defmacro let-obj [[destructuring value & more] & body]
+  `(let [~@(mapcat (fn [[destructuring value]]
+                     (mapcat (fn [[v p]]
+                               [v `(aget ~value ~p)])
+                             destructuring))
+                   (cons [destructuring value] (partition 2 more)))]
+     ~@body))
+

@@ -1,5 +1,5 @@
 (ns ^:no-doc reacl-c.impl.react
-  (:require [reacl-c.impl.react0 :as r0 :include-macros true]
+  (:require [reacl-c.impl.react0 :as r0 :include-macros true :refer [let-obj]]
             ["react" :as react]
             [reacl-c.interop.react :as interop]
             [reacl-c.impl.utils :as utils]
@@ -156,9 +156,9 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    (let [props (.-props this)]
+    (let-obj [{state "state" onchange "onchange"} (.-props this)]
       #js {"ref" (r0/create-ref)
-           "this_store" (stores/make-delegate-store! (aget props "state") (aget props "onchange"))
+           "this_store" (stores/make-delegate-store! state onchange)
            "action_target" (atom nil)}))
 
   "shouldComponentUpdate" (r0/update-on ["state" "item"])
@@ -166,21 +166,19 @@
   ;; see [[handle-action]] for the reasons of the action-target atom.
   [:static "getDerivedStateFromProps"]
   (fn [props local-state]
-    (stores/reset-delegate-store! (aget local-state "this_store")
-                                  (aget props "state") (aget props "onchange"))
-    (reset! (aget local-state "action_target") (f/partial toplevel-actions (aget props "onaction")))
-    nil)
+    (let-obj [{state "state" onchange "onchange" onaction "onaction"} props
+              {store "this_store" target "action_target"} local-state]
+      (stores/reset-delegate-store! store state onchange)
+      (reset! target (f/partial toplevel-actions onaction))
+      nil))
 
   "render"
   (fn [this]
-    (let [props (.-props this)
-          state (aget props "state")
-          local (.-state this)]
-      (render (aget props "item")
-              (Binding. state
-                        (aget local "this_store")
-                        (aget local "action_target"))
-              (aget local "ref"))))
+    (let-obj [{state "state" item "item"} (.-props this)
+              {store "this_store" target "action_target" ref "ref"} (.-state this)]
+      (render item
+              (Binding. state store target)
+              ref)))
   
   $handle-message
   (fn [this msg]
@@ -255,10 +253,9 @@
             "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
 
             "render" (fn [this]
-                       (let [props (.-props this)
-                             binding (aget props "binding")]
-                         (render (apply (aget props "f") (:state binding) (aget props "args"))
-                                 binding (aget props "c_ref"))))))
+                       (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
+                         (render (apply f (:state binding) args)
+                                 binding ref)))))
 
 (def dynamical (utils/named-generator gen-dynamic))
 
@@ -277,14 +274,12 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "lens"])
 
   "render" (fn [this]
-             (let [props (.-props this)
-                   binding (aget props "binding")
-                   lens (aget props "lens")]
-               (render (aget props "item")
+             (let-obj [{binding "binding" ref "c_ref" item "item" lens "lens"} (.-props this)]
+               (render item
                        (assoc binding
                               :state (lens/yank (:state binding) lens)
                               :store (stores/focus-store (:store binding) lens))
-                       (aget props "c_ref")))))
+                       ref))))
 
 (extend-type base/Focus
   IReact
@@ -317,15 +312,12 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "initial"] ["this_state"])
 
   "render" (fn [this]
-             (let [props (.-props this)
-                   binding (aget props "binding")
-                   ref (aget props "c_ref")
-                   e (aget props "item")]
-               (render e 
+             (let-obj [{binding "binding" ref "c_ref" item "item"} (.-props this)
+                       {this-state "this_state" this-store "this_store"} (.-state this)]
+               (render item
                        (assoc binding
-                              :state [(:state binding) (aget (.-state this) "this_state")]
-                              :store (stores/conc-store (:store binding)
-                                                        (aget (.-state this) "this_store")))
+                              :state [(:state binding) this-state]
+                              :store (stores/conc-store (:store binding) this-store))
                        ref)))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [props] (aget props "initial"))))
@@ -356,17 +348,18 @@
     "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item"])
 
     [:static "getDerivedStateFromProps"]
-    (fn [props local-state]
-      (let [atom (aget local-state "this_target")]
-        (reset! atom (f/partial h (event-handler-binding (aget props "binding")) (aget props "f") (aget props "pred")))
+    (fn [props state]
+      (let-obj [{binding "binding" f "f" pred "pred"} props
+                {atom "this_target"} state]
+        (reset! atom (f/partial h (event-handler-binding binding) f pred))
         nil))
     
     "render" (fn [this]
-               (let [props (.-props this)
-                     atom (aget (.-state this) "this_target")]
-                 (render (aget props "item")
-                         (assoc (aget props "binding") :action-target atom)
-                         (aget props "c_ref"))))))
+               (let-obj [{binding "binding" item "item" ref "c_ref"} (.-props this)
+                         {target "this_target"} (.-state this)]
+                 (render item
+                         (assoc binding :action-target target)
+                         ref)))))
 
 (extend-type base/HandleAction
   IReact
@@ -383,11 +376,10 @@
     "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
 
     "render" (fn [this]
-               (let [props (.-props this)
-                     binding (aget props "binding")]
-                 (render (apply (aget props "f") (f/partial send! (event-handler-binding binding)) (aget props "args"))
+               (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
+                 (render (apply f (f/partial send! (event-handler-binding binding)) args)
                          binding
-                         (aget props "c_ref"))))))
+                         ref)))))
 
 (extend-type base/WithAsyncReturn
   IReact
@@ -399,11 +391,9 @@
 
 (defn- lifecycle-f [name]
   (fn [this]
-    (let [props (.-props this)
-          f (aget props name)]
+    (let-obj [{f name binding "binding"} (.-props this)]
       (when (some? f)
-        (let [binding (aget props "binding")]
-          (call-event-handler! binding f))))))
+        (call-event-handler! binding f)))))
 
 (r0/defclass lifecycle
   "render" (fn [this] nil)
@@ -450,13 +440,12 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"])
 
   "render" (fn [this]
-             (let [props (.-props this)
-                   binding (aget props "binding")]
-               (render (aget props "item")
+             (let-obj [{binding "binding" f "f" item "item" ref "c_ref"} (.-props this)]
+               (render item
                        (assoc binding
                               :store (stores/intercept-store (:store binding)
-                                                             (f/partial call-event-handler*! (:action-target binding) (aget props "f"))))
-                       (aget props "c_ref")))))
+                                                             (f/partial call-event-handler*! (:action-target binding) f)))
+                       ref))))
 
 (extend-type base/HandleStateChange
   IReact
@@ -470,12 +459,12 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "item"])
 
   "render" (fn [this]
-             (let [props (.-props this)]
-               (render (aget props "item") (aget props "binding") nil)))
+             (let-obj [{item "item" binding "binding"} (.-props this)]
+               (render item binding nil)))
   
   $handle-message (fn [this msg]
-                    (let [props (.-props this)]
-                      (call-event-handler! (aget props "binding") (aget props "f") msg))))
+                    (let-obj [{binding "binding" f "f"} (.-props this)]
+                      (call-event-handler! binding f msg))))
 
 (extend-type base/HandleMessage
   IReact
@@ -489,9 +478,9 @@
   (r0/class name
             [:static "getDerivedStateFromProps"]
             (fn [props state]
-              (let [validate-state! (aget props "validate")]
+              (let-obj [{validate-state! "validate" binding "binding"} props]
                 (when validate-state!
-                  (validate-state! (:state (aget props "binding")))))
+                  (validate-state! (:state binding))))
               nil)
             
             ;; Dummy state; otherwise React complains that this uses getDerivedStateFromProps
@@ -500,8 +489,8 @@
             "shouldComponentUpdate" (r0/update-on ["item" "binding" "c_ref"])
 
             "render" (fn [this]
-                       (let [props (.-props this)]
-                         (render (aget props "item") (aget props "binding") (aget props "c_ref"))))))
+                       (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
+                         (render item binding ref)))))
 
 (def named (utils/named-generator gen-named))
 
@@ -518,10 +507,8 @@
             "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
 
             "render" (fn [this]
-                       (let [props (.-props this)]
-                         (render (apply (aget props "f") (aget props "args"))
-                                 (aget props "binding")
-                                 (aget props "c_ref"))))))
+                       (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
+                         (render (apply f args) binding ref)))))
 
 (def statical (utils/named-generator gen-static))
 
@@ -591,33 +578,30 @@
 
                          "componentDidMount"
                          (fn [this]
-                           (let [state (.-state this)
-                                 props (.-props this)
-                                 elem (native-deref (or (aget props "d_ref") (aget state "a_ref")))]
-                             (add-event-listeners elem (event-fns (aget props "events") (aget state "event_handlers")))))
+                           (let-obj [{d-ref "d_ref" events "events"} (.-props this)
+                                     {a-ref "a_ref" event-handlers "event_handlers"} (.-state this)]
+                             (let [elem (native-deref (or d-ref a-ref))]
+                               (add-event-listeners elem (event-fns events event-handlers)))))
 
                          "componentDidUpdate"
                          (fn [this prev-props prev-state]
-                           (let [prev-ref (aget prev-props "d_ref")
-                                 prev-events (aget prev-props "events")
-                                 
-                                 new-state (.-state this)
-                                 new-props (.-props this)
-                                 new-ref (aget new-props "d_ref")
-                                 new-events (aget new-props "events")
+                           (let-obj [{prev-ref "d_ref" prev-events "events"} prev-props
+                                     {new-ref "d_ref" new-events "events"} (.-props this)
 
-                                 prev-elem (native-deref (or prev-ref (aget prev-state "a_ref")))
-                                 new-elem (native-deref (or new-ref (aget new-state "a_ref")))]
-                             (let [[to-remove to-add]
-                                   (let [prev-listeners (event-fns prev-events (aget prev-state "event_handlers"))
-                                         new-listeners (event-fns new-events (aget new-state "event_handlers"))]
-                                     (if (= prev-elem new-elem)
-                                       (let [[to-remove to-add _]
-                                             (data/diff prev-listeners new-listeners)]
-                                         [to-remove to-add])
-                                       [prev-listeners new-listeners]))]
-                               (remove-event-listeners prev-elem to-remove)
-                               (add-event-listeners new-elem to-add))))
+                                     {prev-a-ref "a_ref" prev-event-handlers "event_handlers"} prev-state
+                                     {new-a-ref "a_ref" new-event-handlers "event_handlers"} (.-state this)]
+                             (let [prev-elem (native-deref (or prev-ref prev-a-ref))
+                                   new-elem (native-deref (or new-ref new-a-ref))]
+                               (let [[to-remove to-add]
+                                     (let [prev-listeners (event-fns prev-events prev-event-handlers)
+                                           new-listeners (event-fns new-events new-event-handlers)]
+                                       (if (= prev-elem new-elem)
+                                         (let [[to-remove to-add _]
+                                               (data/diff prev-listeners new-listeners)]
+                                           [to-remove to-add])
+                                         [prev-listeners new-listeners]))]
+                                 (remove-event-listeners prev-elem to-remove)
+                                 (add-event-listeners new-elem to-add)))))
 
                          ;; Note: I assume removing event listeners is not needed.
                          ;; "componentWillUnmount"
@@ -631,15 +615,12 @@
                          "shouldComponentUpdate" (r0/update-on ["binding" "d_ref" "attrs" "contents" "events"])
 
                          "render" (fn [this]
-                                    (let [props (.-props this)
-                                          binding (aget props "binding")
-                                          attrs (aget props "attrs")
-                                          children (aget props "contents")]
-                                      ;; we render
+                                    (let-obj [{binding "binding" attrs "attrs" children "contents" d-ref "d_ref"} (.-props this)
+                                              {a-ref "a_ref"} (.-state this)]
                                       (native-dom type
                                                   binding
                                                   attrs ;; Note: no events added here
-                                                  (or (aget props "d_ref") (aget (.-state this) "a_ref"))
+                                                  (or d-ref a-ref)
                                                   children)))))))
   
   (def dom-class
@@ -655,16 +636,13 @@
                          "shouldComponentUpdate" (r0/update-on ["binding" "d_ref" "attrs" "contents" "events"])
 
                          "render" (fn [this]
-                                    (let [props (.-props this)
-                                          binding (aget props "binding")
-                                          attrs (aget props "attrs")
-                                          children (aget props "contents")
-                                          events (aget props "events")]
+                                    (let-obj [{binding "binding" attrs "attrs" children "contents" events "events" d-ref "d_ref"} (.-props this)
+                                              {event-handlers "event_handlers"} (.-state this)]
                                       (native-dom type
                                                   binding
                                                   (-> attrs
-                                                      (merge (event-fns events (aget (.-state this) "event_handlers"))))
-                                                  (aget props "d_ref")
+                                                      (merge (event-fns events event-handlers)))
+                                                  d-ref
                                                   children))))))))
 
 (extend-type dom-base/Element
@@ -699,9 +677,7 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "contents"])
 
   "render" (fn [this]
-             (let [props (.-props this)
-                   binding (aget props "binding")
-                   children (aget props "contents")]
+             (let-obj [{binding "binding" children "contents"} (.-props this)]
                (apply r0/fragment (map #(render-child % binding)
                                        children)))))
 
@@ -721,8 +697,8 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item"])
 
   "render" (fn [this]
-             (let [props (.-props this)]
-               (render (aget props "item") (aget props "binding") (aget props "c_ref")))))
+             (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
+               (render item binding c-ref))))
 
 (extend-type base/Keyed
   IReact
@@ -739,9 +715,10 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
 
   "render" (fn [this]
-             (let [props (.-props this)]
-               (render (apply (aget props "f") (aget (.-state this) "ref") (aget props "args"))
-                       (aget props "binding") (aget props "c_ref")))))
+             (let-obj [{binding "binding" f "f" c-ref "c_ref" args "args"} (.-props this)
+                       {ref "ref"} (.-state this)]
+               (render (apply f ref args)
+                       binding c-ref))))
 
 (extend-type base/WithRef
   IReact
@@ -759,11 +736,8 @@
   "shouldComponentUpdate" (r0/update-on ["binding" "item" "c_ref"])
 
   "render" (fn [this]
-             (let [props (.-props this)
-                   binding (aget props "binding")
-                   e (aget props "item")
-                   ^RRef ref (aget props "c_ref")]
-               (render e binding (:ref ref)))))
+             (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
+               (render item binding (:ref c-ref)))))
 
 (extend-type base/Refer
   IReact
@@ -785,9 +759,9 @@
 
 (let [no-error #js {"error" nil}
       raise (fn [this error]
-              (let [props (.-props this)]
+              (let-obj [{binding "binding" f "f"} (.-props this)]
                 (.setState this no-error)
-                (call-event-handler! (aget props "binding") (aget props "f") error)))]
+                (call-event-handler! binding f error)))]
   (r0/defclass handle-error
     ;; store error in state, then immediately clear it again and call
     ;; handler; handler is reponsible to the reset the problem. Note:
@@ -800,12 +774,12 @@
     "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"] ["error"])
 
     "render" (fn [this]
-               (let [props (.-props this)]
-                 (let [error (aget (.-state this) "error")]
-                   (if (some? error)
-                     (r0/elem on-mount
-                              #js {"f" (f/partial raise this error)})
-                     (render (aget props "item") (aget props "binding") (aget props "c_ref"))))))
+               (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)
+                         {error "error"} (.-state this)]
+                 (if (some? error)
+                   (r0/elem on-mount
+                            #js {"f" (f/partial raise this error)})
+                   (render item binding c-ref))))
 
     [:static "getDerivedStateFromError"] (fn [error] #js {"error" error})))
 
