@@ -124,17 +124,18 @@
     ;; Use Reacl container fn as Reacl-C dom container fn, with Reacl-c items as content!
     (lift lifted-container f attrs content))
 
-  (reacl/defclass cont1 this state [attrs elem]
+  (reacl/defclass lift-container-rerender-test-1 this state [attrs elem]
     render
     (rdom/div attrs elem))
 
+  (c/defn-item lift-container-rerender-test-2 [called]
+    (swap! called inc)
+    (dom/div "foo"))
+
   (let [called (atom 0)
-        item (let [f (fn []
-                       (swap! called inc)
-                       (dom/div "foo"))]
-               (fn []
-                 (lift-container cont1 {}
-                                 (c/local-state "x" (c/focus lens/second (c/dynamic f))))))]
+        item (fn []
+               (lift-container lift-container-rerender-test-1 {}
+                               (c/local-state "x" (c/focus lens/second (lift-container-rerender-test-2 called)))))]
     (let [[app host] (btest/render (item) 42)]
       (is (= 1 @called))
       ;; rendering with new state, will not make f being called again (because it's focused to ignore it)

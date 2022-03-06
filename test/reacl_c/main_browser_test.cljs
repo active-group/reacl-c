@@ -752,11 +752,11 @@
       (is (= 1 @called)))))
 
 (deftest focus-rerender-test
+  (c/defn-item focus-rerender-test-1 [called]
+    (swap! called inc)
+    (dom/div "foo"))
   (let [called (atom 0)
-        item (let [f (fn []
-                       (swap! called inc)
-                       (dom/div "foo"))]
-               (c/local-state "x" (c/focus lens/second (c/dynamic f))))]
+        item (c/local-state "x" (c/focus lens/second (focus-rerender-test-1 called)))]
     (let [[app host] (render item 42)]
       (is (= 1 @called))
       ;; update with new state, but local-state+focus make f not being called again.

@@ -119,18 +119,21 @@
                         binding ref)
     v))
 
+(declare inline)
+
 (defn- render
   "Render to something that can be the result of a React 'render' method."
   [item binding ref]
-  (cond
-    (nil? item) (render-nil binding ref)
-    (string? item) (render-string item binding ref)
-    :else
-    (do (if (or (not dev-mode?) (satisfies? IReact item))
-          (-instantiate-react item binding ref)
-          (if (base/item? item)
-            (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
-            (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item})))))))
+  (let [item (inline item binding)]
+    (cond
+      (nil? item) (render-nil binding ref)
+      (string? item) (render-string item binding ref)
+      :else
+      (do (if (or (not dev-mode?) (satisfies? IReact item))
+            (-instantiate-react item binding ref)
+            (if (base/item? item)
+              (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
+              (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item}))))))))
 
 (defn- render-child
   "Render to something that can be in the child array of a React element (dom or fragment)."
@@ -248,6 +251,16 @@
 
 ;; items
 
+(defn- inline [item binding]
+  (cond
+    (and (base/dynamic? item)
+         (nil? (base/dynamic-name-id item)))
+    (inline (apply (base/dynamic-f item) (:state binding) (base/dynamic-args item))
+            binding)
+
+    :else
+    item))
+
 (defn- gen-dynamic [name]
   (r0/class name
             "shouldComponentUpdate" (r0/update-on ["f" "c_ref" "binding" "args"])
@@ -270,24 +283,14 @@
                   "f" f
                   "args" args})))
 
-(r0/defclass focus
-  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "lens"])
-
-  "render" (fn [this]
-             (let-obj [{binding "binding" ref "c_ref" item "item" lens "lens"} (.-props this)]
-               (render item
-                       (assoc binding
-                              :state (lens/yank (:state binding) lens)
-                              :store (stores/focus-store (:store binding) lens))
-                       ref))))
-
 (extend-type base/Focus
   IReact
   (-instantiate-react [{e :e lens :lens} binding ref]
-    (r0/elem focus #js {"binding" binding
-                        "c_ref" ref
-                        "item" e
-                        "lens" lens})))
+    (render e
+            (assoc binding
+                   :state (lens/yank (:state binding) lens)
+                   :store (stores/focus-store (:store binding) lens))
+            ref)))
 
 (defn- make-new-state! [this init]
   (let [store (stores/make-resettable-store!
@@ -314,11 +317,12 @@
   "render" (fn [this]
              (let-obj [{binding "binding" ref "c_ref" item "item"} (.-props this)
                        {this-state "this_state" this-store "this_store"} (.-state this)]
-               (render item
-                       (assoc binding
-                              :state [(:state binding) this-state]
-                              :store (stores/conc-store (:store binding) this-store))
-                       ref)))
+               (let [new-binding (assoc binding
+                                        :state [(:state binding) this-state]
+                                        :store (stores/conc-store (:store binding) this-store))]
+                 (render item
+                         new-binding
+                         ref))))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [props] (aget props "initial"))))
 
@@ -357,9 +361,8 @@
     "render" (fn [this]
                (let-obj [{binding "binding" item "item" ref "c_ref"} (.-props this)
                          {target "this_target"} (.-state this)]
-                 (render item
-                         (assoc binding :action-target target)
-                         ref)))))
+                 (let [new-binding (assoc binding :action-target target)]
+                   (render item new-binding ref))))))
 
 (extend-type base/HandleAction
   IReact
@@ -370,24 +373,13 @@
                                 "f" f
                                 "pred" pred})))
 
-(let [send! (fn [binding r]
-              (call-event-handler! binding (constantly r)))]
-  (r0/defclass with-async-return
-    "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "f" "args"])
-
-    "render" (fn [this]
-               (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
-                 (render (apply f (f/partial send! (event-handler-binding binding)) args)
-                         binding
-                         ref)))))
-
 (extend-type base/WithAsyncReturn
   IReact
   (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-async-return #js {"binding" binding
-                                    "c_ref" ref
-                                    "f" f
-                                    "args" args})))
+    ;; TODO: should take a handler function instead of a return value.
+    (render (apply f (f/comp (f/partial call-event-handler! (event-handler-binding binding)) f/constantly) args)
+            binding
+            ref)))
 
 (defn- lifecycle-f [name]
   (fn [this]
@@ -436,24 +428,13 @@
                                 "binding" binding
                                 "init" init}))))
 
-(r0/defclass handle-state-change
-  "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"])
-
-  "render" (fn [this]
-             (let-obj [{binding "binding" f "f" item "item" ref "c_ref"} (.-props this)]
-               (render item
-                       (assoc binding
-                              :store (stores/intercept-store (:store binding)
-                                                             (f/partial call-event-handler*! (:action-target binding) f)))
-                       ref))))
-
 (extend-type base/HandleStateChange
   IReact
   (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-state-change #js {"binding" binding
-                                      "c_ref" ref
-                                      "item" e
-                                      "f" f})))
+    (render e (assoc binding
+                     :store (stores/intercept-store (:store binding)
+                                                    (f/partial call-event-handler*! (:action-target binding) f)))
+            ref)))
 
 (r0/defclass handle-message
   "shouldComponentUpdate" (r0/update-on ["item" "binding"])
@@ -779,7 +760,12 @@
                  (if (some? error)
                    (r0/elem on-mount
                             #js {"f" (f/partial raise this error)})
-                   (render item binding c-ref))))
+                   ;; Note: delaying the rendering of item here, to
+                   ;; make sure the error boundary is installed while
+                   ;; rendering it (some things may be inlined):
+                   (r0/elem id #js {"binding" binding
+                                    "c_ref" c-ref
+                                    "item" item}))))
 
     [:static "getDerivedStateFromError"] (fn [error] #js {"error" error})))
 
