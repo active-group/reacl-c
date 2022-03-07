@@ -150,12 +150,6 @@
   {:pre [(ifn? f)]}
   (base/make-static nil f args))
 
-(defn embed-state
-  "Embeds the state of the given item into a part of the state of the
-  resulting item, via the given *lens*."
-  [item lens]
-  (focus lens item))
-
 (def ^{:arglists '([:state state :action action :message [target message]])
        :doc "Creates a value to be used for example in the function
        passed to [[handle-action]]. All arguments are optional:
@@ -434,20 +428,12 @@ be specified multiple times.
   [initial lens item] ;; aka extend-state?
   (local-state initial (focus lens item)))
 
-(defn hide-state
-  "Hides a part of the state of the given item, via a lens that
-  reduces the the tuple of states `[outer inner]`, where the initial
-  value for `inner` state is `initial`. The resulting item has only
-  `outer` as its state."
-  [item initial lens]
-  ;; Note: yes, it's actually the same as 'add-state' ;-)
-  (add-state initial lens item))
-
 (defn isolate-state
   "Hides the state of the given item as a local state, resulting in an
   item with an arbitrary state that is inaccessible for it."
   [initial-state item]
-  (static (f/partial add-state initial-state lens/second item)))
+  (static (f/constantly (local-state initial-state
+                                     (focus lens/second item)))))
 
 (defn keyed
   "Adds an arbitrary identifier to the given item, which will be used
@@ -769,8 +755,8 @@ be specified multiple times.
     [try-item catch-item]
     {:pre [(base/item? try-item)
            (base/item? catch-item)]}
-    (-> (dynamic dyn try-item catch-item)
-        (hide-state nil lens/id))))
+    (local-state nil
+                 (dynamic dyn try-item catch-item))))
 
 (let [df (fn [state e validate!]
            ;; state passed down!
