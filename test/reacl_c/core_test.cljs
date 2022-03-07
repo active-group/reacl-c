@@ -147,22 +147,6 @@
 
     (is (some? (defn-test-5 1 "Ok" 2)))))
 
-(deftest embed-returned-test
-  (is (= (c/embed-returned [:a :b] lens/first (c/return :state :c))
-         (c/return :state [:c :b])))
-
-  (is (= (c/embed-returned [:a :b] lens/first (c/return))
-         (c/return))))
-
-(deftest lift-handler-test
-  (is (= ((c/lift-handler lens/second (fn [st a] (c/return :state (conj st a))))
-          [:a []]
-          :foo)
-         (c/return :state [:a [:foo]])))
-  (is (= ((c/lift-handler lens/first (fn [st] :bar))
-          [:a :foo])
-         (c/return :state [:bar :foo]))))
-
 (deftest many-args-test
   (c/defn-item defn-item-many-args-test [& args]
     (apply c/fragment args))

@@ -208,41 +208,8 @@ be specified multiple times.
 (def ^{:doc "A unique value for the state in a [[return]] value, representing that the state should not be changed."}
   keep-state base/keep-state)
 
-(defn embed-returned
-  "Given a [[return]] value on a part of the given state, as specified
-  by the given lens, this returns an equivalent [[return]] value with
-  a change to the given `state` value.
-
-  For example:
-
-  ```
-  (embed-returned [:a :b] lens/first (return :c))
-  =
-  (return [:c :b])
-  ```
-
-  See also [[lift-handler]]."
-  [state lens ret]
-  (cond-> ret
-    (not= base/keep-state (base/returned-state ret))
-    (base/merge-returned ret
-                         (return :state (lens/shove state lens (base/returned-state ret))))))
-
 (defn ^:no-doc as-returned [v]
   (if (base/returned? v) v (return :state v)))
-
-(let [h* (fn [lens h state & args]
-           (let [v (apply h (lens/yank state lens) args)
-                 ret (if (base/returned? v) v (return :state v))]
-             (embed-returned state lens ret)))]
-  (defn lift-handler
-    "Given a handler function `h`, which takes a state as the first
-  argument, this returns a handler function that works on a larger
-  state, by extracting the smaller state via the given lens, and
-  embedding a returned state back into a return value on the larger
-  state."
-    [lens h]
-    (f/partial h* lens h)))
 
 (defn handle-message
   "Handles the messages sent to the the resulting item (either
