@@ -1064,44 +1064,6 @@ Note that the state of the inner item (the `div` in this case), will
       :else
       `(dynamic (s/fn ~(:dynamic p) ~@(:body p))))))
 
-(defn ^:no-doc local-dynamic [init f & args]
-  (local-state init (apply dynamic f args)))
-
-(defn- resolve* [env symbol]
-  (:name (ana/resolve-var env symbol)))
-
-(defn- var-sym [var]
-  (when var
-    (symbol (str (:ns (meta var)))
-            (name (:name (meta var))))))
-
-#?(:clj
-   (let [with-state-as-sym (var-sym #'with-state-as)]
-     (defn- with-state-as-sym? [env expr]
-       (and (symbol? expr)
-            (= with-state-as-sym
-               (if (sm/cljs-env? env)
-                 (resolve* env expr)  ;; cljs only
-                 (var-sym (resolve env expr))) ;; clj only
-               )))))
-
-(defn- maybe-with-state-as-expr [env body]
-  #?(:clj (and (not-empty body)
-               (let [candidate (last body)]
-                 (when (and (list? candidate)
-                            (<= 2 (count candidate))
-                            (with-state-as-sym? env (first candidate)))
-                   [(butlast body) (apply parse-binding-form (rest candidate))]))))
-  ;; just to make the compiler happy - macro expansion is not done in cljs, is it?
-  #?(:cljs (throw (ex-info "ClojureScript macro??" {}))))
-
-(defn ^:no-doc local-dynamic+p [prelude-fn init f & args]
-  (apply prelude-fn args)
-  (apply local-dynamic init f args))
-
-(defn ^:no-doc dynamic+p [prelude-fn f & args]
-  (apply prelude-fn args)
-  (apply dynamic f args))
 
 (defn- maybe-static [cand & rest]
   (if (= :static cand)
