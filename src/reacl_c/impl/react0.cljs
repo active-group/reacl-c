@@ -38,6 +38,8 @@
 
 (defn elem
   [class props]
+  (when (and (= nil (aget props "key")) (goog.object/containsKey props "key"))
+    (goog.object/remove props "key"))
   (react/createElement class props))
 
 (defn- legacy-adjust-dom-attr-name [n]
@@ -93,6 +95,5 @@
                         attrs)]
     (apply react/createElement type aobj children)))
 
-(defn fragment [& children]
-  ;; Note: fragments can have a key! (but no ref)
-  (apply react/createElement react/Fragment #js {} children))
+(defn fragment [key & children]
+  (apply react/createElement react/Fragment (if (some? key) #js {"key" key} #js {}) children))

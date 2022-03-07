@@ -102,7 +102,7 @@
 ;; base
 
 (defprotocol ^:private IReact
-  (-instantiate-react [this binding ref] "Returns a React element"))
+  (-instantiate-react [this binding ref key] "Returns a React element"))
 
 ;; Note: strings, nil and fragments can't have refs. We don't really
 ;; need them, but using a class can make better error
@@ -110,30 +110,27 @@
 (let [empty (base/really-make-fragment nil)]
   (defn- render-nil [binding ref]
     (if dev-mode?
-      (-instantiate-react empty binding ref)
+      (-instantiate-react empty binding ref nil)
       nil)))
 
 (defn- render-string [v binding ref]
   (if dev-mode?
     (-instantiate-react (base/really-make-fragment (list v))
-                        binding ref)
+                        binding ref nil)
     v))
-
-(declare inline)
 
 (defn- render
   "Render to something that can be the result of a React 'render' method."
-  [item binding ref]
-  (let [item (inline item binding)]
-    (cond
-      (nil? item) (render-nil binding ref)
-      (string? item) (render-string item binding ref)
-      :else
-      (do (if (or (not dev-mode?) (satisfies? IReact item))
-            (-instantiate-react item binding ref)
-            (if (base/item? item)
-              (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
-              (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item}))))))))
+  [item binding ref key]
+  (cond
+    (nil? item) (render-nil binding ref)
+    (string? item) (render-string item binding ref)
+    :else
+    (do (if (or (not dev-mode?) (satisfies? IReact item))
+          (-instantiate-react item binding ref key)
+          (if (base/item? item)
+            (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
+            (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item})))))))
 
 (defn- render-child
   "Render to something that can be in the child array of a React element (dom or fragment)."
@@ -142,7 +139,7 @@
     (nil? item) item
     (string? item) item
     :else
-    (render item binding nil)))
+    (render item binding nil nil)))
 
 (defn- toplevel-actions [onaction actions]
   (loop [actions actions]
@@ -181,7 +178,8 @@
               {store "this_store" target "action_target" ref "ref"} (.-state this)]
       (render item
               (Binding. state store target)
-              ref)))
+              ref
+              nil)))
   
   $handle-message
   (fn [this msg]
@@ -251,12 +249,12 @@
 
 ;; items
 
-(defn- inline [item binding]
+(defn- inline-dynamic [item binding]
   (cond
     (and (base/dynamic? item)
          (nil? (base/dynamic-name-id item)))
-    (inline (apply (base/dynamic-f item) (:state binding) (base/dynamic-args item))
-            binding)
+    (inline-dynamic (apply (base/dynamic-f item) (:state binding) (base/dynamic-args item))
+                    binding)
 
     :else
     item))
@@ -265,10 +263,11 @@
   (r0/class name
             "shouldComponentUpdate" (r0/update-on ["f" "c_ref" "binding" "args"])
 
+            ;; OPT: can we inline a local-state here, that would be great.
             "render" (fn [this]
                        (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
-                         (render (apply f (:state binding) args)
-                                 binding ref)))))
+                         (render (inline-dynamic (apply f (:state binding) args) binding)
+                                 binding ref nil)))))
 
 (def dynamical (utils/named-generator gen-dynamic))
 
@@ -276,21 +275,23 @@
 
 (extend-type base/Dynamic
   IReact
-  (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
+  (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (dynamical name-id) dynamic)
-             #js {"binding" binding
+             #js {"key" key
+                  "binding" binding
                   "c_ref" ref
                   "f" f
                   "args" args})))
 
 (extend-type base/Focus
   IReact
-  (-instantiate-react [{e :e lens :lens} binding ref]
+  (-instantiate-react [{e :e lens :lens} binding ref key]
     (render e
             (assoc binding
                    :state (lens/yank (:state binding) lens)
                    :store (stores/focus-store (:store binding) lens))
-            ref)))
+            ref
+            key)))
 
 (defn- make-new-state! [this init]
   (let [store (stores/make-resettable-store!
@@ -320,16 +321,18 @@
                (let [new-binding (assoc binding
                                         :state [(:state binding) this-state]
                                         :store (stores/conc-store (:store binding) this-store))]
-                 (render item
+                 (render (inline-dynamic item new-binding)
                          new-binding
-                         ref))))
+                         ref
+                         nil))))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [props] (aget props "initial"))))
 
 (extend-type base/LocalState
   IReact
-  (-instantiate-react [{e :e initial :initial} binding ref]
-    (r0/elem local-state #js {"binding" binding
+  (-instantiate-react [{e :e initial :initial} binding ref key]
+    (r0/elem local-state #js {"key" key
+                              "binding" binding
                               "c_ref" ref
                               "item" e
                               "initial" initial})))
@@ -362,12 +365,13 @@
                (let-obj [{binding "binding" item "item" ref "c_ref"} (.-props this)
                          {target "this_target"} (.-state this)]
                  (let [new-binding (assoc binding :action-target target)]
-                   (render item new-binding ref))))))
+                   (render item new-binding ref nil))))))
 
 (extend-type base/HandleAction
   IReact
-  (-instantiate-react [{e :e f :f pred :pred} binding ref]
-    (r0/elem handle-action #js {"binding" binding
+  (-instantiate-react [{e :e f :f pred :pred} binding ref key]
+    (r0/elem handle-action #js {"key" key
+                                "binding" binding
                                 "c_ref" ref
                                 "item" e
                                 "f" f
@@ -375,11 +379,12 @@
 
 (extend-type base/WithAsyncReturn
   IReact
-  (-instantiate-react [{f :f args :args} binding ref]
+  (-instantiate-react [{f :f args :args} binding ref key]
     ;; TODO: should take a handler function instead of a return value.
     (render (apply f (f/comp (f/partial call-event-handler! (event-handler-binding binding)) f/constantly) args)
             binding
-            ref)))
+            ref
+            key)))
 
 (defn- lifecycle-f [name]
   (fn [this]
@@ -418,30 +423,33 @@
 
 (extend-type base/Lifecycle
   IReact
-  (-instantiate-react [{init :init finish :finish} binding ref]
+  (-instantiate-react [{init :init finish :finish} binding ref key]
     (if (some? finish)
       (r0/elem lifecycle #js {"ref" ref
+                              "key" key
                               "binding" binding
                               "init" init
                               "finish" finish})
       (r0/elem lifecycle-h #js {"ref" ref
+                                "key" key
                                 "binding" binding
                                 "init" init}))))
 
 (extend-type base/HandleStateChange
   IReact
-  (-instantiate-react [{e :e f :f} binding ref]
+  (-instantiate-react [{e :e f :f} binding ref key]
     (render e (assoc binding
                      :store (stores/intercept-store (:store binding)
                                                     (f/partial call-event-handler*! (:action-target binding) f)))
-            ref)))
+            ref
+            key)))
 
 (r0/defclass handle-message
   "shouldComponentUpdate" (r0/update-on ["item" "binding"])
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding"} (.-props this)]
-               (render item binding nil)))
+               (render item binding nil nil)))
   
   $handle-message (fn [this msg]
                     (let-obj [{binding "binding" f "f"} (.-props this)]
@@ -449,8 +457,9 @@
 
 (extend-type base/HandleMessage
   IReact
-  (-instantiate-react [{e :e f :f} binding ref]
+  (-instantiate-react [{e :e f :f} binding ref key]
     (r0/elem handle-message #js {"ref" ref
+                                 "key" key
                                  "binding" binding
                                  "item" e
                                  "f" f})))
@@ -471,14 +480,15 @@
 
             "render" (fn [this]
                        (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
-                         (render item binding ref)))))
+                         (render item binding ref nil)))))
 
 (def named (utils/named-generator gen-named))
 
 (extend-type base/Named
   IReact
-  (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref]
+  (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref key]
     (r0/elem (named name-id) #js {"binding" binding
+                                  "key" key
                                   "c_ref" ref
                                   "item" e
                                   "validate" validate-state!})))
@@ -489,7 +499,7 @@
 
             "render" (fn [this]
                        (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
-                         (render (apply f args) binding ref)))))
+                         (render (apply f args) binding ref nil)))))
 
 (def statical (utils/named-generator gen-static))
 
@@ -497,18 +507,21 @@
 
 (extend-type base/Static
   IReact
-  (-instantiate-react [{f :f args :args name-id :name-id} binding ref]
+  (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (statical name-id) static)
              #js {"binding" (assoc binding
                                    :state nil
                                    :store stores/void-store)
+                  "key" key
                   "c_ref" ref
                   "f" f
                   "args" args})))
 
 (defn- native-dom [type binding attrs ref children]
   ;; Note: because we sometimes set a ref directly in the dom attributes (see c/refer), the ref may still be a RRef object here - not very clean :-/
-  (apply r0/dom-elem type (assoc attrs :ref (native-ref ref)) (map #(render-child % binding) children)))
+  (apply r0/dom-elem type (assoc attrs
+                                 :ref (native-ref ref))
+         (map #(render-child % binding) children)))
 
 (defn- event-handler [current-events call-event-handler! capture?]
   (fn [ev]
@@ -628,13 +641,14 @@
 
 (extend-type dom-base/Element
   IReact
-  (-instantiate-react [{type :type custom? :custom? attrs :attrs events :events ref :ref children :children} binding c-ref]
+  (-instantiate-react [{type :type custom? :custom? attrs :attrs events :events ref :ref children :children} binding c-ref key]
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
     ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       custom? (r0/elem (custom-dom-class type) #js {"ref" c-ref
+                                                    "key" key
                                                     "binding" binding
                                                     "attrs" attrs
                                                     "contents" children
@@ -644,13 +658,17 @@
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
       (r0/elem (dom-class type) #js {"ref" c-ref
+                                     "key" key
                                      "binding" binding
                                      "attrs" attrs
                                      "contents" children
                                      "d_ref" ref
                                      "events" events})
 
-      :else (native-dom type binding attrs ref children))))
+      :else (native-dom type binding
+                        (cond-> attrs
+                          (some? key) (assoc :key key))
+                        ref children))))
 
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")
@@ -659,35 +677,34 @@
 
   "render" (fn [this]
              (let-obj [{binding "binding" children "contents"} (.-props this)]
-               (apply r0/fragment (map #(render-child % binding)
-                                       children)))))
+               (apply r0/fragment nil (map #(render-child % binding)
+                                           children)))))
 
 (extend-type base/Fragment
   IReact
-  (-instantiate-react [{children :children} binding ref]
+  (-instantiate-react [{children :children} binding ref key]
     ;; Note: React fragments can't have a ref. We don't really need them, except to make better error messages - do that only in dev-mode:
     (if (and dev-mode? (some? ref))
       (r0/elem fragment #js {"ref" ref
+                             "key" key
                              "binding" binding
                              "contents" children})
       ;; render directly into a react fragment - no class needed:
-      (apply r0/fragment (map #(render-child % binding)
-                              children)))))
+      (apply r0/fragment key (map #(render-child % binding)
+                                  children)))))
 
 (r0/defclass id
   "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "binding"])
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
-               (render item binding c-ref))))
+               (render item binding c-ref nil))))
 
 (extend-type base/Keyed
   IReact
-  (-instantiate-react [{e :e key :key} binding ref]
-    (r0/elem id #js {"key" key
-                     "binding" binding
-                     "c_ref" ref
-                     "item" e})))
+  (-instantiate-react [{e :e inner-key :key} binding ref outer-key]
+    ;; Note: (keyed (keyed ... inner) outer) - outer wins
+    (render e binding ref (if (some? outer-key) outer-key inner-key))))
 
 (r0/defclass with-ref
   "getInitialState" (fn [this]
@@ -699,12 +716,13 @@
              (let-obj [{binding "binding" f "f" c-ref "c_ref" args "args"} (.-props this)
                        {ref "ref"} (.-state this)]
                (render (apply f ref args)
-                       binding c-ref))))
+                       binding c-ref nil))))
 
 (extend-type base/WithRef
   IReact
-  (-instantiate-react [{f :f args :args} binding ref]
-    (r0/elem with-ref #js {"binding" binding
+  (-instantiate-react [{f :f args :args} binding ref key]
+    (r0/elem with-ref #js {"key" key
+                           "binding" binding
                            "c_ref" ref
                            "f" f
                            "args" args})))
@@ -718,18 +736,19 @@
 
   "render" (fn [this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
-               (render item binding (:ref c-ref)))))
+               (render item binding (:ref c-ref) nil))))
 
 (extend-type base/Refer
   IReact
-  (-instantiate-react [{e :e ref :ref} binding ref2]
-    (r0/elem set-ref #js {"ref" ref2
+  (-instantiate-react [{e :e ref :ref} binding ref2 key]
+    (r0/elem set-ref #js {"key" key
+                          "ref" ref2
                           "binding" binding
                           "item" e
                           "c_ref" ref})))
 
 (r0/defclass ^:private on-mount
-  "render" (fn [this] (r0/fragment))
+  "render" (fn [this] (r0/fragment nil))
   
   "shouldComponentUpdate" (constantly false)
 
@@ -771,8 +790,9 @@
 
 (extend-type base/HandleError
   IReact
-  (-instantiate-react [{e :e f :f} binding ref]
-    (r0/elem handle-error #js {"binding" binding
+  (-instantiate-react [{e :e f :f} binding ref key]
+    (r0/elem handle-error #js {"key" key
+                               "binding" binding
                                "c_ref" ref
                                "item" e
                                "f" f})))
@@ -782,6 +802,9 @@
 
 (extend-type interop/LiftReact
   IReact
-  (-instantiate-react [{class :class props :props} binding ref]
+  (-instantiate-react [{class :class props :props} binding ref key]
     ;; FIXME: ref + a ref in props? How does that relate?
-    (react/createElement class props)))
+    ;; Note: key overrides a key in props (corresponds to (keyed (lift) x))
+    (react/createElement class (if (some? key)
+                                 (aset props "key" key)
+                                 props))))
