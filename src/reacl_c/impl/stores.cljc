@@ -18,16 +18,22 @@
     (store-set! s v)
     x))
 
-(defrecord DelegateStore [state set-state!]
+(defrecord ^:private DelegateStore [a set-state-a!]
   IStore
-  (-get [_] state)
+  (-get [_] @a)
   (-set [_ v]
     ;; nil=callback - TODO: use?
-    (when (not= v state)
-      (set-state! v nil))))
+    (when (not= v @a)
+      (@set-state-a! v nil))))
 
 (defn delegate-store [state set-state!]
-  (DelegateStore. state set-state!))
+  (DelegateStore. (atom state) (atom set-state!)))
+
+(defn reset-delegate-store! [s state & [set-state!]]
+  (assert (instance? DelegateStore s))
+  (reset! (:a s) state)
+  (when set-state!
+    (reset! (:set-state-a! s) set-state!)))
 
 (defrecord ^:private BaseStore [init-a a watcher]
   IStore

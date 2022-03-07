@@ -142,21 +142,26 @@
 (r0/defclass toplevel
   "getInitialState"
   (fn [this]
-    {:ref (r0/create-ref)
-     :action-target (atom nil)})
+    (let [[item state onchange onaction] (r0/get-args this)]
+      {:ref (r0/create-ref)
+       :this-store (stores/delegate-store state onchange)
+       :action-target (atom nil)}))
   ;; see [[handle-action]] for the reasons of the action-target atom.
   [:static "getDerivedStateFromProps"]
   (fn [props local-state]
     (let [[item state onchange onaction] (r0/extract-args props)]
+      (stores/reset-delegate-store! (:this-store (r0/extract-state local-state))
+                                    state onchange)
       (reset! (:action-target (r0/extract-state local-state)) (f/partial toplevel-actions onaction))
       nil))
+
   "render"
   (fn [this]
     (let [[item state onchange onaction] (r0/get-args this)
           local (r0/get-state this)]
       (render item
               (Binding. state
-                        (stores/delegate-store state onchange)
+                        (:this-store local)
                         (:action-target local))
               (:ref local))))
   
