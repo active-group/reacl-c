@@ -24,20 +24,21 @@
     (main/send-message! app ::hello)
     (is (= ::hello @received))))
 
-(defn run-in [host item & [state]]
-  (main/run host item {:initial-state state}))
+(defn run-in [host item & [state handle-action!]]
+  (main/run host item {:initial-state state
+                       :handle-action! handle-action!}))
 
-(defn render [item & [state]]
+(defn render [item & [state handle-action!]]
   (let [host (js/document.createElement "div")]
-    [(run-in host item state)
+    [(run-in host item state handle-action!)
      host]))
 
-(defn renders-as* [item & [state]]
-  (let [[app host] (render item state)]
+(defn renders-as* [item & [state handle-action!]]
+  (let [[app host] (render item state handle-action!)]
     (array-seq (.-childNodes host))))
 
-(defn renders-as [item & [state]]
-  (first (renders-as* item state)))
+(defn renders-as [item & [state handle-action!]]
+  (first (renders-as* item state handle-action!)))
 
 (defn capture-last-state [& [initial]]
   (let [last-state (atom initial)
@@ -148,6 +149,28 @@
           n (renders-as (dom/div (c/init (c/return :action eff))))]
       (is @executed)))
 
+  (testing "executing recursive effects"
+    (let [executed (atom false)
+          eff2 (c/effect (fn [a]
+                           (reset! executed a)
+                           nil)
+                         true)
+          eff1 (c/effect (fn []
+                           (c/return :action eff2)))
+          n (renders-as (dom/div (c/init (c/return :action eff1))))]
+      (is @executed)))
+
+  (testing "effects returning actions"
+    ;; Note: these cannot be handled by handle-action, but by the handle-action! option of main/run
+    (let [received (atom nil)
+          eff (c/effect (fn []
+                          (c/return :action :foo)))
+          n (renders-as (dom/div (c/init (c/return :action eff)))
+                        nil
+                        (fn handle-action [a]
+                          (reset! received a)))]
+      (is (= :foo @received))))
+  
   (testing "handling result"
     (let [eff (c/effect (fn [] "ok"))]
       (is (= "ok"
