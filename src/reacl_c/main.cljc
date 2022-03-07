@@ -8,18 +8,19 @@
 
 (let [h (fn [recursion-limit monitor _ eff]
           (loop [effs (list eff)
-                 res (core/return)
+                 final (core/return) ;; collects (toplevel) actions other than effects and messages.
                  n 0]
             (cond
-              (empty? effs) res
+              (empty? effs) final
               ;; bail out if an effects keeps on returning new effects over and over.
               (> n recursion-limit) (throw (ex-info "Maximum recursion limit exceeded in handling effects." {}))
               :else
-              (let [[res ret] (base/run-effect! eff)
+              (let [eff (first effs)
+                    [res ret] (base/run-effect! eff)
                     {more-effs true more-acts false} (group-by base/effect? (base/returned-actions ret))]
                 (when monitor (monitor eff res ret))
                 (recur (concat (rest effs) more-effs)
-                       (base/merge-returned ret (base/make-returned base/keep-state more-acts []))
+                       (base/merge-returned final (lens/shove ret base/returned-actions more-acts))
                        (inc n))))))]
   (defn execute-effects
     "Returns an item that will intercept and execute all effects
