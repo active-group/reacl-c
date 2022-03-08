@@ -641,19 +641,20 @@
 
 (extend-type dom-base/Element
   IReact
-  (-instantiate-react [{type :type custom? :custom? attrs :attrs events :events ref :ref children :children} binding c-ref key]
+  (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref key]
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
     ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
-      custom? (r0/elem (custom-dom-class type) #js {"ref" c-ref
-                                                    "key" key
-                                                    "binding" binding
-                                                    "attrs" attrs
-                                                    "contents" children
-                                                    "d_ref" ref
-                                                    "events" events})
+      (r0/custom-type? type)
+      (r0/elem (custom-dom-class type) #js {"ref" c-ref
+                                            "key" key
+                                            "binding" binding
+                                            "attrs" attrs
+                                            "contents" children
+                                            "d_ref" ref
+                                            "events" events})
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))

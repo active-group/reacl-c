@@ -611,8 +611,7 @@
 
 (let [f (fn [[_ name] args]
           (when name
-            ;; Note: unlike dom/dom-element, dom/custom allows for event handlers (anything that starts with ':on'), which React itself ignores.
-            (c/focus lens/first (apply dom/custom name args))))]
+            (c/focus lens/first (apply dom/h name args))))]
   (c/defn-item use
     "Registers the given web component under a unique name, and
   returns an item using that component. This can be especially useful

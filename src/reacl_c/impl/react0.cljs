@@ -74,6 +74,10 @@
     "style" (clj->js (into {} (map (fn [[k v]] [(adjust-dom-style-name (name k)) v]) v)))
     v))
 
+(defn custom-type? [node-type]
+  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
+  (and (string? node-type) (str/includes? node-type "-")))
+
 (defn dom-elem [type attrs & children]
   (let [;; Note: for html/dom notes, React *requires* attrs like
         ;; "className", and warns about "class"; but for web
@@ -84,7 +88,7 @@
         ;; a bit of a breaking change as users have their code. For
         ;; now, try to distinguish between native and custom elements
         ;; (they must have a '-' in the name):
-        adjust-attr-name (if (and (string? type) (str/includes? type "-"))
+        adjust-attr-name (if (custom-type? type)
                            identity
                            adjust-dom-attr-name)
         aobj (reduce-kv (fn [r k v]

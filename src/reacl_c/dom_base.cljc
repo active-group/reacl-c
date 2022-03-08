@@ -5,10 +5,9 @@
             #?(:clj [active.clojure.record :as r])))
 
 (r/define-record-type ^:no-doc Element
-  (make-element type custom? attrs events ref children)
+  (make-element type attrs events ref children)
   element?
   [type element-type
-   custom? element-custom?
    attrs element-attrs
    events element-events
    ref element-ref
