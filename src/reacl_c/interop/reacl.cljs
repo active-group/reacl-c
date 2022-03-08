@@ -3,22 +3,27 @@
             [reacl-c.interop.react :as react]
             [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl2.core :as r]
+            [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
+
+(defn- handle-action [return! a]
+  (return! (c/return :action a)))
+
+ (defn- set-state [return! st cb]
+   (when-not (r/keep-state? st)
+     (return! (c/return :state st)))
+   ;; TODO: add callback to return! ?
+   (when cb (cb)))
 
 (defn- reacl-wrapper [props]
   ;; a React function component
   (let [[class args state return! ref] (r0/extract-args props)]
     (r/react-element class (cond-> {:args args
-                                    :handle-action! (fn [a]
-                                                      (return! (c/return :action a)))
+                                    :handle-action! (f/partial handle-action return!)
                                     :ref ref}
                              (r/has-app-state? class)
                              (merge {:app-state state
-                                     :set-app-state! (fn [st cb]
-                                                       (when-not (r/keep-state? st)
-                                                         (return! (c/return :state st)))
-                                                       ;; TODO: add callback to return! ?
-                                                       (when cb (cb)))})))))
+                                     :set-app-state! (f/partial set-state return!)})))))
 
 (c/defn-effect ^:private make-ref! []
   #js {:current nil})
