@@ -11,9 +11,9 @@
 
 ;; Only pure tests: No local-/state changes, no implicit mounting (init), no effects, no subscriptions.
 
-(defn- reduce-item [mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other item state]
+(defn- reduce-item [mk-ref mk-async f-leaf f-container f-wrapper f-dynamic f-other item state]
   (let [rec (fn [state item]
-              (reduce-item mk-ref mk-async-return f-leaf f-container f-wrapper f-dynamic f-other
+              (reduce-item mk-ref mk-async f-leaf f-container f-wrapper f-dynamic f-other
                            item state))]
     (cond
       (string? item)
@@ -41,8 +41,8 @@
       (base/with-ref? item)
       (f-dynamic (rec state (apply (base/with-ref-f item) (mk-ref) (base/with-ref-args item))) item state)
 
-      (base/with-async-return? item)
-      (f-dynamic (rec state (apply (base/with-async-return-f item) (mk-async-return) (base/with-async-return-args item))) item state)
+      (base/with-async? item)
+      (f-dynamic (rec state (apply (base/with-async-f item) (mk-async) (base/with-async-args item))) item state)
 
       (base/focus? item)
       (f-wrapper (rec (lens/yank state (base/focus-lens item))
@@ -96,15 +96,15 @@
   (reify base/Ref
     (-deref-ref [this] (throw (ex-info "Cannot derefence in a test environment." {})))))
 
-(defn- dummy-return [r]
-  (throw (ex-info "Cannot do an async return in a test environment." {})))
+(defn- dummy-async [r]
+  (throw (ex-info "Cannot do an async injection in a test environment." {})))
 
 (defn render
   "Returns how an item looks like in the given state. Returns a list
   of only dom elements and strings." ;; TODO: + react items?
   [item & [state]]
   (reduce-item make-dummy-ref
-               (constantly dummy-return)
+               (constantly dummy-async)
                (fn leaf [item state]
                  (cond
                    (string? item)
@@ -137,7 +137,7 @@
                  (cond
                    (or (base/dynamic? item)
                        (base/with-ref? item)
-                       (base/with-async-return? item)
+                       (base/with-async? item)
                        (base/static? item))
                    res
 
@@ -244,7 +244,7 @@
         (base/dynamic? item)
         (base/static? item)
         (base/with-ref? item)
-        (base/with-async-return? item))
+        (base/with-async? item))
     (= item sub-item)
 
     (or (base/focus? item)
@@ -278,7 +278,7 @@
             (fn [item sub-item state]
               (f item sub-item)))]
     (reduce-item make-dummy-ref
-                 (constantly dummy-return)
+                 (constantly dummy-async)
                  (fn leaf [item state]
                    (g item sub-item state))
                  (fn container [c-res item state]
@@ -366,7 +366,7 @@
 (defn- run-lifecycle [item state f]
   ;; resolve, find all livecycle (with their state); call that.
   (reduce-item make-dummy-ref
-               (constantly dummy-return)
+               (constantly dummy-async)
                (fn leaf [item state]
                  (cond
                    (base/lifecycle? item)
@@ -412,7 +412,7 @@
                  (cond
                    (or (base/dynamic? item)
                        (base/with-ref? item)
-                       (base/with-async-return? item))
+                       (base/with-async? item))
                    res
                           
                    :else
@@ -450,7 +450,7 @@
 
 (defn- find-handle-message [item state]
   (reduce-item make-dummy-ref
-               (constantly dummy-return)
+               (constantly dummy-async)
                (fn leaf [item state]
                  (cond
                    (or (string? item)
@@ -503,7 +503,7 @@
                  (cond
                    (or (base/dynamic? item)
                        (base/with-ref? item)
-                       (base/with-async-return? item)
+                       (base/with-async? item)
                        (base/static? item))
                    res
                           

@@ -71,8 +71,8 @@
             (gen/tuple (gen/elements [(f/constantly (c/return))])
                        (gen/elements [(f/constantly (c/return))]))))
 
-(defn with-async-return [item-gen]  ;; TODO: fn?
-  (gen/fmap #(c/with-async-return (f/constantly %))
+(defn with-async [item-gen]  ;; TODO: fn?
+  (gen/fmap #(c/with-async (f/constantly %))
             item-gen))
 
 (defn focus [item-gen]  ;; TODO lens?
@@ -119,7 +119,7 @@
     (named item-gen)
                         
     with-ref
-    (with-async-return item-gen)
+    (with-async item-gen)
     (focus item-gen)
     (local-state item-gen)
     (handle-action item-gen)
@@ -259,7 +259,7 @@
                                changes))))
       
         base/with-ref? empty-item
-        base/with-async-return? empty-item
+        base/with-async? empty-item
         base/focus? (wr item)
         base/local-state? (wr item)
         base/handle-action? (wr item)

@@ -99,11 +99,11 @@
   E
   (-is-dynamic? [_] true))
 
-(r/define-record-type WithAsyncReturn
-  (make-with-async-return f args)
-  with-async-return?
-  [f with-async-return-f
-   args with-async-return-args]
+(r/define-record-type WithAsync
+  (make-with-async f args)
+  with-async?
+  [f with-async-f
+   args with-async-args]
   E
   (-is-dynamic? [_] true))
 

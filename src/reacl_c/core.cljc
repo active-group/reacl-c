@@ -499,29 +499,40 @@ be specified multiple times.
            (ifn? f)]}
     (handle-state-change item (f/partial h f args))))
 
-;; Note: low-level feature which is a bit dangerous to use (not check
-;; if item is mounted); user should use subscriptions.
-(defn ^:no-doc with-async-return [f & args]
+;; Note: low-level feature which is a bit dangerous to use (no check
+;; if item is mounted);
+(defn ^:no-doc with-async [f & args]
   {:pre [(ifn? f)]}
-  (base/make-with-async-return f args))
+  (base/make-with-async f args))
 
-;; Note: low-level feature which is a bit dangerous to use (not check
+;; Note: low-level feature which is a bit dangerous to use (no check
+;; if item is mounted); user should use subscriptions.
+(let [g (fn [invoke ret]
+          (invoke (f/constantly ret)))
+      h (fn [invoke f args]
+          (apply f (f/partial g invoke)
+                 args))]
+  (defn ^{:no-doc true :deprecated true} with-async-return [f & args]
+    {:pre [(ifn? f)]}
+    (with-async h f args)))
+
+;; Note: low-level feature which is a bit dangerous to use (no check
 ;; if item is mounted); user should use subscriptions.
 (let [send! (fn [return! target msg]
               (return! (return :message [target msg])))
       h (fn [return! f args]
           (apply f (f/partial send! return!) args))]
-  (defn ^:no-doc with-async-messages [f & args]
+  (defn ^{:no-doc true :deprecated true} with-async-messages [f & args]
     {:pre [(ifn? f)]}
     (with-async-return h f args)))
 
-;; Note: low-level feature which is a bit dangerous to use (not check
+;; Note: low-level feature which is a bit dangerous to use (no check
 ;; if item is mounted); user should use subscriptions.
 (let [h (fn [return! action]
           (return! (return :action action)))
       g (fn [return! f args]
           (apply f (f/partial h return!) args))]
-  (defn ^:no-doc with-async-actions [f & args]
+  (defn ^{:no-doc true :deprecated true} with-async-actions [f & args]
     {:pre [(ifn? f)]}
     (with-async-return g f args)))
 
@@ -600,7 +611,7 @@ be specified multiple times.
         deliver! (comp (fn [a]
                          (if (some? @sync)
                            (swap! sync conj a)
-                           (async-deliver! (return :action a))))
+                           (async-deliver! a)))
                        action-mapper)
         stop! (apply f deliver! args)
         sync-actions @sync]
@@ -655,16 +666,19 @@ be specified multiple times.
              (if (nil? stop!)
                (with-ref msgs deliver! action-mapper defn-f f args)
                empty)))
-      stu (fn [deliver! action-mapper defn-f f args]
+      deliver (fn [invoke! a]
+                (invoke! (f/constantly (return :action a))))
+      stu (fn [invoke! action-mapper defn-f f args]
             ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
-            (isolate-state {:f f
-                            :args args
-                            :stop! nil
-                            :subscribed? false}
-                           (dynamic dyn deliver! action-mapper defn-f)))]
+            (let [deliver! (f/partial deliver invoke!)]
+              (isolate-state {:f f
+                              :args args
+                              :stop! nil
+                              :subscribed? false}
+                             (dynamic dyn deliver! action-mapper defn-f))))]
   (defn ^:private subscription*
     [action-mapper defn-f f & args]
-    (with-async-return stu action-mapper defn-f f args))
+    (with-async stu action-mapper defn-f f args))
 
   (defn ^:no-doc subscription-deconstruct
     [item]
@@ -672,9 +686,9 @@ be specified multiple times.
                  (base/named-e item)
                  item)]
       ;; Note: must correspond to what subscription* does.
-      (and (base/with-async-return? item)
-           (= stu (base/with-async-return-f item))
-           (let [[_ defn-f f args] (base/with-async-return-args item)]
+      (and (base/with-async? item)
+           (= stu (base/with-async-f item))
+           (let [[_ defn-f f args] (base/with-async-args item)]
              [defn-f f args]))))
   )
 

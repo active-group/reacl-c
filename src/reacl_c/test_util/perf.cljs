@@ -9,8 +9,8 @@
 (def ^:private dummy-ref (reify base/Ref
                            (-deref-ref [this] (throw (ex-info "References must only be dereferenced in handlers, not during rendering." {})))))
 
-(defn- dummy-return! [v]
-  (throw (ex-info "Asynchronous return delivery must only be done asynchronously, not during rendering." {:value v})))
+(defn- dummy-async! [v]
+  (throw (ex-info "Asynchronous injection must only be done asynchronously, not during rendering." {:value v})))
 
 (defn ^:no-doc resolve-1-shallow
   "Shallowly replaces all dynamic items with the items they resolve to for the given state."
@@ -18,7 +18,7 @@
   {:post [#(not (base/dynamic? %))
           #(not (base/static? %))
           #(not (base/with-ref? %))
-          #(not (base/with-async-return? %))]}
+          #(not (base/with-async? %))]}
   (if (or (string? item) (nil? item))
     item
     (condp apply [item]
@@ -26,7 +26,7 @@
       base/dynamic? (apply (:f item) state (:args item))
       base/static? (apply (:f item) nil (:args item))
       base/with-ref? (apply (:f item) dummy-ref (:args item))
-      base/with-async-return? (apply (:f item) dummy-return! (:args item))
+      base/with-async? (apply (:f item) dummy-async! (:args item))
 
       item)))
 
@@ -44,7 +44,7 @@
         base/dynamic? (resolve-dyn item state)
         base/static? (resolve-dyn item nil)
         base/with-ref? (resolve-dyn item state)
-        base/with-async-return? (resolve-dyn item state)
+        base/with-async? (resolve-dyn item state)
 
         ;; the wrappers
         base/focus? (update item :e #(resolve-* % (lens/yank state (base/focus-lens item)) resolve-dyn))
@@ -91,7 +91,7 @@
     base/dynamic? 'dynamic
     base/static? 'static
     base/with-ref? 'with-ref
-    base/with-async-return? 'with-async-return
+    base/with-async? 'with-async
     base/focus? 'focus
     base/local-state? 'local-state
     base/handle-action? 'handle-action
@@ -121,7 +121,7 @@
       [path {:types [(item-type item1) (item-type item2)]}]
 
       ;; dynamics
-      (or (base/static? item1) (base/dynamic? item1) (base/with-ref? item1) (base/with-async-return? item1))
+      (or (base/static? item1) (base/dynamic? item1) (base/with-ref? item1) (base/with-async? item1))
       (let [path (conj path (item-type item1))]
         (if (= (:f item1) (:f item2))
           [path {:arguments (seq-diff (:args item1) (:args item2))}]

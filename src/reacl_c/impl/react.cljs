@@ -65,7 +65,7 @@
   state."
   [action-target handler state & args]
   (let [r (apply handler state args)
-        new-state (if (base/returned? r)
+        new-state (if (base/returned? r) ;; TODO: core/lift-returned?
                     (let [s (base/returned-state r)]
                       (if (= base/keep-state s) state s))
                     r)
@@ -92,7 +92,7 @@
   "Calls (handler state & args) and fully processes the (return) value
   returned from it as a side effect."
   [binding handler & args]
-  ;; Note: must not use :state - see event-handler-binding
+  ;; Note: must not use (:state binding) - see event-handler-binding
   (let [store (:store binding)
         [new-state callback] (apply call-event-handler*! (:action-target binding)
                                     handler (stores/store-get store) args)]
@@ -377,14 +377,16 @@
                                 "f" f
                                 "pred" pred})))
 
-(extend-type base/WithAsyncReturn
-  IReact
-  (-instantiate-react [{f :f args :args} binding ref key]
-    ;; TODO: should take a handler function instead of a return value.
-    (render (apply f (f/comp (f/partial call-event-handler! (event-handler-binding binding)) f/constantly) args)
-            binding
-            ref
-            key)))
+(let [invoke! (fn [binding handler]
+                ;; TODO: take a callback fn (optionally?)
+                (call-event-handler! binding handler))]
+  (extend-type base/WithAsync
+    IReact
+    (-instantiate-react [{f :f args :args} binding ref key]
+      (render (apply f (f/partial invoke! (event-handler-binding binding)) args)
+              binding
+              ref
+              key))))
 
 (defn- lifecycle-f [name]
   (fn [this]
