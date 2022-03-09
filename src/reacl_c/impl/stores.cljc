@@ -11,35 +11,30 @@
 (defn store-set! [s v] ;; TODO: + callback?
   (-set s v))
 
-(defn store-update! [s f]
-  (let [[v x] (f (store-get s))]
-    (store-set! s v)
-    x))
-
 ;; this is used for the toplevel
 (deftype ^:private DelegateStore [^mutable state ^mutable set-state!]
   IStore
   (-get [this] (.-state this))
   (-set [this v]
-    ;; nil=callback - TODO: use?
+    ;; Note: this means only persistent datastructures possible.
     (when (not= v (.-state this))
+      ;; nil=callback - TODO: use?
       ((.-set-state! this) v nil))))
 
 (defn make-delegate-store! [state set-state!]
   (DelegateStore. state set-state!))
 
-(defn reset-delegate-store! [^DelegateStore s state & [set-state!]]
+(defn reset-delegate-store! [^DelegateStore s state set-state!]
   (assert (instance? DelegateStore s))
   (set! (.-state s) state)
-  (when set-state!
-    (set! (.-set-state! s) set-state!)))
+  (set! (.-set-state! s) set-state!))
 
-;; this is used for the localstate items
+;; this is used for the local-state items
 (deftype ^:private BaseStore [^mutable init-expr ^mutable state watcher]
   IStore
   (-get [this] (.-state this))
   (-set [this v]
-    ;; Note: this means only persistent datastructured possible.
+    ;; Note: this means only persistent datastructures possible.
     (when (not= state v)
       (set! (.-state this) v)
       (watcher v))))
@@ -60,9 +55,8 @@
   IStore
   (-get [_] [(-get s1) (-get s2)])
   (-set [_ [v1 v2]]
-    ;; Note: this means only persistent datastructured possible.
-    (when (not= (-get s2) v2) (-set s2 v2))
-    (when (not= (-get s1) v1) (-set s1 v1))))
+    (-set s2 v2)
+    (-set s1 v1)))
 
 (defn conc-store [s1 s2]
   (ConcStore. s1 s2))
@@ -73,7 +67,17 @@
   (-set [_ v] (-set s (lens/shove (-get s) lens v))))
 
 (defn focus-store [s lens]
-  (FocusStore. s lens))
+  (let [conc? (instance? ConcStore s)]
+    ;; Note: lens/first lens/second on a store with 'local-state' is a
+    ;; common pattern, which might benefit largely from this
+    ;; optimization:
+    (cond
+      (and conc? (= lens lens/first))
+      (:s1 s)
+      (and conc? (= lens lens/second))
+      (:s2 s)
+      :else
+      (FocusStore. s lens))))
 
 (defrecord ^:private InterceptStore [s f]
   IStore
