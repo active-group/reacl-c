@@ -404,20 +404,18 @@
       (is (= "Ok" (text host))))))
 
 
-(deftest with-async-return-test
-  ;; Note: more or less includes with-async-messages and with-async-actions
-  
-  (is (passes-messages (fn [x] (c/with-async-return (constantly x)))))
+(deftest with-async-test
+  (is (passes-messages (fn [x] (c/with-async (constantly x)))))
   
   (async done
          (let [n (renders-as (dom/div (c/dynamic str)
-                                      (c/with-async-return (fn [return!]
-                                                             (js/window.setTimeout #(return! (c/return :state :done)) 0)
-                                                             c/empty)))
-                             :start)]
-           (is (= ":start" (text (.-firstChild n))))
+                                      (c/with-async (fn [invoke!]
+                                                      (js/window.setTimeout #(invoke! (fn [state] (c/return :state (conj state :done)))) 0)
+                                                      c/empty)))
+                             [])]
+           (is (= "[]" (text (.-firstChild n))))
            (js/window.setTimeout (fn []
-                                   (is (= ":done" (text (.-firstChild n))))
+                                   (is (= "[:done]" (text (.-firstChild n))))
                                    (done))
                                  1))))
 

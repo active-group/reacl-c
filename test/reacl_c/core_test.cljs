@@ -30,8 +30,8 @@
     (is (= (c/keyed "foo" :a) (c/keyed "foo" :a))))
   (testing "once"
     (is (= (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))) (c/once (f/constantly (c/return :action :a)) (f/constantly (c/return :action :b))))))
-  (testing "with-async-actions"
-    (is (= (c/with-async-actions :f :a) (c/with-async-actions :f :a))))
+  (testing "with-async"
+    (is (= (c/with-async :f :a) (c/with-async :f :a))))
   (testing "monitor-state"
     (is (= (c/handle-state-change "foo" :f) (c/handle-state-change "foo" :f))))
   )

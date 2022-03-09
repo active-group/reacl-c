@@ -500,41 +500,16 @@ be specified multiple times.
     (handle-state-change item (f/partial h f args))))
 
 ;; Note: low-level feature which is a bit dangerous to use (no check
-;; if item is mounted);
-(defn ^:no-doc with-async [f & args]
+;; if item is mounted); prefer subscriptions.
+(defn ^:no-doc with-async
+  "Returns an item that evaluates `(f g & args) which must return an
+  item. `g` is a function that can then be called from an asynchronous
+  context (i.e. not during the call to `f`), with a handler function
+  like `(g (fn [state] (return ...)))`, where `state` will be the
+  current state of this item."
+  [f & args]
   {:pre [(ifn? f)]}
   (base/make-with-async f args))
-
-;; Note: low-level feature which is a bit dangerous to use (no check
-;; if item is mounted); user should use subscriptions.
-(let [g (fn [invoke ret]
-          (invoke (f/constantly ret)))
-      h (fn [invoke f args]
-          (apply f (f/partial g invoke)
-                 args))]
-  (defn ^{:no-doc true :deprecated true} with-async-return [f & args]
-    {:pre [(ifn? f)]}
-    (with-async h f args)))
-
-;; Note: low-level feature which is a bit dangerous to use (no check
-;; if item is mounted); user should use subscriptions.
-(let [send! (fn [return! target msg]
-              (return! (return :message [target msg])))
-      h (fn [return! f args]
-          (apply f (f/partial send! return!) args))]
-  (defn ^{:no-doc true :deprecated true} with-async-messages [f & args]
-    {:pre [(ifn? f)]}
-    (with-async-return h f args)))
-
-;; Note: low-level feature which is a bit dangerous to use (no check
-;; if item is mounted); user should use subscriptions.
-(let [h (fn [return! action]
-          (return! (return :action action)))
-      g (fn [return! f args]
-          (apply f (f/partial h return!) args))]
-  (defn ^{:no-doc true :deprecated true} with-async-actions [f & args]
-    {:pre [(ifn? f)]}
-    (with-async-return g f args)))
 
 (defn effect
   "Return an effect action, which, when run, calls the given function
