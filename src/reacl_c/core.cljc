@@ -354,7 +354,7 @@ be specified multiple times.
   "Returns an item that looks and works exactly like the given item,
   but with has a user defined name, that appears and can be used in
   testing and debugging utilities. Use [[name-id]] to generate a
-  unique name object. See [[def-named]] and [[defn-named]] for more
+  unique name object. See [[def-item]] and [[defn-item]] for more
   convenient ways to create named items."
   [name-id item]
   {:pre [(base/item? item)
@@ -512,7 +512,7 @@ be specified multiple times.
   (base/make-with-async f args))
 
 (defn effect
-  "Return an effect action, which, when run, calls the given function
+  "Returns an effect action, which, when run, calls the given function
   with the given arguments. The result of that function is ignored,
   unless you use [[handle-effect-result]], or return a [[return]]
   value with new actions or messages."
@@ -520,7 +520,8 @@ be specified multiple times.
   (base/make-effect f args))
 
 (defn const-effect
-  "An effect that does nothing, with the given value as its result."
+  "Returns an effect that does nothing, with the given value as its
+  result."
   [v]
   (effect identity v))
 
