@@ -81,3 +81,32 @@
   (is (ct/contains? (bar (dom/span))
                     (dom/div {:style {:margin "10px"}} (dom/span))))
   )
+
+(deftest merge-attributes-test
+  (testing "basics"
+    (is (= (dom/merge-attributes) {}))
+    (is (= (dom/merge-attributes nil) {}))
+    (is (= (dom/merge-attributes nil nil) {}))
+
+    (is (= (dom/merge-attributes {:a "a"} {:b "b"})
+           {:a "a" :b "b"})))
+
+  (testing "classes"
+    (is (= (dom/merge-attributes {:class "a"} {:class "b"})
+           {:class "a b"}))
+
+    (is (= (dom/merge-attributes {:className "a"} {:class "b"})
+           {:class "a b"}))
+    (is (= (dom/merge-attributes {:class "a"} {:className "b"})
+           {:class "a b"}))
+
+    (is (= (dom/merge-attributes {:class "a"} {:className "b"})
+           {:class "a b"})))
+
+  (testing "styles"
+    (is (= (dom/merge-attributes {:style {:width 10}} {:style {:height 20}})
+           {:style {:width 10 :height 20}}))
+    (is (= (dom/merge-attributes {:style {:width 10}} {:style {:width 20}})
+           {:style {:width 20}}))
+    )
+  )

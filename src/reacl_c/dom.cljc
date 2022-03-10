@@ -135,28 +135,38 @@
          ;; TODO: optimize toplevel with-bind/with-state-as like defn-item.
          (defn-dom-impl ~static? f# args#)))))
 
-(defn- join-classes [& cs]
-  (str/join " " (filter not-empty
-                        (mapcat #(str/split % #"\s+") cs))))
-(letfn [(merge-a2 [a1 a2]
+(defn- join-classes
+  "Joins multiple class strings (or nils) into one."
+  [& cs]
+  (let [cs (remove empty? cs)]
+    (cond
+      (empty? cs) ""
+      (empty? (rest cs)) (first cs)
+      :else
+      (str/join " " cs))))
+
+(defn- unify-class-attr [m]
+  (if (contains? m :className)
+    (-> m
+        (dissoc :className)
+        (assoc :class (get m :className)))
+    m))
+
+(letfn [(merge-a2! [res a2]
           (reduce-kv (fn [res k v]
                        (case k
-                         ;; merge class names
+                         ;; merge class names (preferring :class over :className)
                          ;; Note, allegedly: "the styles are applied in the order they are declared in the document, the order they are listed in the element has no effect."
                          (:class :className)
                          (-> res
-                             (dissoc :class :className)
-                             ;; Note: :class is more general; See react0/dom-elem
-                             (assoc :class (join-classes (apply join-classes (clojure.core/map second (filter #(#{:class :className} (first %))
-                                                                                                              res)))
-                                                         v)))
+                             (assoc! :class (apply join-classes [(get res :class) v])))
                          ;; Merging styles absolutely correct is very hard (like merging :border and :border-with)
                          ;; This will only cover simple cases.
                          :style
-                         (update res :style merge v)
-                         ;; for any other attribute, overwrite   (TODO: maybe compose event handlers?)
-                         (assoc res k v)))
-                     a1
+                         (assoc! res :style (merge (get res :style) v))
+                         ;; for any other attribute, overwrite
+                         (assoc! res k v)))
+                     res
                      a2))]
   (defn merge-attributes
     "Merge two or more attribute maps into one. This handles merging
@@ -164,9 +174,18 @@
   `:className` strings."
     [& attrs]
     (assert (every? #(or (nil? %) (dom-attributes? %)) attrs) (vec (remove #(or (nil? %) (dom-attributes? %)) attrs)))
-    (reduce merge-a2
-            {}
-            attrs)))
+    (let [attrs (remove nil? attrs)]
+      (cond
+        (empty? attrs)
+        {}
+        (empty? (rest attrs))
+        (first attrs)
+
+        :else
+        (persistent! (reduce merge-a2!
+                             (transient (unify-class-attr (first attrs)))
+                             (rest attrs)))
+        ))))
 
 (defmacro def-dom
   "Defines an alias for a dom function, for example:
