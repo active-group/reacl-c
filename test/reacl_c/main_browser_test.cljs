@@ -69,7 +69,7 @@
   (let [ret (atom nil)
         class (str (gensym "injector"))
         item (dom/button {:class class
-                          :onclick (fn [state ev]
+                          :onClick (fn [state ev]
                                      (@ret state))})]
     [item (fn [host f]
             (reset! ret f)
@@ -546,9 +546,9 @@
         
         c1 (c/dynamic (fn [state]
                         (reset! last-c1-local state)
-                        (dom/div {:onclick (fn [state ev]
+                        (dom/div {:onClick (fn [state ev]
                                              (conj state :new-local-2))}
-                                 (dom/div {:onclick (fn [state ev]
+                                 (dom/div {:onClick (fn [state ev]
                                                       (conj state :new-local-1))}))))
         host (js/document.createElement "div")
         cc (main/run host c1 {:initial-state []})]
@@ -732,7 +732,7 @@
                           (let [h (bind (fn [state _]
                                           (update state :counter inc)))]
                             (c/focus :counter
-                                     (dom/button {:onclick h}
+                                     (dom/button {:onClick h}
                                                  (c/dynamic str))))))
                       {:counter 0})]
     (is (= "0" (text (.-firstChild n))))
@@ -745,7 +745,7 @@
   ;; a finalizer still refers to it, it may cause problems.
   (let [finished (atom nil)
         n (renders-as (c/with-state-as a
-                        (dom/button {:onclick (fn [st _] false)}
+                        (dom/button {:onClick (fn [st _] false)}
                                     (c/dynamic str)
                                     (when a
                                       (c/local-state "foo"

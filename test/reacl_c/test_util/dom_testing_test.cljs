@@ -34,7 +34,7 @@
     (c/with-state-as x
       (dom/button {:title (if x "World" "Hello")
                    :type "button"
-                   :onclick (constantly true)}))
+                   :onClick (constantly true)}))
     :state false
     (fn [env]
       (async
@@ -156,7 +156,7 @@
 
 (deftest queue-actions-test-1
   (dom-t/rendering
-   (dom/button {:onclick #(c/return :action :x)} "foo")
+   (dom/button {:onClick #(c/return :action :x)} "foo")
    :queue-actions? true
    (fn [env]
      (dom-t/fire-event (dom-t/get env (dom-t/by-text "foo")) :click)
@@ -174,7 +174,7 @@
 
 (deftest queue-actions-test-2
   (dom-t/rendering
-   (dom/button {:onclick #(c/return :action :x)} "foo")
+   (dom/button {:onClick #(c/return :action :x)} "foo")
    (fn [env]
      (dom-t/queue-actions
       env
@@ -207,7 +207,7 @@
 (deftest running-effects-test
   (let [eff-to-state #(c/dynamic (fn [st]
                                    (dom/div (str st)
-                                            (dom/button {:onclick (constantly 1) :title "startup"})
+                                            (dom/button {:onClick (constantly 1) :title "startup"})
                                             (when-not (zero? st)
                                               (c/handle-effect-result (fn [_ r] r)
                                                                       (running-effects-test-effect 21))))))]

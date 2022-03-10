@@ -36,7 +36,7 @@
   (testing "emits actions on event"
     (let [it (i/lift (reacl/class "foo" this state [v]
                                   handle-message (fn [msg] (reacl/return :action msg))
-                                  render (rdom/div {:onclick (fn [ev]
+                                  render (rdom/div {:onClick (fn [ev]
                                                                (reacl/send-message! this v))}
                                                    state))
                      "ok2")

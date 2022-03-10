@@ -12,7 +12,7 @@
   (testing "div"
     (is (= (dom/div) (dom/div)))
     (is (= (dom/div "a") (dom/div "a")))
-    (is (= (dom/div {:onclick identity}) (dom/div {:onclick identity})))
+    (is (= (dom/div {:onClick identity}) (dom/div {:onClick identity})))
     (is (= (dom/div (dom/div "a")) (dom/div (dom/div "a"))))))
 
 
@@ -34,15 +34,15 @@
   (testing "event handler binding"
     (dom/defn-dom defn-dom-test-2 [attrs]
       (c/local-state "foo"
-                     (c/fragment (dom/button {:onclick (:onclick attrs)
+                     (c/fragment (dom/button {:onClick (:onClick attrs)
                                               :data-testid "bar"})
-                                 (dom/button {:onclick (fn [st ev]
-                                                         (c/call (:onx attrs) 42))
+                                 (dom/button {:onClick (fn [st ev]
+                                                         (c/call (:onX attrs) 42))
                                               :data-testid "baz"}))))
     
     (dt/rendering
-     (defn-dom-test-2 {:onclick (fn [st _] (inc st))
-                       :onx (fn [st v] (+ st v))})
+     (defn-dom-test-2 {:onClick (fn [st _] (inc st))
+                       :onX (fn [st v] (+ st v))})
      :state 0
      (fn [env]
        (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
@@ -54,12 +54,12 @@
 
   (testing "event handler binding in static"
     (dom/defn-dom defn-dom-test-3 :static [attrs]
-      (dom/button {:onclick (fn [st ev]
-                              (c/call (:onclick attrs) st))
+      (dom/button {:onClick (fn [st ev]
+                              (c/call (:onClick attrs) st))
                    :data-testid "bar"}))
     
     (dt/rendering
-     (defn-dom-test-3 {:onclick (fn [st v] (conj st v))})
+     (defn-dom-test-3 {:onClick (fn [st v] (conj st v))})
      :state []
      (fn [env]
        (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)

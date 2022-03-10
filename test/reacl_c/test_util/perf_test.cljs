@@ -56,7 +56,7 @@
   (let [f #(dom/div)]
     (is (perf/performance= :ideal (c/dynamic f) (list [42 {:k :a}] [42 {:k :b}]))))
   
-  (let [f #(c/handle-message :f (dom/div {:onclick (fn [_] nil)} (str %)))]
+  (let [f #(c/handle-message :f (dom/div {:onClick (fn [_] nil)} (str %)))]
     (is (reacl-c.test-util.perf/performance= :good (c/dynamic f) (list :a :b)))))
 
 (deftest find-first-difference-test
