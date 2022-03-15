@@ -42,21 +42,6 @@
     (goog.object/remove props "key"))
   (react/createElement class props))
 
-(defn- legacy-adjust-dom-attr-name [n]
-  (if (str/starts-with? n "on")
-    (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n))
-    (case n
-      "auto-focus" "autofocus"
-      n)))
-
-(def ^:private adjust-dom-attr-name
-  (memoize (fn [n]
-             (case n
-               "for" "htmlFor"
-               "class" "className"
-               (legacy-adjust-dom-attr-name n) ;; TODO: get rid of this.
-               ))))
-
 (defn- camelize
   "Camelcases a hyphenated string, for example:
   > (camelize \"background-color\")
@@ -74,26 +59,10 @@
     "style" (clj->js (into {} (map (fn [[k v]] [(adjust-dom-style-name (name k)) v]) v)))
     v))
 
-(defn custom-type? [node-type]
-  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
-  (and (string? node-type) (str/includes? node-type "-")))
-
 (defn dom-elem [type attrs & children]
-  (let [;; Note: for html/dom notes, React *requires* attrs like
-        ;; "className", and warns about "class"; but for web
-        ;; components (dom/custom elements) is passes them on as
-        ;; attributes unchanged, so the user has to use "class"
-        ;; instead of "className" :-/ We should probably remove all
-        ;; mangling of attributes (and style names); but that would be
-        ;; a bit of a breaking change as users have their code. For
-        ;; now, try to distinguish between native and custom elements
-        ;; (they must have a '-' in the name):
-        adjust-attr-name (if (custom-type? type)
-                           identity
-                           adjust-dom-attr-name)
-        aobj (reduce-kv (fn [r k v]
+  (let [aobj (reduce-kv (fn [r k v]
                           (let [n (name k)]
-                            (aset r (adjust-attr-name n) (adjust-dom-attr-value n v)))
+                            (aset r n (adjust-dom-attr-value n v)))
                           r)
                         #js {}
                         attrs)]

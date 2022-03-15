@@ -525,9 +525,29 @@
                                  :ref (native-ref ref))
          (map #(render-child % binding) children)))
 
+(defn- react-handler-name [ev-type]
+  ;; Usually "click" -> "onClick", but unfortunately, there are some exceptions to it:
+  ;; TODO: hook up with https://github.com/facebook/react/blob/master/packages/react-dom/src/events/DOMEventProperties.js for all of them
+  ;; not exported though :-( (js/console.log react-dom/events.-DOMEventProperties.-topLevelEventsToReactNames)
+  (case ev-type
+    "dblclick" "ondoubleclick"
+    (str "on" ev-type)))
+
+(defn- find-event-handler [events capture? ev]
+  ;; OPT: could be done a little faster - try a lookup, or prepare a different map. But it can be 'onchange' and 'onChange'.
+  (when-not (.-type ev)
+    (js/console.error ev)
+    (throw (ex-info "Expected a JavaScript event object, with a property 'type'." {:value ev})))
+  (let [en (cond-> (react-handler-name (.-type ev))
+             capture? (str "capture"))]
+    (some (fn [[n f]]
+            (and (= en (str/lower-case (name n)))
+                 f))
+          events)))
+
 (defn- event-handler [current-events call-event-handler! capture?]
   (fn [ev]
-    (let [f (dom0/find-event-handler (current-events) capture? ev)]
+    (let [f (find-event-handler (current-events) capture? ev)]
       (call-event-handler! f ev))))
 
 (defn- event-handlers [current-events call-event-handler!]
@@ -641,6 +661,39 @@
                                                   d-ref
                                                   children))))))))
 
+(defn- rename-key! [m key replacement]
+  (-> m
+      (assoc! replacement (get m key))
+      (dissoc! key)))
+
+(defn- custom-type? [node-type]
+  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
+  (and (string? node-type) (str/includes? node-type "-")))
+
+(def ^:private react-event-handler-name
+  (memoize (fn [k]
+             (let [n (name k)]
+               ;; TODO: drop this? switch to Camelcase - warn if lowercase?
+               (when (str/starts-with? n "on")
+                 (keyword (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n))))))))
+
+(defn- adjust-react-event-handler-names! [m m_]
+  (reduce-kv (fn [m k v]
+               (if-let [a (react-event-handler-name k)]
+                 (rename-key! m k a)
+                 m))
+             m
+             m_))
+
+(defn- react-dom-attrs [attrs]
+  ;; Note: only needed for non-custom dom elements.
+  (when attrs
+    (persistent!
+     (cond-> (adjust-react-event-handler-names! (transient attrs) attrs)
+       ;; TODO: maybe warn if :className or :htmlFor are used? Or even disallow?
+       (contains? attrs :class) (rename-key! :class :className)
+       (contains? attrs :for) (rename-key! :for :htmlFor)))))
+
 (extend-type dom-base/Element
   IReact
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref key]
@@ -649,7 +702,7 @@
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
-      (r0/custom-type? type)
+      (custom-type? type)
       (r0/elem (custom-dom-class type) #js {"ref" c-ref
                                             "key" key
                                             "binding" binding
@@ -663,7 +716,7 @@
       (r0/elem (dom-class type) #js {"ref" c-ref
                                      "key" key
                                      "binding" binding
-                                     "attrs" attrs
+                                     "attrs" (react-dom-attrs attrs)
                                      "contents" children
                                      "d_ref" ref
                                      "events" events})
