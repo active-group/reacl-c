@@ -34,7 +34,7 @@
   (testing "event handler binding"
     (dom/defn-dom defn-dom-test-2 [attrs]
       (c/local-state "foo"
-                     (c/fragment (dom/button {:onClick (:onClick attrs)
+                     (c/fragment (dom/button {:onclick (:onClick attrs)
                                               :data-testid "bar"})
                                  (dom/button {:onClick (fn [st ev]
                                                          (c/call (:onX attrs) 42))

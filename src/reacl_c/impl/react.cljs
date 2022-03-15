@@ -554,6 +554,51 @@
   [(event-handler current-events call-event-handler! false)
    (event-handler current-events call-event-handler! true)])
 
+(defn- rename-key! [m key replacement]
+  (assert (not= key replacement))
+  (-> m
+      (assoc! replacement (get m key))
+      (dissoc! key)))
+
+(defn- custom-type? [node-type]
+  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
+  (and (string? node-type) (str/includes? node-type "-")))
+
+(def ^:private react-event-handler-name
+  (memoize (fn [k]
+             (let [n (name k)]
+               ;; TODO: drop this? switch to Camelcase - warn if lowercase?
+               (when (str/starts-with? n "on")
+                 (let [res (keyword (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n)))]
+                   (when (not= res k)
+                     res)))))))
+
+(defn- adjust-react-event-handler-names! [m m_]
+  (reduce-kv (fn [m k v]
+               (if-let [a (react-event-handler-name k)]
+                 (rename-key! m k a)
+                 m))
+             m
+             m_))
+
+(defn- react-dom-events [events]
+  (when (some? events)
+    (if (empty? events)
+      events
+      (persistent! (adjust-react-event-handler-names! (transient events) events)))))
+
+(defn- react-dom-attrs [attrs]
+  ;; Note: only needed for non-custom dom elements.
+  (when (some? attrs)
+    (if (empty? attrs)
+      attrs
+      (persistent!
+       (cond-> (transient attrs)
+         ;; TODO: maybe warn if :className or :htmlFor are used? Or even disallow?
+         (contains? attrs :class) (rename-key! :class :className)
+         (contains? attrs :for) (rename-key! :for :htmlFor))))))
+
+
 (let [dom-events (fn [this]
                    (aget (.-props this) "events"))
       call! (fn [this f ev]
@@ -567,6 +612,7 @@
                                events))))
       event-name (memoize (fn [k]
                             (let [s (name k)]
+                              ;; FIXME: doubleclick <-> dblclick? see react-handler-name  (for react dom only)
                               (assert (str/starts-with? s "on"))
                               (str/lower-case (subs s 2)))))
 
@@ -656,43 +702,10 @@
                                               {event-handlers "event_handlers"} (.-state this)]
                                       (native-dom type
                                                   binding
-                                                  (-> attrs
-                                                      (merge (event-fns events event-handlers)))
+                                                  (merge (react-dom-attrs attrs)
+                                                         (react-dom-events (event-fns events event-handlers)))
                                                   d-ref
                                                   children))))))))
-
-(defn- rename-key! [m key replacement]
-  (-> m
-      (assoc! replacement (get m key))
-      (dissoc! key)))
-
-(defn- custom-type? [node-type]
-  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
-  (and (string? node-type) (str/includes? node-type "-")))
-
-(def ^:private react-event-handler-name
-  (memoize (fn [k]
-             (let [n (name k)]
-               ;; TODO: drop this? switch to Camelcase - warn if lowercase?
-               (when (str/starts-with? n "on")
-                 (keyword (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n))))))))
-
-(defn- adjust-react-event-handler-names! [m m_]
-  (reduce-kv (fn [m k v]
-               (if-let [a (react-event-handler-name k)]
-                 (rename-key! m k a)
-                 m))
-             m
-             m_))
-
-(defn- react-dom-attrs [attrs]
-  ;; Note: only needed for non-custom dom elements.
-  (when attrs
-    (persistent!
-     (cond-> (adjust-react-event-handler-names! (transient attrs) attrs)
-       ;; TODO: maybe warn if :className or :htmlFor are used? Or even disallow?
-       (contains? attrs :class) (rename-key! :class :className)
-       (contains? attrs :for) (rename-key! :for :htmlFor)))))
 
 (extend-type dom-base/Element
   IReact
@@ -716,13 +729,14 @@
       (r0/elem (dom-class type) #js {"ref" c-ref
                                      "key" key
                                      "binding" binding
-                                     "attrs" (react-dom-attrs attrs)
+                                     "attrs" attrs
                                      "contents" children
                                      "d_ref" ref
                                      "events" events})
 
+      ;; no events: no extra wrapper class 
       :else (native-dom type binding
-                        (cond-> attrs
+                        (cond-> (react-dom-attrs attrs)
                           (some? key) (assoc :key key))
                         ref children))))
 
