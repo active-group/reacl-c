@@ -139,10 +139,10 @@
   (let [result (atom nil)]
     (async done
            (rendering-async
-            (constantly (dom/div (c/handle-effect-result (fn [state res]
-                                                           (reset! result res)
-                                                           state)
-                                                         (wc/dispatch (wc/event "foo" {:detail ::x})))))
+            (constantly (dom/div (c/execute-effect (wc/dispatch (wc/event "foo" {:detail ::x}))
+                                                   (fn [state res]
+                                                     (reset! result res)
+                                                     state))))
             (fn [e cleanup]
               (js/setTimeout (fn []
                                (cleanup)

@@ -209,8 +209,8 @@
                                    (dom/div (str st)
                                             (dom/button {:onClick (constantly 1) :title "startup"})
                                             (when-not (zero? st)
-                                              (c/handle-effect-result (fn [_ r] r)
-                                                                      (running-effects-test-effect 21))))))]
+                                              (c/execute-effect (running-effects-test-effect 21)
+                                                                (fn [_ r] r))))))]
     (async
      (testing "running it"
        (dom-t/rendering

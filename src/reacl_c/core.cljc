@@ -569,14 +569,24 @@ be specified multiple times.
 
 (let [wr (fn [ref eff]
            (init (return :action (seq-effects eff (f/partial effect send-effect-result ref)))))]
-  (defn handle-effect-result ;; TODO: could have a shorter name (and flipped args).
-    "Runs the given effect once, feeding its result into `(f state
-  result)`, which must return a [[return]] value."
-    [f eff]
+  (defn execute-effect
+    "Returns an item that executes the given effect once, optionally
+  feeding its result into `(f state result)`, which must return
+  a [[return]] value.
+
+  Note that you can execute an effect also by using `(return :action
+  effect)`, if the result of the effect is irrelevant.
+  "
+    [eff & [f]]
     {:pre [(base/effect? eff)
-           (ifn? f)]}
-    (with-message-target f
-      wr eff)))
+           (or (nil? f) (ifn? f))]}
+    (if (nil? f)
+      (init (return :action eff))
+      (with-message-target f
+        wr eff))))
+
+(defn ^:deprecated handle-effect-result [f eff]
+  (execute-effect eff f))
 
 (defrecord ^:no-doc SubscribedMessage [stop! sync-actions])
 
@@ -1104,9 +1114,9 @@ Note that the state of the inner item (the `div` in this case), will
   #?(:clj (Object.)))
 
 (def ^:private make-unique-id
-  (handle-effect-result (fn [_ uuid]
-                          (return :state uuid))
-                        (effect unique-id)))
+  (execute-effect (effect unique-id)
+                  (fn [_ uuid]
+                    (return :state uuid))))
 
 (let [bound (fn [id h inner-state & args]
               (return :action (CallHandler. id h args)))

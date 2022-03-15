@@ -174,17 +174,17 @@
   (testing "handling result"
     (let [eff (c/effect (fn [] "ok"))]
       (is (= "ok"
-             (changes-state (c/handle-effect-result (fn [st res]
-                                                      res)
-                                                    eff))))))
+             (changes-state (c/execute-effect eff
+                                              (fn [st res]
+                                                res)))))))
 
   (testing "mapping effects, with parrallel effects"
     (let [eff (c/effect (fn [] :foo))]
       (is (= [:bar :bar]
-             (changes-state (-> (c/handle-effect-result (fn [st res]
-                                                          ;; both par-effects results as new state, replaced by :bar
-                                                          res)
-                                                        (c/par-effects eff eff))
+             (changes-state (-> (c/execute-effect (c/par-effects eff eff)
+                                                  (fn [st res]
+                                                    ;; both par-effects results as new state, replaced by :bar
+                                                    res))
                                 (c/map-effects {eff (c/const-effect :bar)})))))))
 
   ;; does not work in karma; not sure why
