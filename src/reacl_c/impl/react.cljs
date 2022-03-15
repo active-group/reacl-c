@@ -249,12 +249,26 @@
 
 ;; items
 
-(defn- inline-dynamic [item binding]
+(declare inline-pure)
+
+(defn- inline-dynamic [f args binding]
+  (inline-pure (apply f (:state binding) args) binding))
+
+(defn- inline-static [f args binding]
+  (inline-pure (apply f args)
+               (assoc binding
+                      :state nil
+                      :store stores/void-store)))
+
+(defn- inline-pure [item binding]
   (cond
     (and (base/dynamic? item)
          (nil? (base/dynamic-name-id item)))
-    (inline-dynamic (apply (base/dynamic-f item) (:state binding) (base/dynamic-args item))
-                    binding)
+    (inline-dynamic (base/dynamic-f item) (base/dynamic-args item) binding)
+
+    (and (base/static? item)
+         (nil? (base/static-name-id item)))
+    (inline-static (base/static-f item) (base/static-args item) binding)
 
     :else
     item))
@@ -266,7 +280,7 @@
             ;; OPT: can we inline a local-state here, that would be great.
             "render" (fn [this]
                        (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
-                         (render (inline-dynamic (apply f (:state binding) args) binding)
+                         (render (inline-dynamic f args binding)
                                  binding ref nil)))))
 
 (def dynamical (utils/named-generator gen-dynamic))
@@ -321,7 +335,7 @@
                (let [new-binding (assoc binding
                                         :state [(:state binding) this-state]
                                         :store (stores/conc-store (:store binding) this-store))]
-                 (render (inline-dynamic item new-binding)
+                 (render (inline-pure item new-binding)
                          new-binding
                          ref
                          nil))))
@@ -451,7 +465,7 @@
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding"} (.-props this)]
-               (render item binding nil nil)))
+               (render (inline-pure item binding) binding nil nil)))
   
   $handle-message (fn [this msg]
                     (let-obj [{binding "binding" f "f"} (.-props this)]
@@ -482,7 +496,7 @@
 
             "render" (fn [this]
                        (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
-                         (render item binding ref nil)))))
+                         (render (inline-pure item binding) binding ref nil)))))
 
 (def named (utils/named-generator gen-named))
 
@@ -501,7 +515,8 @@
 
             "render" (fn [this]
                        (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
-                         (render (apply f args) binding ref nil)))))
+                         (render (inline-static f args binding)
+                                 binding ref nil)))))
 
 (def statical (utils/named-generator gen-static))
 
@@ -768,7 +783,7 @@
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
-               (render item binding c-ref nil))))
+               (render (inline-pure item binding) binding c-ref nil))))
 
 (extend-type base/Keyed
   IReact
@@ -798,7 +813,7 @@
 
   "render" (fn [this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
-               (render item binding (:ref c-ref) nil))))
+               (render (inline-pure item binding) binding (:ref c-ref) nil))))
 
 (extend-type base/Refer
   IReact
