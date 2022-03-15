@@ -225,14 +225,18 @@ be specified multiple times.
           (fragment (-> (handle-message handle-msg empty)
                         (refer ref))
                     (apply f ref args)))]
-  (defn with-message-target
-    "Returns an item like ´(f target & args)`, where `target` is a
-  reference that can be used as a message target, which are then
-  handled by a call to `(handle-msg state msg)`, which must return
-  a [[return]] value."
+  (defn- with-message-target*
     ;; useful when sending messages upwards.
     [handle-msg f & args]
     (with-ref h handle-msg f args)))
+
+(defn ^:deprecated with-message-target
+  "Returns an item like ´(f target & args)`, where `target` is a
+  reference that can be used as a message target, which are then
+  handled by a call to `(handle-msg state msg)`, which must return
+  a [[return]] value."
+  [handle-msg f & args]
+  (apply with-message-target* handle-msg f args))
 
 (defn- no-effect? [action]
   (not (base/effect? action)))
@@ -247,7 +251,7 @@ be specified multiple times.
          (ifn? f)]}
   (base/make-handle-action item f no-effect?))
 
-(defn handle-effect
+(defn ^:no-doc handle-effect
   "Handles effect actions emitted by given item, by evaluating `(f
   state action)` for each of them. That must return a [[return]]
   value."
@@ -327,7 +331,7 @@ be specified multiple times.
           (return :message [ref (f msg)]))
       wr (fn [ref f item]
            (handle-message (f/partial h f ref) (refer item ref)))]
-  (defn map-messages
+  (defn ^:deprecated map-messages
     "Returns an item like the given one, that transforms all messages sent to
   it though `(f msg)`, before they are forwarded to `item`."
     [f item]
@@ -387,7 +391,7 @@ be specified multiple times.
   {:pre [(base/item? item)]}
   (base/make-local-state item initial))
 
-(defn add-state
+(defn ^:deprecated add-state
   "Adds new state that the given item can access, via a lens on the
   the tuple of states `[outer inner]`, where the initial value for
   `inner` state is `initial`. Note that the resulting item has only
@@ -582,7 +586,7 @@ be specified multiple times.
            (or (nil? f) (ifn? f))]}
     (if (nil? f)
       (init (return :action eff))
-      (with-message-target f
+      (with-message-target* f
         wr eff))))
 
 (defn ^:deprecated handle-effect-result [f eff]

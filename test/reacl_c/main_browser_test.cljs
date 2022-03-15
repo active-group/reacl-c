@@ -300,15 +300,6 @@
     (inject! node (constantly (c/return :action :done)))
     (is (= ":done" (text (.-firstChild node))))))
 
-(deftest map-messages-test
-  (let [[x at] (capture-last-state)
-        [app host] (render (c/map-messages (fn [msg] [:x msg])
-                                           (c/handle-message (fn [state msg]
-                                                               (c/return :state msg))
-                                                             x)))]
-    (main/send-message! app :msg)
-    (is (= [:x :msg] @at))))
-
 (deftest redirect-messages-test
   (let [[x at] (capture-last-state)
         [app host] (render (c/with-ref

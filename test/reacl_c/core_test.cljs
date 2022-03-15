@@ -24,8 +24,6 @@
   (testing "handle-action"
     (let [f (fn [state a])]
       (is (= (c/handle-action "foo" f) (c/handle-action "foo" f)))))
-  (testing "add-state"
-    (is (= (c/add-state :a :b "foo") (c/add-state :a :b "foo"))))
   (testing "keyed"
     (is (= (c/keyed "foo" :a) (c/keyed "foo" :a))))
   (testing "once"
