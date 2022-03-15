@@ -776,26 +776,18 @@
     ;; Note: (keyed (keyed ... inner) outer) - outer wins
     (render e binding ref (if (some? outer-key) outer-key inner-key))))
 
-(r0/defclass with-ref
-  "getInitialState" (fn [this]
-                      #js {"ref" (RRef. (r0/create-ref))})
-  
-  "shouldComponentUpdate" (r0/update-on ["c_ref" "f" "args" "binding"])
-
-  "render" (fn [this]
-             (let-obj [{binding "binding" f "f" c-ref "c_ref" args "args"} (.-props this)
-                       {ref "ref"} (.-state this)]
-               (render (apply f ref args)
-                       binding c-ref nil))))
-
-(extend-type base/WithRef
-  IReact
-  (-instantiate-react [{f :f args :args} binding ref key]
-    (r0/elem with-ref #js {"key" key
-                           "binding" binding
-                           "c_ref" ref
-                           "f" f
-                           "args" args})))
+(let [g (fn [state f & args]
+          (base/make-focus (apply f (RRef. (second state)) args)
+                           lens/first))
+      c (base/make-initializer r0/create-ref nil)]
+  (extend-type base/WithRef
+    IReact
+    (-instantiate-react [{f :f args :args} binding ref key]
+      ;; Note: this translation is not possible in core, as long as we
+      ;; want to treat the initializer (create-ref) as implementation-specific.
+      (render (base/make-local-state (base/make-dynamic nil g (cons f args))
+                                     c)
+              binding ref key))))
 
 (r0/defclass set-ref
   $handle-message (fn [this msg]

@@ -60,6 +60,7 @@
   (defn with-refs
     "Returns an item that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
     [n f & args]
+    ;; TODO: make this the primitive, otherwise it get's huge and O(n)
     {:pre [(>= n 0)
            (ifn? f)]}
     (cond
