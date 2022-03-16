@@ -87,23 +87,17 @@
                             attrs
                             events)
                  children))]
-  (defn ^:no-doc defn-dom-impl [static? f args]
+  (defn ^:no-doc fn-dom-wrapper [f]
     ;; possible optimization: if all event handlers are already 'bound', we don't need with-bind.
-    (let [[attrs & children] (analyze-dom-args args)
-          [attrs events] (split-events attrs)
-          
-          f (if static? (f/partial core/static f) f)]
-      ;; Note: not checking for nil events handlers here, to give the
-      ;; user the chance to have a stable tree if needed (important
-      ;; for focus etc)
-      (if (empty? events)
-        (apply f attrs children)
-        (core/with-bind (f/partial k f attrs events children))))))
-
-(defn- opt-assoc [m k v]
-  (if (contains? m k)
-    m
-    (assoc m k v)))
+    (fn [& args]
+      (let [[attrs & children] (analyze-dom-args args)
+            [attrs events] (split-events attrs)]
+        ;; Note: not checking for nil events handlers here, to give the
+        ;; user the chance to have a stable tree if needed (important
+        ;; for focus etc)
+        (if (empty? events)
+          (apply f attrs children)
+          (core/with-bind (f/partial k f attrs events children)))))))
 
 (defmacro ^{:arglists '([name [attrs & children] & body])} defn-dom
   "Defines a function that works like the dom element functions in this
@@ -125,15 +119,9 @@
   attributes in your function body."
   [name params & body]
   (let [[name static? state-schema? docstring? params & body] (apply core/parse-defn-item-args name params body)]
-    `(let [f# (fn ~params ~@body)]
-       (core/defn-item ~(vary-meta name opt-assoc :arglists '(params))
-         ;; Note: (defn-item  :static) cannot be used, because 'with-bind' must be outside of static.
-         ~@(when state-schema? [:- state-schema?])
-         ~@(when docstring? [docstring?])
-         [& args#]
-         ;; TODO: validate arguments earlier (arity and schema).
-         ;; TODO: optimize toplevel with-bind/with-state-as like defn-item.
-         (defn-dom-impl ~static? f# args#)))))
+    `(def ~(vary-meta name #(merge {:arglists '(params)
+                                    :doc docstring?} %))
+       (fn-dom-wrapper (core/fn-item* ~name ~static? ~state-schema? ~params ~@body)))))
 
 (defn- join-classes
   "Joins multiple class strings (or nils) into one."

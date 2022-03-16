@@ -1047,6 +1047,36 @@ Note that the state of the inner item (the `div` in this case), will
                  [[] false]
                  params)))
 
+(defmacro ^:no-doc fn-item*
+  [name static? state-schema? params & body]
+  ;; Note: the with-state-as optimization is probably less worth it now that defn-item itself is a component/'barrier'.
+  (let [name-id (gensym "name")
+        check-state (gensym "check-state")
+        top-f (gensym "f")
+        all-params (gensym "args")]
+    (assert (vector? params))
+    `(let [~name-id (base/make-name-id ~(str *ns* "/" name))
+           ~check-state ~(when-not static? `(state-validator ~name ~state-schema?))
+           ~top-f ~(if static?
+                     `(fn [~@(remove-params-schema params)]
+                        ((fn [] ~@body)))
+                     `(fn [state# ~@(remove-params-schema params)]
+                        (when ~check-state (~check-state state#))
+                        ;; body wrapped in fn, to allow {:pre ...}
+                        ((fn [] ~@body))))
+           check-args# ~(if (some #{:-} params)
+                          `(s/fn ~name ~params nil)
+                          `(constantly nil))
+           check-arity# (arity-checker '~name ~(arity params))]
+       (fn ~name
+         [& ~all-params]
+         ;; check arity and args schema early:
+         (check-arity# (count ~all-params))
+         (apply check-args# ~all-params)
+         ~(if static?
+            `(base/make-static  ~name-id ~top-f ~all-params)
+            `(base/make-dynamic ~name-id ~top-f ~all-params))))))
+
 (defmacro defn-item
   "A macro like [[clojure.core/defn]] to define abstractions over
   items, with optional schema annotations similar to [[schema.core/defn]].
@@ -1080,36 +1110,14 @@ Note that the state of the inner item (the `div` in this case), will
   can be helpful in testing and debugging utilities (see [[named]])."
   [name params & body]
   ;; Note: the with-state-as optimization is probably less worth it now that defn-item itself is a component/'barrier'.
-  (let [[name static? state-schema? docstring? params & body] (apply parse-defn-item-args name params body)
-        name-id (gensym "name")
-        check-state (gensym "check-state")
-        top-f (gensym "f")
-        all-params (gensym "args")]
+  (let [[name static? state-schema? docstring? params & body] (apply parse-defn-item-args name params body)]
     ;; TODO: proper and helpful error messages:
     (assert (or (nil? docstring?) (string? docstring?)))
     (assert (vector? params))
-    `(let [~name-id (base/make-name-id ~(str *ns* "/" name))
-           ~check-state ~(when-not static? `(state-validator ~name ~state-schema?))
-           ~top-f ~(if static?
-                     `(fn [~@(remove-params-schema params)]
-                        ((fn [] ~@body)))
-                     `(fn [state# ~@(remove-params-schema params)]
-                        (when ~check-state (~check-state state#))
-                        ;; body wrapped in fn, to allow {:pre ...}
-                        ((fn [] ~@body))))
-           check-args# ~(if (some #{:-} params)
-                          `(s/fn ~name ~params nil)
-                          `(constantly nil))
-           check-arity# (arity-checker '~name ~(arity params))]
-       (defn ~(vary-meta name #(merge {:arglists '(params)
-                                       :doc docstring?} %))
-         [& ~all-params]
-         ;; check arity and args schema early:
-         (check-arity# (count ~all-params))
-         (apply check-args# ~all-params)
-         ~(if static?
-            `(base/make-static  ~name-id ~top-f ~all-params)
-            `(base/make-dynamic ~name-id ~top-f ~all-params))))))
+    `(def ~(vary-meta name #(merge {:arglists '(params)
+                                    :doc docstring?} %))
+       (fn-item* ~name ~static? ~state-schema? ~params
+                 ~@body))))
 
 
 (defrecord ^{:private true :rtd-record? true} CallHandler [id f args])
