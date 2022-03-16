@@ -274,12 +274,30 @@
     (inject! node (constantly false))
     (is (= 1 @upd)))
 
+  (testing "regression with once"
+    (let [v (atom [])]
+      (renders-as (c/static (fn [st]
+                              (swap! v conj st)
+                              nil))
+
+                  :bar)
+      (is (= #{nil} (set @v))))
+    (let [v (atom [])]
+      (renders-as (c/static #(c/once (fn [st]
+                                       (swap! v conj st)
+                                       (c/return))))
+
+                  :bar)
+      (is (= #{nil} (set @v)))))
+
   ;; throws on state changes
   ;; Note: for some reason the exception is not catchable like this in karma/compiled mode; not sure why.
   (when-not karma?
     (is (throws-like? (fn []
-                        (renders-as (c/static #(c/once (fn [_] (c/return :state "foo"))))))
-                      ""))))
+                        (renders-as (c/static #(c/once (fn [st]
+                                                         (c/return :state "foo"))))
+                                    :bar))
+                      "Assert failed: Tried to put a value"))))
 
 (deftest messaging-test
   ;; tests: with-ref refer handle-message, also handle-action
@@ -751,13 +769,13 @@
     (is (= [false "foo"] @finished))))
 
 (deftest handle-action-rerender-test
+  (c/defn-item handle-action-rerender-test-1 :static [called]
+    (swap! called inc)
+    (dom/div "foo"))
   (let [called (atom 0)
-        item (let [f (fn []
-                       (swap! called inc)
-                       (dom/div "foo"))]
-               (fn []
-                 (-> (c/static f)
-                     (c/handle-action (fn [] :foo)))))]
+        item (fn []
+               (-> (handle-action-rerender-test-1 called)
+                   (c/handle-action (fn [] :foo))))]
     (let [[app host] (render (item) 42)]
       (is (= 1 @called))
       (run-in host (item) 43)
