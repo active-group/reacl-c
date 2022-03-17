@@ -12,7 +12,8 @@
             [clojure.data :as data]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]
-            goog.object))
+            goog.object)
+  (:refer-clojure :exclude [refer]))
 
 ;; bindings
 
@@ -235,7 +236,7 @@
 
 (defrecord RRef [ref]
   base/Ref
-  (-deref-ref [_] (.-current ref)))
+  (-deref-ref [_] (r0/current-ref ref)))
 
 (defn native-ref [v]
   (if (instance? RRef v)
@@ -245,7 +246,7 @@
 (defn native-deref [v]
   (if (satisfies? base/Ref v)
     (base/-deref-ref v)
-    (.-current v)))
+    (r0/current-ref v)))
 
 ;; items
 
@@ -783,7 +784,7 @@
                                      c)
               binding ref key))))
 
-(r0/defclass set-ref
+(r0/defclass refer
   $handle-message (fn [this msg]
                     (let [^RRef ref (aget (.-props this) "c_ref")]
                       (send-message-react-ref! (:ref ref) msg)))
@@ -797,11 +798,14 @@
 (extend-type base/Refer
   IReact
   (-instantiate-react [{e :e ref :ref} binding ref2 key]
-    (r0/elem set-ref #js {"key" key
+    (if (some? ref2)
+      ;; Note: this'll usually mean a (refer (refer ...)) was created. (is there a way to compose refs instead?)
+      (r0/elem refer #js {"key" key
                           "ref" ref2
                           "binding" binding
                           "item" e
-                          "c_ref" ref})))
+                          "c_ref" ref})
+      (render e binding (:ref ref) key))))
 
 (r0/defclass ^:private on-mount
   "render" (fn [this] (r0/fragment nil))

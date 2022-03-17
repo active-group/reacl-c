@@ -373,7 +373,9 @@
       (is (= r1 @last-ref)))))
 
 (deftest refer-test
-  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref)))))))
+  (is (passes-messages (fn [x] (c/with-ref (fn [ref] (c/refer x ref))))))
+
+  (is (passes-messages (fn [x] (c/with-refs 2 (fn [[ref1 ref2]] (c/refer (c/refer x ref1) ref2)))))))
 
 (deftest handle-action-test
   (is (passes-messages (fn [x] (c/handle-action x (fn [st a] (c/return :action a))))))
