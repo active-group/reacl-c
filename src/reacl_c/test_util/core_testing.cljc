@@ -38,8 +38,8 @@
       (base/static? item)
       (f-dynamic (rec state (apply (base/static-f item) (base/static-args item))) item state)
 
-      (base/with-ref? item)
-      (f-dynamic (rec state (apply (base/with-ref-f item) (mk-ref) (base/with-ref-args item))) item state)
+      (base/with-refs? item)
+      (f-dynamic (rec state (apply (base/with-refs-f item) (repeatedly (base/with-refs-n item) mk-ref) (base/with-refs-args item))) item state)
 
       (base/with-async? item)
       (f-dynamic (rec state (apply (base/with-async-f item) (mk-async) (base/with-async-args item))) item state)
@@ -136,7 +136,7 @@
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
-                       (base/with-ref? item)
+                       (base/with-refs? item)
                        (base/with-async? item)
                        (base/static? item))
                    res
@@ -243,7 +243,7 @@
     (or (base/lifecycle? item)
         (base/dynamic? item)
         (base/static? item)
-        (base/with-ref? item)
+        (base/with-refs? item)
         (base/with-async? item))
     (= item sub-item)
 
@@ -411,7 +411,7 @@
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
-                       (base/with-ref? item)
+                       (base/with-refs? item)
                        (base/with-async? item))
                    res
                           
@@ -502,7 +502,7 @@
                (fn dynamic [res item state]
                  (cond
                    (or (base/dynamic? item)
-                       (base/with-ref? item)
+                       (base/with-refs? item)
                        (base/with-async? item)
                        (base/static? item))
                    res

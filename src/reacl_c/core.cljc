@@ -41,33 +41,23 @@
 
 (def ^{:doc "An invisible item with no behavior."} empty (fragment))
 
-(defn with-ref
-  "Creates an item identical to the one returned from `(f ref &
+(defn with-refs
+  "Returns an item that calls f with a list of `n` references and any
+  remaining args. See [[with-ref]]."
+  [n f & args]
+  {:pre [(>= n 0)
+         (ifn? f)]}
+  (base/make-with-refs n f args))
+
+(let [g (fn [[r] f args]
+          (apply f r args))]
+  (defn with-ref
+    "Creates an item identical to the one returned from `(f ref &
   args)`, where `ref` is a fresh *reference*. A reference should be
   assigned to one of the items below via [[refer]]. You can use it
   as the target of a `(return :message [target msg])` for example."
-  [f & args]
-  (base/make-with-ref f args))
-
-(declare with-refs)
-(let [h0 (fn [_ f args] (apply f nil args))
-      h1 (fn [r f args] (apply f (list r) args))
-      hn_cont (fn [rs r0 f args]
-                (apply f (cons r0 rs) args))
-      hn (fn [r0 n f args]
-           (with-refs (dec n)
-             hn_cont r0 f args))]
-  (defn with-refs
-    "Returns an item that calls f with a list of `n` references and any remaining args. See [[with-ref]]."
-    [n f & args]
-    ;; TODO: make this the primitive, otherwise it get's huge and O(n)
-    {:pre [(>= n 0)
-           (ifn? f)]}
-    (cond
-      (= 0 n) (with-ref h0 f args)
-      (= 1 n) (with-ref h1 f args)
-      :else
-      (with-ref hn n f args))))
+    [f & args]
+    (with-refs 1 g f args)))
 
 (defn refer
   "Returns an item identical to the given item, but with the given

@@ -91,11 +91,12 @@
   E
   (-is-dynamic? [{e :e}] false))
 
-(r/define-record-type WithRef
-  (make-with-ref f args)
-  with-ref?
-  [f with-ref-f
-   args with-ref-args]
+(r/define-record-type WithRefs
+  (make-with-refs n f args)
+  with-refs?
+  [n with-refs-n
+   f with-refs-f
+   args with-refs-args]
   E
   (-is-dynamic? [_] true))
 

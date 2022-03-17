@@ -17,7 +17,7 @@
   [item state]
   {:post [#(not (base/dynamic? %))
           #(not (base/static? %))
-          #(not (base/with-ref? %))
+          #(not (base/with-refs? %))
           #(not (base/with-async? %))]}
   (if (or (string? item) (nil? item))
     item
@@ -25,7 +25,7 @@
       ;; the dynamics
       base/dynamic? (apply (:f item) state (:args item))
       base/static? (apply (:f item) nil (:args item))
-      base/with-ref? (apply (:f item) dummy-ref (:args item))
+      base/with-refs? (apply (:f item) (repeat (:n item) dummy-ref) (:args item))
       base/with-async? (apply (:f item) dummy-async! (:args item))
 
       item)))
@@ -43,7 +43,7 @@
         ;; the dynamics
         base/dynamic? (resolve-dyn item state)
         base/static? (resolve-dyn item nil)
-        base/with-ref? (resolve-dyn item state)
+        base/with-refs? (resolve-dyn item state)
         base/with-async? (resolve-dyn item state)
 
         ;; the wrappers
@@ -90,7 +90,7 @@
   (condp apply [item]
     base/dynamic? 'dynamic
     base/static? 'static
-    base/with-ref? 'with-ref
+    base/with-refs? 'with-refs
     base/with-async? 'with-async
     base/focus? 'focus
     base/local-state? 'local-state
@@ -121,7 +121,7 @@
       [path {:types [(item-type item1) (item-type item2)]}]
 
       ;; dynamics
-      (or (base/static? item1) (base/dynamic? item1) (base/with-ref? item1) (base/with-async? item1))
+      (or (base/static? item1) (base/dynamic? item1) (base/with-refs? item1) (base/with-async? item1))
       (let [path (conj path (item-type item1))]
         (if (= (:f item1) (:f item2))
           [path {:arguments (seq-diff (:args item1) (:args item2))}]

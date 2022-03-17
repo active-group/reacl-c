@@ -96,7 +96,7 @@
               (c/handle-error i1 (f/constantly (c/return))))
             item-gen))
 
-(declare with-ref)
+(declare with-refs)
 (declare node-item)
 
 (let [ids (map c/name-id
@@ -118,7 +118,7 @@
 
     (named item-gen)
                         
-    with-ref
+    with-refs
     (with-async item-gen)
     (focus item-gen)
     (local-state item-gen)
@@ -146,10 +146,10 @@
        ;; larger sizes create wayy to much time.
        (gen/scale #(mod % 3))))
 
-(def with-ref
+(def with-refs
   (gen/fmap (fn [item]
-              (c/with-ref (fn [r]
-                            (c/refer item r))))
+              (c/with-refs 1 (fn [[r]]
+                               (c/refer item r))))
             node-item))
 
 ;;;;;;;;;;;;;;;;;;;;
@@ -258,7 +258,7 @@
                                                              (gen/tuple $ (smaller-map events))))))
                                changes))))
       
-        base/with-ref? empty-item
+        base/with-refs? empty-item
         base/with-async? empty-item
         base/focus? (wr item)
         base/local-state? (wr item)

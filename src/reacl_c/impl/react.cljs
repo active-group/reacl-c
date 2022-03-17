@@ -771,17 +771,22 @@
     ;; Note: (keyed (keyed ... inner) outer) - outer wins
     (render item binding ref (if (some? outer-key) outer-key inner-key))))
 
+
+(defn- create-refs [n]
+  (doall (repeatedly n (comp #(RRef. %) r0/create-ref))))
+
 (let [g (fn [state f & args]
-          (base/make-focus (apply f (RRef. (second state)) args)
+          (base/make-focus (apply f (second state) args)
                            lens/first))
-      c (base/make-initializer r0/create-ref nil)]
-  (extend-type base/WithRef
+      c (fn [n]
+          (base/make-initializer create-refs (list n)))]
+  (extend-type base/WithRefs
     IReact
-    (-instantiate-react [{f :f args :args} binding ref key]
+    (-instantiate-react [{n :n f :f args :args} binding ref key]
       ;; Note: this translation is not possible in core, as long as we
       ;; want to treat the initializer (create-ref) as implementation-specific.
       (render (base/make-local-state (base/make-dynamic nil g (cons f args))
-                                     c)
+                                     (c n))
               binding ref key))))
 
 (r0/defclass refer
