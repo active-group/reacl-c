@@ -200,7 +200,7 @@
   [name base & [attrs]]
   `(let [base# ~base
          attrs# ~attrs]
-     (core/defn-item ~(vary-meta name opt-assoc :arglists '([attrs & children] [& children]))
+     (core/defn-item ~(vary-meta name #(merge {:arglists '([attrs & children] [& children])} %))
        [& args#]
        (let [[attrs2# & children#] (analyze-dom-args args#)]
          (apply base# (merge-attributes attrs# attrs2#) children#)))))
