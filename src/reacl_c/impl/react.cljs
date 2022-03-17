@@ -249,58 +249,33 @@
 
 ;; items
 
-(declare inline-pure)
-
-(defn- inline-dynamic [f args binding]
-  (inline-pure (apply f (:state binding) args) binding))
-
-(defn- inline-static [f args binding]
-  (inline-pure (apply f args)
-               (assoc binding
-                      :state nil
-                      :store stores/void-store)))
-
-(defn- inline-pure [item binding]
-  (cond
-    (and (base/dynamic? item)
-         (nil? (base/dynamic-name-id item)))
-    (inline-dynamic (base/dynamic-f item) (base/dynamic-args item) binding)
-
-    (and (base/static? item)
-         (nil? (base/static-name-id item)))
-    (inline-static (base/static-f item) (base/static-args item) binding)
-
-    :else
-    item))
-
 (defn- gen-dynamic [name]
   (r0/class name
             "shouldComponentUpdate" (r0/update-on ["f" "c_ref" "binding" "args"])
 
-            ;; OPT: can we inline a local-state here, that would be great.
             "render" (fn [this]
                        (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
-                         (render (inline-dynamic f args binding)
+                         (render (apply f (:state binding) args)
                                  binding ref nil)))))
 
 (def dynamical (utils/named-generator gen-dynamic))
 
-(def dynamic (dynamical (base/make-name-id "reacl-c/dynamic")))
-
 (extend-type base/Dynamic
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
-    (r0/elem (if name-id (dynamical name-id) dynamic)
-             #js {"key" key
-                  "binding" binding
-                  "c_ref" ref
-                  "f" f
-                  "args" args})))
+    (if name-id
+      (r0/elem (dynamical name-id)
+               #js {"key" key
+                    "binding" binding
+                    "c_ref" ref
+                    "f" f
+                    "args" args})
+      (render (apply f (:state binding) args) binding ref key))))
 
 (extend-type base/Focus
   IReact
-  (-instantiate-react [{e :e lens :lens} binding ref key]
-    (render e
+  (-instantiate-react [{item :e lens :lens} binding ref key]
+    (render item
             (assoc binding
                    :state (lens/yank (:state binding) lens)
                    :store (stores/focus-store (:store binding) lens))
@@ -332,13 +307,12 @@
   "render" (fn [this]
              (let-obj [{binding "binding" ref "c_ref" item "item"} (.-props this)
                        {this-state "this_state" this-store "this_store"} (.-state this)]
-               (let [new-binding (assoc binding
-                                        :state [(:state binding) this-state]
-                                        :store (stores/conc-store (:store binding) this-store))]
-                 (render (inline-pure item new-binding)
-                         new-binding
-                         ref
-                         nil))))
+               (render item
+                       (assoc binding
+                              :state [(:state binding) this-state]
+                              :store (stores/conc-store (:store binding) this-store))
+                       ref
+                       nil)))
   
   [:static "getDerivedStateFromProps"] (new-state-reinit! (fn [props] (aget props "initial"))))
 
@@ -378,8 +352,9 @@
     "render" (fn [this]
                (let-obj [{binding "binding" item "item" ref "c_ref"} (.-props this)
                          {target "this_target"} (.-state this)]
-                 (let [new-binding (assoc binding :action-target target)]
-                   (render item new-binding ref nil))))))
+                 (render item
+                         (assoc binding :action-target target)
+                         ref nil)))))
 
 (extend-type base/HandleAction
   IReact
@@ -453,10 +428,11 @@
 
 (extend-type base/HandleStateChange
   IReact
-  (-instantiate-react [{e :e f :f} binding ref key]
-    (render e (assoc binding
-                     :store (stores/intercept-store (:store binding)
-                                                    (f/partial call-event-handler*! (:action-target binding) f)))
+  (-instantiate-react [{item :e f :f} binding ref key]
+    (render item
+            (assoc binding
+                   :store (stores/intercept-store (:store binding)
+                                                  (f/partial call-event-handler*! (:action-target binding) f)))
             ref
             key)))
 
@@ -465,7 +441,7 @@
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding"} (.-props this)]
-               (render (inline-pure item binding) binding nil nil)))
+               (render item binding nil nil)))
   
   $handle-message (fn [this msg]
                     (let-obj [{binding "binding" f "f"} (.-props this)]
@@ -496,7 +472,7 @@
 
             "render" (fn [this]
                        (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
-                         (render (inline-pure item binding) binding ref nil)))))
+                         (render item binding ref nil)))))
 
 (def named (utils/named-generator gen-named))
 
@@ -515,20 +491,23 @@
 
             "render" (fn [this]
                        (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
-                         (render (inline-static f args binding)
+                         (render (apply f args)
                                  binding ref nil)))))
 
 (def statical (utils/named-generator gen-static))
 
 (def static (statical (base/make-name-id "reacl-c/static")))
 
+(defn- static-binding [binding]
+  (assoc binding
+         :state nil
+         :store stores/void-store))
+
 (extend-type base/Static
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (statical name-id) static)
-             #js {"binding" (assoc binding
-                                   :state nil
-                                   :store stores/void-store)
+             #js {"binding" (static-binding binding)
                   "key" key
                   "c_ref" ref
                   "f" f
@@ -783,13 +762,13 @@
 
   "render" (fn [this]
              (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
-               (render (inline-pure item binding) binding c-ref nil))))
+               (render item binding c-ref nil))))
 
 (extend-type base/Keyed
   IReact
-  (-instantiate-react [{e :e inner-key :key} binding ref outer-key]
+  (-instantiate-react [{item :e inner-key :key} binding ref outer-key]
     ;; Note: (keyed (keyed ... inner) outer) - outer wins
-    (render e binding ref (if (some? outer-key) outer-key inner-key))))
+    (render item binding ref (if (some? outer-key) outer-key inner-key))))
 
 (let [g (fn [state f & args]
           (base/make-focus (apply f (RRef. (second state)) args)
@@ -813,7 +792,7 @@
 
   "render" (fn [this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
-               (render (inline-pure item binding) binding (:ref c-ref) nil))))
+               (render item binding (:ref c-ref) nil))))
 
 (extend-type base/Refer
   IReact
