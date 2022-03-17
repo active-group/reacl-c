@@ -61,7 +61,6 @@
   [children fragment-children]
   E
   (-is-dynamic? [{children :children}]
-    ;; TODO: maybe worth to cache/calculate in advance?
     (some is-dynamic? children)))
 
 (defn make-fragment [children]
@@ -133,7 +132,10 @@
   [e local-state-e
    initial local-state-initial]
   E
-  (-is-dynamic? [{e :e}] true))
+  (-is-dynamic? [{e :e}]
+                #_(is-dynamic? e)
+                ;; assume it is (why add local-state if not)
+                true))
 
 (r/define-record-type HandleAction
   (make-handle-action e f pred)
@@ -158,7 +160,7 @@
   [e handle-state-change-e
    f handle-state-change-f]
   E
-  (-is-dynamic? [_] true))
+  (-is-dynamic? [_] (is-dynamic? e)))
 
 (r/define-record-type HandleMessage
   (make-handle-message f e)
@@ -183,7 +185,7 @@
   [e handle-error-e
    f handle-error-f]
   E
-  (-is-dynamic? [_] true))
+  (-is-dynamic? [_] (is-dynamic? e)))
 
 (r/define-record-type Keyed
   (make-keyed e key)

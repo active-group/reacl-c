@@ -105,30 +105,46 @@
 (defprotocol ^:private IReact
   (-instantiate-react [this binding ref key] "Returns a React element"))
 
+(defn- static-binding [binding]
+  (assoc binding
+         :state nil
+         :store stores/void-store))
+
+(defn- static-binding? [binding]
+  (= (:store binding) stores/void-store))
+
 ;; Note: strings, nil and fragments can't have refs. We don't really
 ;; need them, but using a class can make better error
 ;; messages. That's done for fragments in dev-mode:
 (let [empty (base/really-make-fragment nil)]
-  (defn- render-nil [binding ref]
+  (defn- render-nil [binding ref key]
     (if dev-mode?
-      (-instantiate-react empty binding ref nil)
+      (-instantiate-react empty binding ref key)
       nil)))
 
-(defn- render-string [v binding ref]
+(defn- render-string [v binding ref key]
   (if dev-mode?
     (-instantiate-react (base/really-make-fragment (list v))
-                        binding ref nil)
+                        binding ref key)
     v))
 
 (defn- render
   "Render to something that can be the result of a React 'render' method."
   [item binding ref key]
+  ;; - ref must be used on the first component that handles messages 'down the line'
+  ;; - key must be used on the first component rendered.
   (cond
-    (nil? item) (render-nil binding ref)
-    (string? item) (render-string item binding ref)
+    (nil? item) (render-nil binding ref key)
+    (string? item) (render-string item binding ref key)
     :else
     (do (if (or (not dev-mode?) (satisfies? IReact item))
-          (-instantiate-react item binding ref key)
+          ;; Note: is-dynamic? can be a deep recursion, so try to avoid it.
+          ;; Note: with this, the bindin in Static is already a static binding.
+          (let [binding (if (and (not (static-binding? binding))
+                                 (not (base/is-dynamic? item)))
+                          (static-binding binding)
+                          binding)]
+            (-instantiate-react item binding ref key))
           (if (base/item? item)
             (throw (ex-info (str "No React implementation of: " (pr-str item)) {:item item}))
             (throw (ex-info (str "Not a valid item: " (pr-str item)) {:value item})))))))
@@ -360,6 +376,7 @@
 (extend-type base/HandleAction
   IReact
   (-instantiate-react [{e :e f :f pred :pred} binding ref key]
+    ;; Note: by using a class, the item does not have to rerender when 'f' changes (is a lambda)
     (r0/elem handle-action #js {"key" key
                                 "binding" binding
                                 "c_ref" ref
@@ -499,16 +516,11 @@
 
 (def static (statical (base/make-name-id "reacl-c/static")))
 
-(defn- static-binding [binding]
-  (assoc binding
-         :state nil
-         :store stores/void-store))
-
 (extend-type base/Static
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (statical name-id) static)
-             #js {"binding" (static-binding binding)
+             #js {"binding" (if (static-binding? binding) binding (static-binding binding))
                   "key" key
                   "c_ref" ref
                   "f" f
