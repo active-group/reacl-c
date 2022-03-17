@@ -260,10 +260,13 @@
   (let [n (renders-as (c/static (fn []
                                   (c/dynamic pr-str))) :foo)]
     (is (= "nil" (text n))))
-  
+
+  (c/defn-item static-test-1 [atom]
+    (swap! atom inc)
+    (dom/div))
   (let [upd (atom 0)
         [x inject!] (injector)
-        it (dom/span (c/static (fn [] (swap! upd inc) (dom/div)))
+        it (dom/span (c/static (fn [] (static-test-1 upd)))
                      x)
         node (renders-as it true)]
 
