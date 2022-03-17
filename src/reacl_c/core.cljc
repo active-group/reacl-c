@@ -312,7 +312,7 @@ be specified multiple times.
   sent to it by redirecting them to the item specified by the given
   reference."
     [ref item]
-    {:pre [(base/ref? ref)
+    {:pre [(base/message-target? ref)
            (base/item? item)]}
     (handle-message (f/partial h ref) item)))
 
