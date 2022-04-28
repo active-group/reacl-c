@@ -20,6 +20,3 @@
                 ;; then it does not have to be dynamic.
                 (or (not (empty? events)) (some base/is-dynamic? children))))
 
-(defn ^:no-doc set-ref [e ref]
-  (assert (element? e))
-  (assoc e :ref ref))

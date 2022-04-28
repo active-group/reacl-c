@@ -1,7 +1,6 @@
 (ns reacl-c.core
   "Functions, primitive values and some macros to define new items."
   (:require [reacl-c.base :as base]
-            [reacl-c.dom-base :as dom-base]
             [clojure.set :as set]
             [schema.core :as s]
             #?(:clj [schema.macros :as sm])
@@ -62,15 +61,15 @@
 (defn refer
   "Returns an item identical to the given item, but with the given
   reference assigned. Note that the returned item cannot be used more
-  than once. See [[with-ref]] for a description of references."
+  than once. See [[with-ref]] for a description of references.
+
+  This should only be used for messaging, but prefer ref-let for that.
+  To get access to native DOM elements, set the `:ref` attribute of
+  items in the [[reacl-c/dom]] namespace.
+  "
   [item ref]
   {:pre [(base/item? item)]}
-  ;; Note: when setting a ref on a dom item, we don't want the
-  ;; class/component, but the 'raw' dom element. Pass the ref down to
-  ;; get that. (TODO: why? for dom manupulation? Split that from the messaging api then - use only dom :ref to access dom-nodes? and drop this case here:)
-  (if (dom-base/element? item)
-    (dom-base/set-ref item ref)
-    (base/make-refer item ref)))
+  (base/make-refer item ref))
 
 (let [c (fn [refs items f args]
           (apply f (map refer items refs) args))]

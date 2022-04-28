@@ -52,7 +52,10 @@
          (map? events)
          (every? #(or (ifn? %) (nil? %)) (vals events))]}
   (base/assert-item-list type children)
-  (dom-base/make-element type attrs events nil children))
+  (let [[attrs ref] (if (contains? attrs :ref)
+                      [(dissoc attrs :ref) (:ref attrs)]
+                      [attrs nil])]
+    (dom-base/make-element type attrs events ref children)))
 
 (defn ^:no-doc dom-element** [type & args]
   {:pre [(string? type)]}
