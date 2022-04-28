@@ -50,8 +50,8 @@
   {:pre [(string? type)
          (map? attrs)
          (map? events)
-         (every? #(or (ifn? %) (nil? %)) (vals events))
-         (base/assert-item-list type children)]}
+         (every? #(or (ifn? %) (nil? %)) (vals events))]}
+  (base/assert-item-list type children)
   (dom-base/make-element type attrs events nil children))
 
 (defn ^:no-doc dom-element** [type & args]

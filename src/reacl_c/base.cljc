@@ -24,18 +24,9 @@
   (or (nil? v) (item? v)))
 
 (defn assert-item-list [where cs] ;; -> more like a util?
-  (or (every? item-list-pred cs)
-      (let [c (first (filter #(not (item-list-pred %)) cs))]
-        (assert false
-                (str "Expected only items or strings, but this is neither: " (pr-str c)))
-        false)))
-
-(defn assert-item [c] ;; -> more like a util?
-  (or (item? c)
-      (do
-        (assert false
-                (str "Expected an item or string, but this is neither: " (pr-str c)))
-        false)))
+  (assert (every? item-list-pred cs)
+          (let [c (first (filter #(not (item-list-pred %)) cs))]
+            (str "Expected only items or strings, but this is neither: " (pr-str c)))))
 
 (defprotocol Ref
   (-deref-ref [this]))
