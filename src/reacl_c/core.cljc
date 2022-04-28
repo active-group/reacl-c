@@ -277,7 +277,7 @@ be specified multiple times.
                  ;; Note: in the most general way, this might not make sense (the
                  ;; composition might expect a certain type of result from the
                  ;; previous parts), but this logic has in mind to allow
-                 ;; `handle-effect-result` to use a composition, and the user to
+                 ;; `execute-effect` to use a composition, and the user to
                  ;; replace something inside with a const-effect - and so emulating
                  ;; something in a test.
                  (base/map-composed-effect eff (f/partial effect-mapper f))
@@ -509,7 +509,7 @@ be specified multiple times.
 (defn effect
   "Returns an effect action, which, when run, calls the given function
   with the given arguments. The result of that function is ignored,
-  unless you use [[handle-effect-result]], or return a [[return]]
+  unless you use [[execute-effect]], or return a [[return]]
   value with new actions or messages."
   [f & args]
   (base/make-effect f args))
