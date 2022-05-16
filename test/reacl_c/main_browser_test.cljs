@@ -603,6 +603,24 @@
 
   )
 
+(deftest subscription-with-arg-test
+  (let [order (atom [])
+        sub-impl (fn [deliver! x]
+                   (swap! order conj [:sub x])
+                   (fn stop-fn []
+                     (swap! order conj [:unsub x])))
+        sub #(c/subscription sub-impl %)]
+
+    (testing "different arg is new subscription"
+      (reset! order [])
+      (let [[it inject!] (injector)
+            [app host] (render (c/dynamic (fn [x]
+                                            (c/fragment (sub x) it)))
+                               :x)]
+        (is (= [[:sub :x]]))
+        (inject! host (constantly :y))
+        (is (= [[:sub :x] [:unsub :x] [:sub :y]] @order))))))
+
 (deftest defn-subscription-test
   (c/defn-subscription defn-subscription-test-1 ^:always-validate deliver! :- s/Keyword [arg]
     (deliver! arg)
