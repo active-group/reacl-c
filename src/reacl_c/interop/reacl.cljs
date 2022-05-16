@@ -1,5 +1,6 @@
 (ns reacl-c.interop.reacl
   (:require [reacl-c.core :as c :include-macros true]
+            [reacl-c.base :as base]
             [reacl-c.interop.react :as react]
             [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl2.core :as r]
@@ -29,7 +30,7 @@
                              (merge {:app-state state
                                      :set-app-state! (f/partial set-state invoke!)})))))
 
-(c/defn-effect ^:private make-ref! []
+(defn- mk-ref! []
   #js {:current nil})
 
 (c/defn-effect ^:private send-message! [ref msg]
@@ -43,9 +44,8 @@
                                            "c_ref" ref}
                         (r/has-app-state? class)))
       d (fn [[state ref] class args]
-          (when (some? ref) ;; ...before the effect is executed.
-            (c/focus lens/first
-                     (c/with-async ar state class args ref))))
+          (c/focus lens/first
+                   (c/with-async ar state class args ref)))
       
       hm (fn [[state ref] msg]
            (c/return :action (send-message! ref msg)))
@@ -57,10 +57,8 @@
   component can be bound to the state of the item."
     [class & args]
     (assert (r/reacl-class? class) class)
-    (c/local-state nil
+    (c/local-state (base/make-initializer mk-ref! nil)
                    (c/handle-message hm
-                                     (c/fragment
-                                      (c/handle-effect-result set-ref (make-ref!))
-                                      (c/dynamic d class args))))))
+                                     (c/dynamic d class args)))))
 
 ;; TODO: ref/bridge to allow reacl components to send messages to reacl-c items?
