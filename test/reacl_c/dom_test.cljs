@@ -45,10 +45,10 @@
                        :onX (fn [st v] (+ st v))})
      :state 0
      (fn [env]
-       (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
+       (dt/fire-event (dt/get env (dt/by-testid "bar")) :click)
        (is (= (dt/current-state env)
               1))
-       (dt/fire-event (dt/get env (dt/by-test-id "baz")) :click)
+       (dt/fire-event (dt/get env (dt/by-testid "baz")) :click)
        (is (= (dt/current-state env)
               43)))))
 
@@ -62,7 +62,7 @@
      (defn-dom-test-3 {:onClick (fn [st v] (conj st v))})
      :state []
      (fn [env]
-       (dt/fire-event (dt/get env (dt/by-test-id "bar")) :click)
+       (dt/fire-event (dt/get env (dt/by-testid "bar")) :click)
        (is (not= (dt/current-state env)
                  [[]]))
        (is (= (dt/current-state env)
