@@ -607,21 +607,24 @@ be specified multiple times.
       (vary-meta assoc subscription-from-defn-meta-key defn-f)))
 
 (defn- unsubscribe! [stop! [f & args]]
-  (assert (some? stop!) (str "Subscription did not return a stop function: " f (if (empty? args) "." (str ", when called with " (pr-str args) "."))))
+  (assert (some? stop!) ;; should not be called if nil
+          (str "No stop function to unsubscribe from subscription: " f (if (empty? args) "." (str ", when called with " (pr-str args) "."))))
   (when stop!
     (stop!))
   (return))
 
 (defn- unsubscribe-effect [stop! f args]
-  ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]], and better assertion message in unsubscribe!.
+  ;; Note: f and args only here to enable a test with [[unsubscribe-effect?]]
   (effect unsubscribe! stop! (cons f args)))
 
 (let [store-sub (fn [f args state msg]
                   (cond
                     (instance? SubscribedMessage msg)
-                    (apply base/merge-returned
-                           (return :state {:f f :args args :stop! (:stop! msg) :subscribed? true})
-                           (map #(return :action %) (:sync-actions msg)))
+                    (do (assert (:stop! msg) ;; TODO: exn, or just a warning?
+                                (str "Subscription did not return a stop function: " f (if (empty? args) "." (str ", when called with " (pr-str args) "."))))
+                        (apply base/merge-returned
+                               (return :state {:subscribed [(:stop! msg) f args]})
+                               (map #(return :action %) (:sync-actions msg))))
 
                     ;; added for test-util emulation of subscriptions.
                     (instance? SubscribedEmulatedResult msg)
@@ -630,32 +633,35 @@ be specified multiple times.
                     :else
                     (do (assert false (str "Unexpected message: " (pr-str msg)))
                         (return))))
-      do-unsub (fn [state]
-                 (let [{f :f args :args stop! :stop! subscribed? :subscribed?} state]
-                   (if subscribed? ;; usually when emulated in tests.
-                     (return :action (unsubscribe-effect stop! f args))
+      do-unsub (fn [f state]
+                 (let [{[stop! s-f s-args] :subscribed} state]
+                   (if stop! ;; not sure why is this not set sometimes? immediate unmounts?
+                     (return :action (unsubscribe-effect stop! s-f s-args))
                      (return))))
-      msgs (fn [host deliver! action-mapper defn-f f args]
-             (fragment (-> (handle-message (f/partial store-sub f args)
-                                           (fragment))
-                           (refer host))
-                       (init (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))))
-      dyn (fn [{f :f args :args stop! :stop! subscribed? :subscribed?} deliver! action-mapper defn-f]
-            (fragment
-             (cleanup do-unsub)
-             (if (nil? stop!)
-               (with-ref msgs deliver! action-mapper defn-f f args)
-               empty)))
-      deliver (fn [invoke! a]
-                (invoke! (f/constantly (return :action a))))
+      do-sub (fn [host deliver! action-mapper defn-f f args state]
+               (let [{[stop! s-f s-args] :subscribed} state]
+                 (if (or (not= f s-f) (not= args s-args))
+                   (merge-returned
+                    ;; unsubscribe before resubscribe when f or args change
+                    (if (some? stop!)
+                      (return :state {:subscribed nil}
+                              :action (unsubscribe-effect stop! s-f s-args))
+                      (return))
+                    (return :action (subscribe-effect f deliver! args host action-mapper defn-f)))
+                   (return))))
+      controller (fn [host deliver! action-mapper defn-f f args]
+                   (fragment (-> (handle-message (f/partial store-sub f args)
+                                                 (fragment))
+                                 (refer host))
+                             (lifecycle
+                              (f/partial do-sub host deliver! action-mapper defn-f f args)
+                              (f/partial do-unsub f))))
+      do-deliver (fn [invoke! a]
+                   (invoke! (f/constantly (return :action a))))
       stu (fn [invoke! action-mapper defn-f f args]
-            ;; Note: by putting f and args in the local state, we get an automatic 'restart' when they change.
-            (let [deliver! (f/partial deliver invoke!)]
-              (isolate-state {:f f
-                              :args args
-                              :stop! nil
-                              :subscribed? false}
-                             (dynamic dyn deliver! action-mapper defn-f))))]
+            (let [deliver! (f/partial do-deliver invoke!)]
+              (isolate-state {:subscribed nil}
+                             (with-ref controller deliver! action-mapper defn-f f args))))]
   (defn ^:private subscription*
     [action-mapper defn-f f & args]
     (with-async stu action-mapper defn-f f args))
