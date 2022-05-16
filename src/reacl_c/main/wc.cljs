@@ -269,7 +269,7 @@
                              ;; (dispatch event), so we have to
                              ;; sneak the element reference into the
                              ;; effect, so that they can still use
-                             ;; handle-effect-result, which wraps it in
+                             ;; execute-effect, which wraps it in
                              ;; a composed-effect. ...slightly hacky.
                              (let [repl (fn repl [e]
                                           (if (base/composed-effect? e)
@@ -601,13 +601,13 @@
 (c/defn-item ^:private define-it [wc]
   (c/with-state-as name
     (if (nil? name)
-      (c/handle-effect-result snd (gen-name))
-      (c/handle-effect-result (fn [st ok?]
-                                (if ok?
-                                  (c/return)
-                                  ;; set name to nil, will generate a new one and register that.
-                                  (c/return :state nil)))
-                              (c/effect define! name wc)))))
+      (c/execute-effect (gen-name) snd)
+      (c/execute-effect (c/effect define! name wc)
+                        (fn [st ok?]
+                          (if ok?
+                            (c/return)
+                            ;; set name to nil, will generate a new one and register that.
+                            (c/return :state nil)))))))
 
 (let [f (fn [[_ name] args]
           (when name
