@@ -853,6 +853,11 @@ be specified multiple times.
                                 true))               
                     (~@create (apply ~@opt-wrapper f# args#))))))))
 
+(def ^:no-doc stable-name-id
+  ;; Note: must be used only for names occuring in source-code (like
+  ;; with defn-item), so that is does not grow infinitely.
+  (memoize base/make-name-id))
+
 (defmacro ^:no-doc defn-named+
   "Internal utility macro.
 
@@ -864,7 +869,7 @@ be specified multiple times.
   [opt-wrapper wrapper-args name  docstring? state-schema? args & body]
   (let [name_ (str *ns* "/" name)
         id (gensym "id")]
-    `(let [~id (name-id ~name_)
+    `(let [~id (stable-name-id ~name_)
            validate# (state-validator ~name ~state-schema?)]
        (defn+ [named* ~id validate#] identity
          ~opt-wrapper ~wrapper-args ~name nil ~docstring? ~args ~@body))))
@@ -1042,11 +1047,6 @@ Note that the state of the inner item (the `div` in this case), will
                        [(conj res x) false])))
                  [[] false]
                  params)))
-
-(def ^:no-doc stable-name-id
-  ;; Note: must be used only for names occuring in source-code (like
-  ;; with defn-item), so that is does not grow infinitely.
-  (memoize base/make-name-id))
 
 (defmacro ^:no-doc fn-item*
   [name static? state-schema? params & body]
