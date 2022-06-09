@@ -913,6 +913,10 @@ be specified multiple times.
                                 true))               
                     (~@create (apply ~@opt-wrapper f# args#))))))))
 
+(def ^:no-doc stable-name-id
+  ;; Note: must only be used for names from source-code, like with defn-item.
+  (memoize name-id))
+
 (defmacro ^:no-doc defn-named++
   "Internal utility macro.
 
@@ -924,7 +928,7 @@ be specified multiple times.
   [set-meta-name-id? opt-wrapper wrapper-args name  docstring? state-schema? args & body]
   (let [name_ (str *ns* "/" name)
         id (gensym "id")]
-    `(let [~id (name-id ~name_)
+    `(let [~id (stable-name-id ~name_)
            validate# (state-validator ~name ~state-schema?)]
        (defn+ [named* ~id validate#] ~(if set-meta-name-id?
                                         `(fn [f#] (vary-meta f# assoc ::name-id ~id))
