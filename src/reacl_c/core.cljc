@@ -331,8 +331,9 @@ be specified multiple times.
 
 (defn name-id
   "Generates a fresh unique value that can be used to generate named
-  items via [[named]]. Note that calling this twice with the same
-  name returns different values."
+  items via [[named]]. Note that calling this twice with the same name
+  returns different values. Use `defonce` to stabilize an id for hot
+  code reloads."
   [s]
   {:pre [(string? s)]}
   (base/make-name-id s))
@@ -1042,6 +1043,11 @@ Note that the state of the inner item (the `div` in this case), will
                  [[] false]
                  params)))
 
+(def ^:no-doc stable-name-id
+  ;; Note: must be used only for names occuring in source-code (like
+  ;; with defn-item), so that is does not grow infinitely.
+  (memoize base/make-name-id))
+
 (defmacro ^:no-doc fn-item*
   [name static? state-schema? params & body]
   ;; Note: the with-state-as optimization is probably less worth it now that defn-item itself is a component/'barrier'.
@@ -1050,7 +1056,7 @@ Note that the state of the inner item (the `div` in this case), will
         top-f (gensym "f")
         all-params (gensym "args")]
     (assert (vector? params))
-    `(let [~name-id (base/make-name-id ~(str *ns* "/" name))
+    `(let [~name-id (stable-name-id ~(str *ns* "/" name))
            ~check-state ~(when-not static? `(state-validator ~name ~state-schema?))
            ~top-f ~(if static?
                      `(fn [~@(remove-params-schema params)]
