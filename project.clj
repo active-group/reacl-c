@@ -13,7 +13,7 @@
                  [reacl "2.2.9" :scope "provided"]
                  [de.active-group/cljs-async "2.0.0"]]
 
-  :plugins [[lein-codox "0.10.7"]
+  :plugins [[lein-codox "0.10.8"]
             [lein-auto "0.1.3"]
             [lein-resource "17.06.1"]]
 
