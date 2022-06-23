@@ -431,7 +431,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
   [value & options]
   (apply by-testid value options))
 
-(def anything
+(def ^{:doc "Query for anything."} anything
   ((build-query-fn (fn [env]
                      (letfn [(r [n]
                                (let [nodes (.-childNodes n)]
@@ -440,7 +440,7 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                    (constantly "Found multiple elements")
                    (constantly "Unable to find any element"))))
 
-(def nothing
+(def ^{:doc "Query for nothing."} nothing
   ((build-query-fn (constantly nil)
                    (constantly "Found a multiple of no elements, which sounds impossible")
                    (constantly "Unable to find no element, as expected"))))

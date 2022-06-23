@@ -14,14 +14,13 @@
   (impl/react-send-message! comp msg callback))
 
 (defn embed
-  "Returns a React element embedding the given item. Current `state` and
-  state changes (`set-state!`) are controlled by the given optional
-  arguments.
+  "Returns a React element embedding the given item. Current `:state` and
+  state changes (`:set-state!`) are controlled by the corrensponding options.
 
   Toplevel actions and effects are passed to the optional
-  `handler-action!` function. To have effects being executed
+  `:handler-action!` function. To have effects being executed
   implicitly, use [[reacl-c.main/execute-effects]]. Messages can be
-  sent to the item via [[send-message!]]. A `key` and a `ref` can also
+  sent to the item via [[send-message!]]. A `:key` and a `:ref` can also
   be set in the options."
   [item & [options]]
   (assert (base/item? item) item)

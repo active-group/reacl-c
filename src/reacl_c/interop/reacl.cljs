@@ -54,7 +54,7 @@
     "Returns an item implemented by the given Reacl class and
   arguments. Messages sent to the item are forwarded to the component,
   actions emitted are passed though, and the app-state of the
-  component can be bound to the state of the item."
+  component (if it has one) is bound to the state of the item."
     [class & args]
     (assert (r/reacl-class? class) class)
     (c/local-state (base/make-initializer mk-ref! nil)
