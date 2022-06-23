@@ -308,7 +308,7 @@
   (str prefix "$" internal-name-suffix))
 
 (let [n (internal-name "reacl_c_app")]
-  (def app-property-name n)
+  (def ^:private app-property-name n)
   
   (defn- set-app! [element app]
     (aset element n app))
@@ -330,12 +330,12 @@
     (.hasOwnProperty class n)))
 
 (let [n (internal-name "reacl_c_instances")]
-  (def instances-property-name n)
+  (def ^:private instances-property-name n)
 
-  (defn get-instances [class]
+  (defn- get-instances [class]
     (or (aget class instances-property-name) #{}))
 
-  (defn update-instances! [class f & args]
+  (defn- update-instances! [class f & args]
     (aset class instances-property-name (apply f (get-instances class) args))))
 
 (defn- eval-event-unmounted [class handler args]
@@ -431,7 +431,7 @@
                 (wrap this (:attributes wc) (:item-f wc))
                 {:initial-state (:initial-state wc)}))))
 
-(def hot-update-enabled? goog/DEBUG)
+(def ^:private hot-update-enabled? goog/DEBUG)
 
 (defn- new-empty-wc []
   ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
