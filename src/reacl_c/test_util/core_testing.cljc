@@ -372,20 +372,10 @@
                    (base/lifecycle? item)
                    (lift-returned (f item state))
 
-                   (or (string? item)
-                       (base/fragment? item)
-                       (dom/element? item))
-                   (c/return)
-
-                   :else (throw (unknown-item-error item))))
+                   :else
+                   (c/return)))
                (fn container [c-res item state]
-                 (cond
-                   (or (nil? item)
-                       (base/fragment? item)
-                       (dom/element? item))
-                   (reduce merge-returned (c/return) c-res)
-
-                   :else (throw (unknown-item-error item))))
+                 (reduce merge-returned (c/return) c-res))
                (fn wrapper [res item state]
                  (cond
                    (base/focus? item)
@@ -399,24 +389,11 @@
 
                    (base/handle-state-change? item)
                    (do-handle-state-change res item state)
-                   
-                   (or (base/refer? item)
-                       (base/handle-message? item)
-                       (base/named? item)
-                       (base/handle-error? item)
-                       (base/keyed? item))
-                   res
-                   
-                   :else (throw (unknown-item-error item))))
-               (fn dynamic [res item state]
-                 (cond
-                   (or (base/dynamic? item)
-                       (base/with-refs? item)
-                       (base/with-async? item))
-                   res
-                          
+
                    :else
-                   (throw (unknown-item-error item))))
+                   res))
+               (fn dynamic [res item state]
+                 res)
                (fn other [item state]
                  (throw (unknown-item-error item)))
                

@@ -43,6 +43,9 @@
          (tu/init (c/init (c/return :state 42))
                   nil)))
 
+  (is (= (c/return :state :foo) ;; or could be empty.
+         (tu/init (c/static (fn [] (c/dynamic c/init))) :foo)))
+
   (is (= (c/return :state 42
                    :action :foo)
          (tu/init (c/fragment (c/init (c/return :action :foo))
