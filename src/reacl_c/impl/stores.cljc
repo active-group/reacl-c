@@ -12,7 +12,7 @@
   (-set s v))
 
 ;; this is used for the toplevel
-(deftype ^:private DelegateStore [^mutable state ^mutable set-state!]
+(deftype ^:private DelegateStore [^:mutable state ^:mutable set-state!]
   IStore
   (-get [this] (.-state this))
   (-set [this v]
@@ -30,7 +30,7 @@
   (set! (.-set-state! s) set-state!))
 
 ;; this is used for the local-state items
-(deftype ^:private BaseStore [^mutable init-expr ^mutable state watcher]
+(deftype ^:private BaseStore [^:mutable init-expr ^:mutable state watcher]
   IStore
   (-get [this] (.-state this))
   (-set [this v]
