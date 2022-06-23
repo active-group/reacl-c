@@ -583,9 +583,7 @@ be specified multiple times.
 (defn ^:deprecated handle-effect-result [f eff]
   (execute-effect eff f))
 
-(defrecord ^:no-doc SubscribedMessage [stop! sync-actions])
-
-(defrecord ^:no-doc SubscribedEmulatedResult [action])
+(defrecord ^{:private true :no-doc true} SubscribedMessage [stop! sync-actions])
 
 (defn ^:no-doc subscribe! [f args async-deliver! host action-mapper]
   (let [sync (atom [])
@@ -626,10 +624,6 @@ be specified multiple times.
                         (apply base/merge-returned
                                (return :state {:subscribed [(:stop! msg) f args]})
                                (map #(return :action %) (:sync-actions msg))))
-
-                    ;; added for test-util emulation of subscriptions.
-                    (instance? SubscribedEmulatedResult msg)
-                    (return :action (:action msg))
 
                     :else
                     (do (assert false (str "Unexpected message: " (pr-str msg)))
@@ -1121,7 +1115,7 @@ Note that the state of the inner item (the `div` in this case), will
                  ~@body))))
 
 
-(defrecord ^{:private true :rtd-record? true} CallHandler [id f args])
+(defrecord ^{:private true :no-doc true} CallHandler [id f args])
 
 (defn- unique-id []
   #?(:cljs (random-uuid))
