@@ -12,7 +12,6 @@
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 (deftest lift-reacl-test
-  ;; TODO: maybe this should use only reacl-c/test-utils?
   ;; using Reacl classes in reacl-c
   (testing "syncs state"
     (let [it (i/lift (reacl/class "foo" this state []
@@ -64,7 +63,6 @@
 
 
 (deftest embed-in-reacl-test
-  ;; TODO: maybe this should only use reacl/test-utils
   ;; Using reacl-c items in Reacl
   (let [node (js/document.createElement "div")
         wr (reacl/class "foo" this state []
