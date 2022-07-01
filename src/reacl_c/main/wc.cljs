@@ -435,10 +435,11 @@
 
 (defn- new-empty-wc []
   ;; Note: absolutely not sure if all this OO/prototype stuff is correct; but it seems to work.
-  (let [super (prototype-of js/HTMLElement) 
+  (let [htmlelement js/HTMLElement 
+        super (prototype-of htmlelement)
         ctor (fn ctor []
                ;; = super()
-               (let [this (js/Reflect.construct js/HTMLElement (to-array nil) ctor)]
+               (let [this (js/Reflect.construct htmlelement (to-array nil) ctor)]
                  (js/Object.defineProperty this app-property-name
                                            #js {:value nil
                                                 :writable true
@@ -453,6 +454,7 @@
 
     (js/Object.setPrototypeOf prototype super)
     (set! (.-prototype ctor) prototype)
+    (set! (.-constructor (.-prototype ctor)) ctor)
 
     ;; statics
     (js/Object.defineProperty ctor def-property-name
