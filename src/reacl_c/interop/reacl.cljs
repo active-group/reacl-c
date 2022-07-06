@@ -2,7 +2,6 @@
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.base :as base]
             [reacl-c.interop.react :as react]
-            [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl2.core :as r]
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]))
