@@ -10,7 +10,7 @@
   (:refer-clojure :exclude [get find]
                   :rename {get map-get}))
 
-;; Note: effects and subscriptions are execute by default.
+;; Note: effects and subscriptions are executed by default.
 
 ;; TODO: https://github.com/testing-library/user-event ?
 ;; TODO: getNodeText, getRoles, isInaccessible

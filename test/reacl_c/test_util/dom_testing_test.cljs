@@ -1,10 +1,8 @@
 (ns reacl-c.test-util.dom-testing-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
-            [reacl-c.base :as base]
             [reacl-c.test-util.dom-testing :as dom-t :include-macros true]
             [clojure.string :as string]
-            ["react-dom/test-utils" :as rt]
             [cljs-async.core :as a :refer (async await) :include-macros true]
             [cljs-async.test :refer (deftest) :include-macros true]
             [cljs.test :refer (is testing) :include-macros true]))
