@@ -13,11 +13,14 @@ An introduction to the main concepts can be found [here](doc/intro.md).
 
 The API documentation for the latest release are available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
 
-## Utilities
+## Related libraries
 
 For some auxiliary building blocks to build web applications, also
 take a look at the accompanying library
 [reacl-c-basics](https://github.com/active-group/reacl-c-basics).
+
+For writing advanced tests of items and applications, see
+[reacl-c-testing](https://github.com/active-group/reacl-c-testing).
 
 ## License
 
