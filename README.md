@@ -22,9 +22,14 @@ take a look at the accompanying library
 For writing advanced tests of items and applications, see
 [reacl-c-testing](https://github.com/active-group/reacl-c-testing).
 
+And for migration from [Reacl](https://github.com/active-group/reacl)
+or the general interop between Reacl-c and Reacl there is the
+[reacl-c-reacl](https://github.com/active-group/reacl-c-reacl)
+library.
+
 ## License
 
-Copyright © 2020 Active Group GmbH
+Copyright © 2020-2022 Active Group GmbH
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
