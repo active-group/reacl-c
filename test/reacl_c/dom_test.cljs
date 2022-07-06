@@ -1,9 +1,9 @@
 (ns reacl-c.dom-test
   (:require [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom :include-macros true]
-            [reacl-c.test-util.dom-testing :as dt]
             [reacl-c.test-util.core-testing :as ct]
-            [reacl-c.base :as base]
+            [reacl-c.main-browser-test :as bt]
+            ["react-dom/test-utils" :as react-tu]
             [schema.core :as s]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
@@ -34,23 +34,27 @@
   (testing "event handler binding"
     (dom/defn-dom defn-dom-test-2 [attrs]
       (c/local-state "foo"
-                     (c/fragment (dom/button {:onclick (:onClick attrs)
-                                              :data-testid "bar"})
-                                 (dom/button {:onClick (fn [st ev]
-                                                         (c/call (:onX attrs) 42))
-                                              :data-testid "baz"}))))
+                     (dom/div (dom/button {:onclick (:onClick attrs)
+                                           :class "bar"})
+                              (dom/button {:onClick (fn [st ev]
+                                                      (c/call (:onX attrs) 42))
+                                           :class "baz"}))))
     
-    (dt/rendering
-     (defn-dom-test-2 {:onClick (fn [st _] (inc st))
-                       :onX (fn [st v] (+ st v))})
-     :state 0
-     (fn [env]
-       (dt/fire-event (dt/get env (dt/by-testid "bar")) :click)
-       (is (= (dt/current-state env)
-              1))
-       (dt/fire-event (dt/get env (dt/by-testid "baz")) :click)
-       (is (= (dt/current-state env)
-              43)))))
+    (let [[item last-state]
+          (bt/capture-last-state-of (defn-dom-test-2 {:onClick (fn [st _] (inc st))
+                                                      :onX (fn [st v] (+ st v))}))
+          
+          n (bt/renders-as item 0)
+          get-btn (fn [s]
+                    (let [x (array-seq (.getElementsByClassName n s))]
+                      (is (not (empty? x)) s)
+                      (first x)))]
+      (is (some? n))
+      (react-tu/Simulate.click (get-btn "bar"))
+      (is (= 1 @last-state))
+
+      (react-tu/Simulate.click (get-btn "baz"))
+      (is (= 43 @last-state))))
 
   (testing "event handler binding in static"
     (dom/defn-dom defn-dom-test-3 :static [attrs]
@@ -58,15 +62,13 @@
                               (c/call (:onClick attrs) st))
                    :data-testid "bar"}))
     
-    (dt/rendering
-     (defn-dom-test-3 {:onClick (fn [st v] (conj st v))})
-     :state []
-     (fn [env]
-       (dt/fire-event (dt/get env (dt/by-testid "bar")) :click)
-       (is (not= (dt/current-state env)
-                 [[]]))
-       (is (= (dt/current-state env)
-              [nil])))))
+    (let [[item last-state]
+          (bt/capture-last-state-of (defn-dom-test-3 {:onClick (fn [st v] (conj st v))}))
+          n (bt/renders-as item [])]
+
+      (react-tu/Simulate.click n)
+      (is (not= [[]] @last-state))
+      (is (= [nil] @last-state))))
   )
 
 (deftest def-dom-test

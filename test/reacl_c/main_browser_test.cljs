@@ -47,6 +47,11 @@
                         c/empty))]
     [it last-state]))
 
+(defn capture-last-state-of [item & [initial]]
+  (let [[it at] (capture-last-state initial)]
+    [(c/fragment it item)
+     at]))
+
 (defn changes-state [item & [initial-state]]
   (let [[it at] (capture-last-state initial-state)
         n (renders-as (c/fragment
