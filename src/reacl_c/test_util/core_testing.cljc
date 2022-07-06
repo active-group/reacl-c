@@ -429,23 +429,10 @@
   (reduce-item make-dummy-ref
                (constantly dummy-async)
                (fn leaf [item state]
-                 (cond
-                   (or (string? item)
-                       (base/lifecycle? item)
-                       (base/fragment? item)
-                       (dom/element? item))
-                   nil
-
-                   :else (throw (unknown-item-error item))))
+                 nil)
                (fn container [c-res item state]
-                 (cond
-                   ;; containers don't pass messages; so we don't care.
-                   (or (nil? item)
-                       (base/fragment? item)
-                       (dom/element? item))
-                   nil
-
-                   :else (throw (unknown-item-error item))))
+                 ;; containers don't pass messages; so we don't care.
+                 nil)
                (fn wrapper [res item state]
                  (cond
                    (base/handle-message? item)
@@ -468,24 +455,11 @@
                    (base/handle-state-change? item)
                    (when res
                      (update res :post r-comp #(do-handle-state-change % item state)))
-                   
-                   (or (base/refer? item)
-                       (base/named? item)
-                       (base/handle-error? item)
-                       (base/keyed? item))
-                   res
-                   
-                   :else (throw (unknown-item-error item))))
-               (fn dynamic [res item state]
-                 (cond
-                   (or (base/dynamic? item)
-                       (base/with-refs? item)
-                       (base/with-async? item)
-                       (base/static? item))
-                   res
-                          
+
                    :else
-                   (throw (unknown-item-error item))))
+                   res))
+               (fn dynamic [res item state]
+                 res)
                (fn other [item state]
                  (throw (unknown-item-error item)))
                
