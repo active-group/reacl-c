@@ -1109,10 +1109,10 @@ Note that the state of the inner item (the `div` in this case), will
     ;; TODO: proper and helpful error messages:
     (assert (or (nil? docstring?) (string? docstring?)))
     (assert (vector? params))
-    `(def ~(vary-meta name #(merge {:arglists '(params)
+    `(def ~(vary-meta name #(merge {:arglists `'(~params)
                                     :doc docstring?} %))
-       (fn-item* ~name ~static? ~state-schema? ~params
-                 ~@body))))
+        (fn-item* ~name ~static? ~state-schema? ~params
+                  ~@body))))
 
 
 (defrecord ^{:private true :no-doc true} CallHandler [id f args])

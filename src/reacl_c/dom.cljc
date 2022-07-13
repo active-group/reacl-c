@@ -4,7 +4,8 @@
   function [[h]], a generic function that creates dom items."
   (:require [reacl-c.base :as base]
             [reacl-c.dom-base :as dom-base]
-            [reacl-c.core :as core]
+            #?(:clj [reacl-c.core :as core])
+            #?(:cljs [reacl-c.core :as core :include-macros true])
             [clojure.string :as str]
             [active.clojure.functions :as f]
             #?(:clj [reacl-c.impl.macros :as m]))
@@ -122,7 +123,7 @@
   attributes in your function body."
   [name params & body]
   (let [[name static? state-schema? docstring? params & body] (apply core/parse-defn-item-args name params body)]
-    `(def ~(vary-meta name #(merge {:arglists '(params)
+    `(def ~(vary-meta name #(merge {:arglists `'(~params ~(vec (rest params)))
                                     :doc docstring?} %))
        (fn-dom-wrapper (core/fn-item* ~name ~static? ~state-schema? ~params ~@body)))))
 
