@@ -1,4 +1,4 @@
-(defproject de.active-group/reacl-c "0.10.16"
+(defproject de.active-group/reacl-c "0.10.17"
   :description "Compositional and declarative user interface library for Clojure and Clojurescript."
   :url "http://github.com/active-group/reacl-c"
   
