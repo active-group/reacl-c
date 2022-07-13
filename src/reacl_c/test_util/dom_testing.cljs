@@ -419,7 +419,13 @@ Note that if `f` is asynchronous (returns a promise), then rendering will contin
                 text options))
 
 (defn by-test-id
-  "Query by the test-id attribute of a node. See
+  "Deprecated: Use [[by-testid]] instead."
+  [value & options]
+  (std-q-runner "ByTestId"
+                value options))
+
+(defn by-testid
+  "Query by the `:data-testid` attribute of a node. See
   https://testing-library.com/docs/dom-testing-library/api-queries#bytestid"
   [value & options]
   (std-q-runner "ByTestId"

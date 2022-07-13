@@ -632,14 +632,28 @@ be specified multiple times.
 
 (let [wr (fn [ref eff]
            (init (return :action (seq-effects eff (f/partial effect send-effect-result ref)))))]
-  (defn handle-effect-result ;; TODO: could have a shorter name (and flipped args).
+  (defn handle-effect-result
     "Runs the given effect once, feeding its result into `(f state
-  result)`, which must return a [[return]] value."
+  result)`, which must return a [[return]] value.
+
+  Deprecated: Use [[execute-effect]] instead."
     [f eff]
     {:pre [(base/effect? eff)
            (ifn? f)]}
     (with-message-target f
       wr eff)))
+
+(defn execute-effect
+  "Returns an item that executes the given effect once, optionally
+  feeding its result into `(f state result)`, which must return
+  a [[return]] value.
+  
+  Note that you can execute an effect also by using `(return :action
+  effect)`, if the result of the effect is irrelevant.
+  "
+  [eff & [f]]
+  (handle-effect-result (or f (f/constantly (return)))
+                        eff))
 
 (defrecord ^:no-doc SubscribedMessage [stop! sync-actions])
 
