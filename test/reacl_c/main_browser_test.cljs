@@ -238,6 +238,13 @@
       (react-tu/Simulate.click (.-firstChild n))
       (is (= [:capture :clickc :clickp] @res)))))
 
+(deftest defn-dom-test
+  (dom/defn-dom defn-dom-test-1 [attrs foo] (dom/div attrs "bar" foo))
+
+  (testing "rendering"
+    (let [n (renders-as (defn-dom-test-1 "baz"))]
+      (is (= "barbaz" (text n))))))
+
 (deftest fragment-test
   (is (passes-actions c/fragment))
   
