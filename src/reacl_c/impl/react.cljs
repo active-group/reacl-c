@@ -5,7 +5,7 @@
             [reacl-c.impl.utils :as utils]
             [reacl-c.impl.stores :as stores]
             [reacl-c.base :as base]
-            [reacl-c.core :as core]
+            [reacl-c.core :as core :include-macros true]
             [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.dom0 :as dom0]
             [clojure.string :as str]

@@ -1,7 +1,6 @@
 (ns reacl-c.main.react
   "Functions for using reacl-c within a React application or library."
   (:require [reacl-c.main :as main]
-            [reacl-c.core :as core]
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
             [reacl-c.impl.react :as impl]))

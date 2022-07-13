@@ -1,6 +1,7 @@
 (ns reacl-c.main
   "Functions for using reacl-c within a browser application."
-  (:require [reacl-c.core :as core]
+  (:require #?(:cljs [reacl-c.core :as core :include-macros true])
+            #?(:clj [reacl-c.core :as core])
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]

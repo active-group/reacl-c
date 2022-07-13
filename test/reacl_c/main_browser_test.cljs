@@ -1,7 +1,7 @@
 (ns reacl-c.main-browser-test
   (:require [reacl-c.main :as main]
-            [reacl-c.core :as c]
-            [reacl-c.dom :as dom]
+            [reacl-c.core :as c :include-macros true]
+            [reacl-c.dom :as dom :include-macros true]
             [clojure.string :as str]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
