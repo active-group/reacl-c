@@ -37,6 +37,8 @@
                      (dom/div (dom/button {:onclick (:onClick attrs)
                                            :class "bar"})
                               (dom/button {:onClick (fn [st ev]
+                                                      (assert (= (c/return :action (c/call-handler (:onX attrs) 42))
+                                                                 (c/call (:onX attrs) 42)))
                                                       (c/call (:onX attrs) 42))
                                            :class "baz"}))))
     

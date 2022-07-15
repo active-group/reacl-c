@@ -4,8 +4,10 @@
   function [[h]], a generic function that creates dom items."
   (:require [reacl-c.base :as base]
             [reacl-c.dom-base :as dom-base]
-            #?(:clj [reacl-c.core :as core])
-            #?(:cljs [reacl-c.core :as core :include-macros true])
+            #?(:clj [reacl-c.core :as core]
+               :cljs [reacl-c.core :as core :include-macros true])
+            #?(:clj [clojure.core :as clj]
+               :cljs [cljs.core :as clj])
             [clojure.string :as str]
             [active.clojure.functions :as f]
             #?(:clj [reacl-c.impl.macros :as m]))
@@ -98,8 +100,12 @@
             [attrs events] (split-events attrs)]
         ;; Note: not checking for nil events handlers here, to give the
         ;; user the chance to have a stable tree if needed (important
-        ;; for focus etc)
-        (if (empty? events)
+        ;; for focus etc), if he uses something like :onclick (when ok ...)
+        (if (or (empty? events)
+                ;; check if we actually need the extra classes (not
+                ;; sure if worth it - if we could inline
+                ;; local-state+handle-action into defn-item, then not)
+                (every? core/bound-handler? (clj/map second events)))
           (apply f attrs children)
           (core/with-bind (f/partial k f attrs events children)))))))
 
