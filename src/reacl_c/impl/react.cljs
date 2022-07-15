@@ -576,7 +576,7 @@
              (let [n (name k)]
                ;; TODO: drop this? switch to Camelcase - warn if lowercase?
                (when (str/starts-with? n "on")
-                 (let [res (keyword (apply str "on" (str/upper-case (str (first (drop 2 n)))) (drop 3 n)))]
+                 (let [res (keyword (str "on" (str/upper-case (subs n 2 3)) (subs n 3)))]
                    (when (not= res k)
                      res)))))))
 
