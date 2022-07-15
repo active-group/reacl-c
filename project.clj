@@ -10,7 +10,12 @@
                  [de.active-group/active-clojure "0.36.0"]
                  [org.clojure/test.check "0.10.0" :scope "provided"]
                  [prismatic/schema "1.1.12"]
-                 [de.active-group/cljs-async "2.0.0"]]
+                 [de.active-group/cljs-async "2.0.0"]
+                 ;; Note: the cljsjs dep is not actually needed when
+                 ;; using shadow-cljs, but this surprisingly helps
+                 ;; cljdoc not to fail for other libraries! Like
+                 ;; reacl-c-basics. Hope it does not hurt otherwise.
+                 [cljsjs/create-react-class "15.6.3-0" :exclusions [cljsjs/react]]]
 
   :plugins [[lein-codox "0.10.8"]
             [lein-auto "0.1.3"]
