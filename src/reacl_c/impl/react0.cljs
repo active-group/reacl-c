@@ -1,8 +1,10 @@
 (ns ^:no-doc reacl-c.impl.react0
   (:require ["create-react-class" :as createReactClass]
             ["react" :as react]
+            #_["react-dom/client" :as react-dom]
             ["react-dom" :as react-dom]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            goog.object))
 
 (defn create-ref []
   (react/createRef))
@@ -31,10 +33,17 @@
                                                 method-decls))
                                      (assoc "displayName" name)
                                      ))))
-      (set-statics! static-decls))))
+      (set-statics! (cons ["displayName" name] (cons ["name" name] static-decls))))))
 
 (defn render-component [comp dom]
-  (react-dom/render comp dom))
+  (do (react-dom/render comp dom)
+      dom)
+  #_(doto (react-dom/createRoot dom)
+    (.render comp)))
+
+(defn unmount-component! [handle]
+  (react-dom/unmountComponentAtNode handle)
+  #_(.unmount handle))
 
 (defn elem
   [class props]

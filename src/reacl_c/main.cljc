@@ -89,6 +89,11 @@
                        ;; Note: the item's state is fully local; so toplevel state will never change
                        (dissoc options :initial-state)))))
 
+(defn stop!
+  "Stops the given application (the value returned by [[run]]
+  or [[run-controlled]], removing all DOM nodes rendered by it."
+  [app]
+  (base/-stop! app))
 
 (defn send-message!
   "Sends a message to a running item, i.e. `app` must be the value

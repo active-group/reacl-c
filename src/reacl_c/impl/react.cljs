@@ -211,8 +211,10 @@
                          "key" key
                          "ref" (or ref (r0/create-ref))}))
 
-(defrecord ^:private ReactApplication [current-comp message-queue]
+(defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
+  (-stop! [this]
+    (r0/unmount-component! handle))
   (-send-message! [this msg callback]
     (if-let [comp @current-comp]
       (send-message! comp msg callback)
@@ -234,6 +236,8 @@
   ;; best solution, but for now we queue messages until a callback ref
   ;; is set (alternatively run would need a callback, which marks the
   ;; point in time when send-messages/setStates are possible)
+  ;; Damn it, when running an item from within the rendering of another react element (like using a web component),
+  ;; comp may actually return null - https://reactjs.org/docs/react-dom.html#render
   (let [message-queue (atom [])
         current-comp (atom nil)
         callback-ref (fn [current]
@@ -243,12 +247,9 @@
                          (doseq [[msg callback] msgs]
                            (send-message! current msg callback))))]
     ;; 
-    (when-let [comp (r0/render-component (react-run item state onchange onaction callback-ref nil)
-                                         dom)]
-      (reset! current-comp comp))
-    ;; Damn it, when running an item from within the rendering of another react element (like using a web component),
-    ;; comp may actually return null - https://reactjs.org/docs/react-dom.html#render
-    (ReactApplication. current-comp message-queue)))
+    (let [handle (r0/render-component (react-run item state onchange onaction callback-ref nil)
+                                      dom)]
+      (ReactApplication. handle current-comp message-queue))))
 
 (defrecord RRef [ref]
   base/Ref
