@@ -13,6 +13,8 @@ An introduction to the main concepts can be found [here](doc/intro.md).
 
 The API documentation for the latest release is available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
 
+For an example application take a look at the [Reacl-C TodoMVC](https://github.com/active-group/reacl-c-todomvc) implementation.
+
 ## Related libraries
 
 For some auxiliary building blocks to build web applications, also
