@@ -436,7 +436,11 @@
   (async done
          (let [n (renders-as (dom/div (c/dynamic str)
                                       (c/with-async (fn [invoke!]
-                                                      (js/window.setTimeout #(invoke! (fn [state] (c/return :state (conj state :done)))) 0)
+                                                      (js/window.setTimeout #(invoke! (fn [state]
+                                                                                        (if (empty? state)
+                                                                                          (c/return :state (conj state :done))
+                                                                                          (c/return))))
+                                                                            0)
                                                       c/empty)))
                              [])]
            (is (= "[]" (text (.-firstChild n))))
