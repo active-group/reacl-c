@@ -831,3 +831,15 @@
       ;; update with new state, but local-state+focus make f not being called again.
       (run-in host item 43)
       (is (= 1 @called)))))
+
+(deftest recursive-item-test
+  ;; a macro-related regression; wrong function was bound inside.
+  (c/defn-item recursive-item-test-1 [level]
+    (c/with-state-as st
+      (assert (some? level))
+      (dom/div (str level)
+               (when (> level 1)
+                 (recursive-item-test-1 (dec level))))))
+  
+  (let [n (renders-as (recursive-item-test-1 2))]
+    (is (= "21" (text n)))))
