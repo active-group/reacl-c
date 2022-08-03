@@ -1,6 +1,5 @@
 (ns ^:no-doc reacl-c.impl.dom0
-  (:require [clojure.string :as str]
-            #_["react-dom" :as react-dom]))
+  (:require [clojure.string :as str]))
 
 (defn capture-event? [k]
   (let [s (name k)]
