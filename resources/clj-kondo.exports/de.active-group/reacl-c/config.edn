@@ -1,0 +1,13 @@
+{:lint-as {reacl-c.core/def-item schema.core/def
+           reacl-c.core/defn-effect schema.core/defn
+           
+           reacl-c.core/ref-let clojure.core/let
+           reacl-c.test-util.core/provided clojure.core/let
+           reacl-c.impl.macros/defdom clojure.core/declare
+           reacl-c.dom/def-dom clojure.core/def ;; TODO: deserves some more detail
+           }
+ :hooks {:analyze-call {reacl-c.core/defn-item hooks.reacl-c/defn-item
+                        reacl-c.dom/defn-dom hooks.reacl-c/defn-dom
+                        reacl-c.core/with-state-as hooks.reacl-c/with-state-as
+                        reacl-c.core/defn-subscription hooks.reacl-c/defn-subscription
+                        }}}
