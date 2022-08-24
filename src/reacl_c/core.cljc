@@ -1109,10 +1109,10 @@ Note that the state of the inner item (the `div` in this case), will
     ;; TODO: proper and helpful error messages:
     (assert (or (nil? docstring?) (string? docstring?)))
     (assert (vector? params))
-    `(def ~(vary-meta name #(merge {:arglists '(params)
+    `(def ~(vary-meta name #(merge {:arglists `'(~params)
                                     :doc docstring?} %))
-       (fn-item* ~name ~static? ~state-schema? ~params
-                 ~@body))))
+        (fn-item* ~name ~static? ~state-schema? ~params
+                  ~@body))))
 
 
 (defrecord ^{:private true :no-doc true} CallHandler [id f args])
@@ -1126,11 +1126,17 @@ Note that the state of the inner item (the `div` in this case), will
                   (fn [_ uuid]
                     (return :state uuid))))
 
+(defn ^:no-doc bound-handler? [v]
+  (::bound (meta v)))
+
+(defn- bound-handler?! [v]
+  (vary-meta v assoc ::bound true))
+
 (let [bound (fn [id h inner-state & args]
               (return :action (CallHandler. id h args)))
       binder (fn [id h]
-               (when (some? h)
-                 (f/partial bound id h)))
+               (when (and (some? h) (not (bound-handler? h)))
+                 (bound-handler?! (f/partial bound id h))))
       handler (fn [id state a]
                 (if (and (instance? CallHandler a)
                          (= id (:id a)))
@@ -1155,14 +1161,30 @@ Note that the state of the inner item (the `div` in this case), will
     (local-state (base/make-initializer unique-id nil)
                  (dynamic dyn f))))
 
-(defn call
-  "Calls an event handler function `f`, which should be a function
+(defn call-handler
+  "Returns an action that calls an event handler function `f`, which
+  must be a function returned from calling the `bind` function of
+  a [[with-bind]] item."
+  [f & args]
+  (if (some? f)
+    (do (assert (bound-handler? f))
+        ;; extract CallHandler action from return value:
+        (let [ret (apply f nil args)]
+          (assert (base/returned? ret))
+          (let [actions (base/returned-actions ret)]
+            (assert (= 1 (count actions)))
+            (first actions))))
+    no-effect))
+
+(defn call ;; TODO: deprecate in favour of call-handler?
+  "Calls an event handler function `f`, which must be a function
   returned from calling the `bind` function of a [[with-bind]]
   item. Note that this returns a special [[return]] value, which you
   must return from another event handler, and which you can combine
   with local state changes via [[merge-returned]]."
   [f & args]
-  ;; f = result of (binder h) in with-bind above - TODO: assert that?
+  ;; f = result of (binder h) in with-bind above
   (if (some? f)
-    (apply f nil args)
+    (do (assert (bound-handler? f))
+        (apply f nil args))
     (return)))

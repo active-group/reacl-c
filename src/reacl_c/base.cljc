@@ -238,7 +238,7 @@
         (recur rm (rest rs))))))
 
 (defprotocol Application
-  (-component [this])
+  (-stop! [this])
   (-send-message! [this msg callback]))
 
 (r/define-record-type Effect

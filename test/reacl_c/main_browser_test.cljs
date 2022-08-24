@@ -1,7 +1,7 @@
 (ns reacl-c.main-browser-test
   (:require [reacl-c.main :as main]
-            [reacl-c.core :as c]
-            [reacl-c.dom :as dom]
+            [reacl-c.core :as c :include-macros true]
+            [reacl-c.dom :as dom :include-macros true]
             [clojure.string :as str]
             [reacl-c.test-util.core :as tu]
             [active.clojure.lens :as lens]
@@ -46,6 +46,11 @@
                         (reset! last-state st)
                         c/empty))]
     [it last-state]))
+
+(defn capture-last-state-of [item & [initial]]
+  (let [[it at] (capture-last-state initial)]
+    [(c/fragment it item)
+     at]))
 
 (defn changes-state [item & [initial-state]]
   (let [[it at] (capture-last-state initial-state)
@@ -232,6 +237,13 @@
                         [])]
       (react-tu/Simulate.click (.-firstChild n))
       (is (= [:capture :clickc :clickp] @res)))))
+
+(deftest defn-dom-test
+  (dom/defn-dom defn-dom-test-1 [attrs foo] (dom/div attrs "bar" foo))
+
+  (testing "rendering"
+    (let [n (renders-as (defn-dom-test-1 "baz"))]
+      (is (= "barbaz" (text n))))))
 
 (deftest fragment-test
   (is (passes-actions c/fragment))
@@ -424,7 +436,11 @@
   (async done
          (let [n (renders-as (dom/div (c/dynamic str)
                                       (c/with-async (fn [invoke!]
-                                                      (js/window.setTimeout #(invoke! (fn [state] (c/return :state (conj state :done)))) 0)
+                                                      (js/window.setTimeout #(invoke! (fn [state]
+                                                                                        (if (empty? state)
+                                                                                          (c/return :state (conj state :done))
+                                                                                          (c/return))))
+                                                                            0)
                                                       c/empty)))
                              [])]
            (is (= "[]" (text (.-firstChild n))))
@@ -815,3 +831,15 @@
       ;; update with new state, but local-state+focus make f not being called again.
       (run-in host item 43)
       (is (= 1 @called)))))
+
+(deftest recursive-item-test
+  ;; a macro-related regression; wrong function was bound inside.
+  (c/defn-item recursive-item-test-1 [level]
+    (c/with-state-as st
+      (assert (some? level))
+      (dom/div (str level)
+               (when (> level 1)
+                 (recursive-item-test-1 (dec level))))))
+  
+  (let [n (renders-as (recursive-item-test-1 2))]
+    (is (= "21" (text n)))))

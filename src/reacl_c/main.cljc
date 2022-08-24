@@ -1,6 +1,7 @@
 (ns reacl-c.main
   "Functions for using reacl-c within a browser application."
-  (:require [reacl-c.core :as core]
+  (:require #?(:cljs [reacl-c.core :as core :include-macros true])
+            #?(:clj [reacl-c.core :as core])
             [reacl-c.base :as base]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
@@ -88,6 +89,11 @@
                        ;; Note: the item's state is fully local; so toplevel state will never change
                        (dissoc options :initial-state)))))
 
+(defn stop!
+  "Stops the given application (the value returned by [[run]]
+  or [[run-controlled]], removing all DOM nodes rendered by it."
+  [app]
+  (base/-stop! app))
 
 (defn send-message!
   "Sends a message to a running item, i.e. `app` must be the value

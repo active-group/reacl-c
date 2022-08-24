@@ -11,17 +11,27 @@ programming paradigm of Clojure.
 
 An introduction to the main concepts can be found [here](doc/intro.md).
 
-The API documentation for the latest release are available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
+The API documentation for the latest release is available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
 
-## Utilities
+For an example application take a look at the [Reacl-C TodoMVC](https://github.com/active-group/reacl-c-todomvc) implementation.
+
+## Related libraries
 
 For some auxiliary building blocks to build web applications, also
 take a look at the accompanying library
 [reacl-c-basics](https://github.com/active-group/reacl-c-basics).
 
+For writing advanced tests of items and applications, see
+[reacl-c-testing](https://github.com/active-group/reacl-c-testing).
+
+And for migration from [Reacl](https://github.com/active-group/reacl)
+or the general interop between Reacl-c and Reacl there is the
+[reacl-c-reacl](https://github.com/active-group/reacl-c-reacl)
+library.
+
 ## License
 
-Copyright © 2020 Active Group GmbH
+Copyright © 2020-2022 Active Group GmbH
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

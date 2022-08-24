@@ -5,7 +5,6 @@
             [reacl-c.main :as main]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
-            [reacl-c.test-util.dom-testing :as dom-testing]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 (defn- rendering-async [wc-or-name f & [before-mount]]

@@ -1,6 +1,5 @@
 (ns reacl-c.core-test
   (:require [reacl-c.core :as c :include-macros true]
-            [reacl-c.test-util.core :as tuc]
             [active.clojure.lens :as lens]
             [active.clojure.functions :as f]
             [schema.core :as s :include-macros true]
