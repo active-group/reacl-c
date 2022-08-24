@@ -1,4 +1,4 @@
-# Reacl-c
+<img src="https://raw.githubusercontent.com/active-group/reacl/master/logo.png" width="180">
 
 This is a web programming library for ClojureScript, founding
 on Facebook's React. It's highly composable and embraces the functional
