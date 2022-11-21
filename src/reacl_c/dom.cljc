@@ -97,7 +97,7 @@
     ;; possible optimization: if all event handlers are already 'bound', we don't need with-bind.
     (fn [& args]
       (let [[attrs & children] (analyze-dom-args args)
-            [attrs events] (split-events attrs)]
+            [attrs-ne events] (split-events attrs)]
         ;; Note: not checking for nil events handlers here, to give the
         ;; user the chance to have a stable tree if needed (important
         ;; for focus etc), if he uses something like :onclick (when ok ...)
@@ -107,7 +107,7 @@
                 ;; local-state+handle-action into defn-item, then not)
                 (every? core/bound-handler? (clj/map second events)))
           (apply f attrs children)
-          (core/with-bind (f/partial k f attrs events children)))))))
+          (core/with-bind (f/partial k f attrs-ne events children)))))))
 
 (defmacro ^{:arglists '([name [attrs & children] & body])} defn-dom
   "Defines a function that works like the dom element functions in this
