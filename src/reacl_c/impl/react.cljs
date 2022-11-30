@@ -172,7 +172,7 @@
 
 (r0/defclass toplevel
   "getInitialState"
-  (fn [this]
+  (fn [^js this]
     (let-obj [{state "state" onchange "onchange"} (.-props this)]
       #js {"ref" (r0/create-ref)
            "this_store" (stores/make-delegate-store! state onchange)
@@ -190,7 +190,7 @@
       nil))
 
   "render"
-  (fn [this]
+  (fn [^js this]
     (let-obj [{state "state" item "item"} (.-props this)
               {store "this_store" target "action_target" ref "ref"} (.-state this)]
       (render item
@@ -199,7 +199,7 @@
               nil)))
   
   $handle-message
-  (fn [this msg]
+  (fn [^js this msg]
     (send-message-react-ref! (aget (.-state this) "ref") msg)))
 
 (defn react-run [item state onchange onaction ref key]
@@ -271,7 +271,7 @@
   (r0/class name
             "shouldComponentUpdate" (r0/update-on ["f" "c_ref" "binding" "args"])
 
-            "render" (fn [this]
+            "render" (fn [^js this]
                        (let-obj [{binding "binding" f "f" args "args" ref "c_ref"} (.-props this)]
                          (render (apply f (:state binding) args)
                                  binding ref nil)))))
@@ -300,7 +300,7 @@
             ref
             key)))
 
-(defn- make-new-state! [this init]
+(defn- make-new-state! [^js this init]
   (let [store (stores/make-resettable-store!
                init
                base/eval-local-state-init
@@ -317,12 +317,12 @@
         #js {"this_state" (stores/store-get store)}))))
 
 (r0/defclass local-state
-  "getInitialState" (fn [this]
+  "getInitialState" (fn [^js this]
                       (make-new-state! this (aget (.-props this) "initial")))
 
   "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "initial" "binding"] ["this_state"])
 
-  "render" (fn [this]
+  "render" (fn [^js this]
              (let-obj [{binding "binding" ref "c_ref" item "item"} (.-props this)
                        {this-state "this_state" this-store "this_store"} (.-state this)]
                (render item
@@ -367,7 +367,7 @@
         (reset! atom (f/partial h (event-handler-binding binding) f pred))
         nil))
     
-    "render" (fn [this]
+    "render" (fn [^js this]
                (let-obj [{binding "binding" item "item" ref "c_ref"} (.-props this)
                          {target "this_target"} (.-state this)]
                  (render item
@@ -397,7 +397,7 @@
               key))))
 
 (defn- lifecycle-f [name]
-  (fn [this]
+  (fn [^js this]
     (let-obj [{f name binding "binding"} (.-props this)]
       (when (some? f)
         (call-event-handler! binding f)))))
@@ -458,11 +458,11 @@
 (r0/defclass handle-message
   "shouldComponentUpdate" (r0/update-on ["item" "binding"])
 
-  "render" (fn [this]
+  "render" (fn [^js this]
              (let-obj [{item "item" binding "binding"} (.-props this)]
                (render item binding nil nil)))
   
-  $handle-message (fn [this msg]
+  $handle-message (fn [^js this msg]
                     (let-obj [{binding "binding" f "f"} (.-props this)]
                       (call-event-handler! binding f msg))))
 
@@ -489,7 +489,7 @@
             
             "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
 
-            "render" (fn [this]
+            "render" (fn [^js this]
                        (let-obj [{item "item" binding "binding" ref "c_ref"} (.-props this)]
                          (render item binding ref nil)))))
 
@@ -508,7 +508,7 @@
   (r0/class name
             "shouldComponentUpdate" (r0/update-on ["c_ref" "f" "args" "binding"])
 
-            "render" (fn [this]
+            "render" (fn [^js this]
                        (let-obj [{f "f" args "args" binding "binding" ref "c_ref"} (.-props this)]
                          (render (apply f args)
                                  binding ref nil)))))
@@ -607,9 +607,9 @@
          (contains? attrs :for) (rename-key! :for :htmlFor))))))
 
 
-(let [dom-events (fn [this]
+(let [dom-events (fn [^js this]
                    (aget (.-props this) "events"))
-      call! (fn [this f ev]
+      call! (fn [^js this f ev]
               (call-event-handler! (aget (.-props this) "binding") f ev))
       event-fns (fn [events handlers]
                   (let [[handler capture-handler] handlers]
@@ -641,20 +641,20 @@
                          $handle-message (message-deadend type)
 
                          "getInitialState"
-                         (fn [this]
+                         (fn [^js this]
                            #js {"a_ref" (RRef. (r0/create-ref))
                                 "event_handlers" (event-handlers (f/partial dom-events this)
                                                                  (f/partial call! this))})
 
                          "componentDidMount"
-                         (fn [this]
+                         (fn [^js this]
                            (let-obj [{d-ref "d_ref" events "events"} (.-props this)
                                      {a-ref "a_ref" event-handlers "event_handlers"} (.-state this)]
                              (let [elem (native-deref (or d-ref a-ref))]
                                (add-event-listeners elem (event-fns events event-handlers)))))
 
                          "componentDidUpdate"
-                         (fn [this prev-props prev-state]
+                         (fn [^js this prev-props prev-state]
                            (let-obj [{prev-ref "d_ref" prev-events "events"} prev-props
                                      {new-ref "d_ref" new-events "events"} (.-props this)
 
@@ -684,7 +684,7 @@
                          
                          "shouldComponentUpdate" (r0/update-on ["d_ref" "attrs" "contents" "events" "binding"])
 
-                         "render" (fn [this]
+                         "render" (fn [^js this]
                                     (let-obj [{binding "binding" attrs "attrs" children "contents" d-ref "d_ref"} (.-props this)
                                               {a-ref "a_ref"} (.-state this)]
                                       (native-dom type
@@ -699,13 +699,13 @@
                          $handle-message (message-deadend type)
                          
                          "getInitialState"
-                         (fn [this]
+                         (fn [^js this]
                            #js {"event_handlers" (event-handlers (f/partial dom-events this)
                                                                  (f/partial call! this))})
                          
                          "shouldComponentUpdate" (r0/update-on ["binding" "d_ref" "attrs" "contents" "events"])
 
-                         "render" (fn [this]
+                         "render" (fn [^js this]
                                     (let-obj [{binding "binding" attrs "attrs" children "contents" events "events" d-ref "d_ref"} (.-props this)
                                               {event-handlers "event_handlers"} (.-state this)]
                                       (native-dom type
@@ -753,7 +753,7 @@
 
   ;;"shouldComponentUpdate" (r0/update-on ["binding" "contents"]) ;; won't happen in prod either.
 
-  "render" (fn [this]
+  "render" (fn [^js this]
              (let-obj [{binding "binding" children "contents"} (.-props this)]
                (apply r0/fragment nil (map #(render-child % binding)
                                            children)))))
@@ -774,7 +774,7 @@
 (r0/defclass id
   "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "binding"])
 
-  "render" (fn [this]
+  "render" (fn [^js this]
              (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)]
                (render item binding c-ref nil))))
 
@@ -803,13 +803,13 @@
               binding ref key))))
 
 (r0/defclass refer
-  $handle-message (fn [this msg]
+  $handle-message (fn [^js this msg]
                     (let [^RRef ref (aget (.-props this) "c_ref")]
                       (send-message-react-ref! (:ref ref) msg)))
   
   "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
 
-  "render" (fn [this]
+  "render" (fn [^js this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
                (render item binding (:ref c-ref) nil))))
 
@@ -831,12 +831,12 @@
   "shouldComponentUpdate" (constantly false)
 
   "componentDidMount"
-  (fn [this]
+  (fn [^js this]
     (let [f (aget (.-props this) "f")]
       (f))))
 
 (let [no-error #js {"error" nil}
-      raise (fn [this error]
+      raise (fn [^js this error]
               (let-obj [{binding "binding" f "f"} (.-props this)]
                 (.setState this no-error)
                 (call-event-handler! binding f error)))]
@@ -851,7 +851,7 @@
   
     "shouldComponentUpdate" (r0/update-on ["binding" "c_ref" "item" "f"] ["error"])
 
-    "render" (fn [this]
+    "render" (fn [^js this]
                (let-obj [{item "item" binding "binding" c-ref "c_ref"} (.-props this)
                          {error "error"} (.-state this)]
                  (if (some? error)
