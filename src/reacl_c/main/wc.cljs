@@ -431,6 +431,10 @@
                 (wrap this (:attributes wc) (:item-f wc))
                 {:initial-state (:initial-state wc)}))))
 
+(defn- stop! [this]
+  ;; stop react actively; otherwise nodes can be laying around, with react kind of 'running in background' continuously.
+  (main/stop! (get-app this)))
+
 (def ^:private hot-update-enabled? goog/DEBUG)
 
 (defn- new-empty-wc []
@@ -477,12 +481,11 @@
                 (when user (call-handler-wc class this user))))))
     (aset "disconnectedCallback"
           (let [user (:disconnected wc)]
-            (if (or user hot-update-enabled?)
-              (fn []
-                (this-as ^js this
-                  (when hot-update-enabled? (update-instances! class disj this))
-                  (when user (call-handler-wc class this user))))
-              js/undefined)))
+            (fn []
+              (this-as ^js this
+                (stop! this)
+                (when hot-update-enabled? (update-instances! class disj this))
+                (when user (call-handler-wc class this user))))))
     (aset "adoptedCallback" (if-let [user (:adopted wc)]
                               (fn []
                                 (this-as this
