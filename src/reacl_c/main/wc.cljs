@@ -483,9 +483,11 @@
           (let [user (:disconnected wc)]
             (fn []
               (this-as ^js this
-                (stop! this)
                 (when hot-update-enabled? (update-instances! class disj this))
-                (when user (call-handler-wc class this user))))))
+                (try
+                  (when user (call-handler-wc class this user))
+                  (finally
+                    (stop! this)))))))
     (aset "adoptedCallback" (if-let [user (:adopted wc)]
                               (fn []
                                 (this-as this
