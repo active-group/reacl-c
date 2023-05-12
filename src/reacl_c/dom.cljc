@@ -20,6 +20,7 @@
   (dom-base/element? v))
 
 (defn dom-attributes? "Returns if v is a map, and not an item." [v]
+  ;; Note: nil is not an attribute map, but an item: nil=c/empty
   (and (map? v)
        (not (satisfies? base/E v))))
 
