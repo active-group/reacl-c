@@ -18,6 +18,14 @@
   (doseq [[k v] decls]
     (aset class k v)))
 
+(defn- set-static-class-name! [class name]
+  (aset class "displayName" name)
+  ;; Note: this is supposed to get better error messages from react;
+  ;; but under some circumstances (TypeScript or Angular 13) the name
+  ;; property becomes readonly (or it only then raises an error)
+  (when (.-writable (js/Object.getOwnPropertyDescriptor class "name"))
+    (aset class "name" name)))
+
 (defn make-class [name decls]
   (let [method-decls (remove static? decls)
         static-decls (map (fn [[[_ k] v]] [k v])
@@ -33,7 +41,8 @@
                                                 method-decls))
                                      (assoc "displayName" name)
                                      ))))
-      (set-statics! (cons ["displayName" name] (cons ["name" name] static-decls))))))
+      (set-static-class-name! name)
+      (set-statics! static-decls))))
 
 (defn render-component [comp dom]
   (do (react-dom/render comp dom)
