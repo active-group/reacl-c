@@ -83,11 +83,9 @@
   IStore
   (-get [_] (-get s))
   (-set [_ v]
-    (let [curr (-get s)]
-      (when (not= curr v)
-        (let [[v callback] (f curr v)]
-          (-set s v)
-          (when callback (callback)))))))
+    (let [[v callback] (f (-get s) v)]
+      (-set s v)
+      (when callback (callback)))))
 
 (defn intercept-store [s f]
   (InterceptStore. s f))
