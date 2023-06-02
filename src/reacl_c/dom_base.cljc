@@ -1,6 +1,7 @@
 (ns ^:no-doc reacl-c.dom-base
   ;; Internal namespace; don't depend on it.
   (:require [reacl-c.base :as base]
+            [clojure.string :as str]
             #?(:cljs [active.clojure.cljs.record :as r :include-macros true])
             #?(:clj [active.clojure.record :as r])))
 
@@ -20,3 +21,6 @@
                 ;; then it does not have to be dynamic.
                 (or (not (empty? events)) (some base/is-dynamic? children))))
 
+;; TODO: add marker records? like {(capture "onChange") ...}, {(passive "onClick") ...} or {(attribute "ontology") ...}
+(defn event-attribute? [n]
+  (str/starts-with? (name n) "on"))

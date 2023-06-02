@@ -14,7 +14,7 @@
   #?(:cljs (:require-macros [reacl-c.impl.macros :as m]))
   (:refer-clojure :exclude (meta map time use set symbol)))
 
-;; TODO: add some way to lift new primitives (with React getSnapshot.... and/or webcomponents)
+;; TODO: add a set-properties effect for custom elements.
 
 (defn element? "Returns if `v` is a dom element." [v]
   (dom-base/element? v))
@@ -32,18 +32,15 @@
         args
         (cons {} args)))))
 
-(defn- event? [k]
-  (str/starts-with? (name k) "on"))
-
 (let [none [{} {}]]
   (defn- split-events [attrs]
     ;; optimized on having no or few events; which is the usual case.
     (cond
-      (not (some event? (keys attrs))) [attrs {}]
+      (not (some dom-base/event-attribute? (keys attrs))) [attrs {}]
       :else
       (let [[attrs events]
             (reduce-kv (fn [[attrs events] k v]
-                         (if (event? k)
+                         (if (dom-base/event-attribute? k)
                            [(dissoc! attrs k) (assoc! events k v)]
                            [attrs events]))
                        [(transient attrs) (transient {})]

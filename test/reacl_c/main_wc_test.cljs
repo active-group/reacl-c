@@ -154,7 +154,8 @@
   (testing "attributes and events"
     (let [event-res (atom nil)
           wc (-> (fn [attrs]
-                   (c/init (c/return :action (wc/dispatch (wc/event "foo" {:detail (:x attrs)})))))
+                   ;; TODO: event name should be "fooBar"
+                   (c/init (c/return :action (wc/dispatch (wc/event "foobar" {:detail (:x attrs)})))))
                  (wc/attribute :x))]
       (async done
              (rendering-async
@@ -162,9 +163,9 @@
               (fn [e cleanup]
                 (main/run e
                   (wc/use wc {:x "42"
-                              :onFoo (fn [st ev]
-                                       (reset! event-res (.-detail ev))
-                                       st)}))
+                              :onFooBar (fn [st ev]
+                                          (reset! event-res (.-detail ev))
+                                          st)}))
                 (js/setTimeout (fn []
                                  (cleanup)
                                  (is (= "42" @event-res))

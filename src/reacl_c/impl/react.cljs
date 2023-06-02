@@ -8,6 +8,7 @@
             [reacl-c.core :as core :include-macros true]
             [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.dom0 :as dom0]
+            [reacl-c.impl.events :as events]
             [clojure.string :as str]
             [clojure.data :as data]
             [active.clojure.functions :as f]
@@ -533,44 +534,11 @@
                                  :ref (native-ref ref))
          (map #(render-child % binding) children)))
 
-(defn- react-handler-name [ev-type]
-  ;; Usually "click" -> "onClick", but unfortunately, there are some exceptions to it:
-  ;; TODO: hook up with https://github.com/facebook/react/blob/master/packages/react-dom/src/events/DOMEventProperties.js for all of them
-  ;; not exported though :-( (js/console.log react-dom/events.-DOMEventProperties.-topLevelEventsToReactNames)
-  (case ev-type
-    "dblclick" "ondoubleclick"
-    (str "on" ev-type)))
-
-(defn- find-event-handler [events capture? ev]
-  ;; OPT: could be done a little faster - try a lookup, or prepare a different map. But it can be 'onchange' and 'onChange'.
-  (when-not (.-type ev)
-    (js/console.error ev)
-    (throw (ex-info "Expected a JavaScript event object, with a property 'type'." {:value ev})))
-  (let [en (cond-> (react-handler-name (.-type ev))
-             capture? (str "capture"))]
-    (some (fn [[n f]]
-            (and (= en (str/lower-case (name n)))
-                 f))
-          events)))
-
-(defn- event-handler [current-events call-event-handler! capture?]
-  (fn [ev]
-    (let [f (find-event-handler (current-events) capture? ev)]
-      (call-event-handler! f ev))))
-
-(defn- event-handlers [current-events call-event-handler!]
-  [(event-handler current-events call-event-handler! false)
-   (event-handler current-events call-event-handler! true)])
-
 (defn- rename-key! [m key replacement]
   (assert (not= key replacement))
   (-> m
       (assoc! replacement (get m key))
       (dissoc! key)))
-
-(defn- custom-type? [node-type]
-  ;; Conforms to the HTML standard - custom element must have a '-' in their name.
-  (and (string? node-type) (str/includes? node-type "-")))
 
 (def ^:private react-event-handler-name
   (memoize (fn [k]
@@ -581,19 +549,14 @@
                    (when (not= res k)
                      res)))))))
 
-(defn- adjust-react-event-handler-names! [m m_]
-  (reduce-kv (fn [m k v]
-               (if-let [a (react-event-handler-name k)]
-                 (rename-key! m k a)
-                 m))
-             m
-             m_))
-
-(defn- react-dom-events [events]
-  (when (some? events)
-    (if (empty? events)
-      events
-      (persistent! (adjust-react-event-handler-names! (transient events) events)))))
+(defn- adjust-react-event-handler-names [m]
+  ;; TODO: drop this? switch to Camelcase - warn if lowercase?
+  (when m (persistent! (reduce-kv (fn [m k v]
+                                    (if-let [a (react-event-handler-name k)]
+                                      (rename-key! m k a)
+                                      m))
+                                  (transient m)
+                                  m))))
 
 (defn- react-dom-attrs [attrs]
   ;; Note: only needed for non-custom dom elements.
@@ -607,33 +570,17 @@
          (contains? attrs :for) (rename-key! :for :htmlFor))))))
 
 
-(let [dom-events (fn [^js this]
-                   (aget (.-props this) "events"))
-      call! (fn [^js this f ev]
-              (call-event-handler! (aget (.-props this) "binding") f ev))
-      event-fns (fn [events handlers]
-                  (let [[handler capture-handler] handlers]
-                    (into {}
-                          (map (fn [[k h]]
-                                 [k (when (some? h)
-                                      (if (dom0/capture-event? k) capture-handler handler))])
-                               events))))
-      event-name (memoize (fn [k]
-                            (let [s (name k)]
-                              ;; FIXME: doubleclick <-> dblclick? see react-handler-name  (for react dom only)
-                              (assert (str/starts-with? s "on"))
-                              (str/lower-case (subs s 2)))))
-
-      add-event-listeners (fn [elem events]
-                            (doseq [[k f] events]
-                              (.addEventListener elem (event-name k) f)))
-      remove-event-listeners (fn [elem events]
-                               (doseq [[k f] events]
-                                 (.removeEventListener elem (event-name k) f)))]
+(let [get-derived-state-from-props
+      (fn [props state]
+        (events/update-bound-event-handlers (aget props "events")
+                                            (f/partial call-event-handler! (aget props "binding"))
+                                            state))
+      should-component-update
+      (r0/update-on ["d_ref" "attrs" "events" "contents" "binding"])]
 
   ;; 'dom-class' uses React functinality; 'custom-dom-class' is even more native, and
   ;; required to use web component custom events in a 'standard' way.
-  ;; settings properties is not meaningful generally - /maybe/ for data properties (see Object.getOwnPropertyDescriptor)
+  ;; Note: attributes are not properties; settings properties is not meaningful generally - /maybe/ for data properties (see Object.getOwnPropertyDescriptor)
   
   (def custom-dom-class
     (memoize (fn [type]
@@ -642,47 +589,55 @@
 
                          "getInitialState"
                          (fn [^js this]
-                           #js {"a_ref" (RRef. (r0/create-ref))
-                                "event_handlers" (event-handlers (f/partial dom-events this)
-                                                                 (f/partial call! this))})
+                           (doto #js {"a_ref" (RRef. (r0/create-ref))}
+                             (events/init-state!)))
 
                          "componentDidMount"
                          (fn [^js this]
-                           (let-obj [{d-ref "d_ref" events "events"} (.-props this)
-                                     {a-ref "a_ref" event-handlers "event_handlers"} (.-state this)]
-                             (let [elem (native-deref (or d-ref a-ref))]
-                               (add-event-listeners elem (event-fns events event-handlers)))))
+                           (let-obj [{d-ref "d_ref"} (.-props this)
+                                     {a-ref "a_ref"} (.-state this)]
+                             (events/update-custom-event-listeners! (native-deref (or d-ref a-ref))
+                                                                    nil ;; no previous handlers
+                                                                    (events/get-bound-event-handlers (.-state this)))))
 
                          "componentDidUpdate"
                          (fn [^js this prev-props prev-state]
-                           (let-obj [{prev-ref "d_ref" prev-events "events"} prev-props
-                                     {new-ref "d_ref" new-events "events"} (.-props this)
+                           (let-obj [{prev-ref "d_ref"} prev-props
+                                     {new-ref "d_ref"} (.-props this)
 
-                                     {prev-a-ref "a_ref" prev-event-handlers "event_handlers"} prev-state
-                                     {new-a-ref "a_ref" new-event-handlers "event_handlers"} (.-state this)]
-                             (let [prev-elem (native-deref (or prev-ref prev-a-ref))
+                                     {prev-a-ref "a_ref"} prev-state
+
+                                     {new-a-ref "a_ref"} (.-state this)]
+                             (let [prev-handlers (events/get-bound-event-handlers prev-state)
+                                   new-handlers (events/get-bound-event-handlers (.-state this))
+                                     
+                                   prev-elem (native-deref (or prev-ref prev-a-ref))
                                    new-elem (native-deref (or new-ref new-a-ref))]
-                               (let [[to-remove to-add]
-                                     (let [prev-listeners (event-fns prev-events prev-event-handlers)
-                                           new-listeners (event-fns new-events new-event-handlers)]
-                                       (if (= prev-elem new-elem)
-                                         (let [[to-remove to-add _]
-                                               (data/diff prev-listeners new-listeners)]
-                                           [to-remove to-add])
-                                         [prev-listeners new-listeners]))]
-                                 (remove-event-listeners prev-elem to-remove)
-                                 (add-event-listeners new-elem to-add)))))
 
-                         ;; Note: I assume removing event listeners is not needed.
+                               (if (= prev-elem new-elem)
+                                 (events/update-custom-event-listeners! new-elem
+                                                                        prev-handlers
+                                                                        new-handlers)
+                                 (do
+                                   (events/update-custom-event-listeners! prev-elem
+                                                                          prev-handlers
+                                                                          nil ;; no new; remove all
+                                                                          )
+                                   (events/update-custom-event-listeners! new-elem
+                                                                          nil
+                                                                          new-handlers))))))
+
+                         ;; Note: I assume removing event listeners is not needed. (TODO: test if it is?)
                          ;; "componentWillUnmount"
                          ;; (fn [this]
                          ;;   (let [state (.-state this)
                          ;;         ref (aget (.-props this) "d_ref")
-                         ;;         events (aget (.-props this) "events")
                          ;;         elem (native-deref (or ref (aget state "a_ref")))]
-                         ;;     (remove-event-listeners elem (event-fns events (aget state "event_handlers")))))
+                         ;;     (events/update-custom-event-listeners! elem (events/get-bound-event-handlers state) nil)))
+
+                         [:static "getDerivedStateFromProps"] get-derived-state-from-props
                          
-                         "shouldComponentUpdate" (r0/update-on ["d_ref" "attrs" "contents" "events" "binding"])
+                         "shouldComponentUpdate" should-component-update
 
                          "render" (fn [^js this]
                                     (let-obj [{binding "binding" attrs "attrs" children "contents" d-ref "d_ref"} (.-props this)
@@ -700,20 +655,25 @@
                          
                          "getInitialState"
                          (fn [^js this]
-                           #js {"event_handlers" (event-handlers (f/partial dom-events this)
-                                                                 (f/partial call! this))})
-                         
-                         "shouldComponentUpdate" (r0/update-on ["binding" "d_ref" "attrs" "contents" "events"])
+                           (doto #js {}
+                             (events/init-state!)))
+
+                         "shouldComponentUpdate" should-component-update
 
                          "render" (fn [^js this]
-                                    (let-obj [{binding "binding" attrs "attrs" children "contents" events "events" d-ref "d_ref"} (.-props this)
-                                              {event-handlers "event_handlers"} (.-state this)]
+                                    (let-obj [{binding "binding" attrs "attrs" children "contents" d-ref "d_ref"} (.-props this)]
                                       (native-dom type
                                                   binding
                                                   (merge (react-dom-attrs attrs)
-                                                         (react-dom-events (event-fns events event-handlers)))
+                                                         (adjust-react-event-handler-names (events/get-bound-event-handlers (.-state this))))
                                                   d-ref
-                                                  children))))))))
+                                                  children)))
+
+                         [:static "getDerivedStateFromProps"]
+                         (fn [props state]
+                           (events/update-bound-event-handlers (aget props "events")
+                                                               (f/partial call-event-handler! (aget props "binding"))
+                                                               state)))))))
 
 (extend-type dom-base/Element
   IReact
@@ -723,7 +683,7 @@
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
-      (custom-type? type)
+      (dom0/custom-type? type)
       (r0/elem (custom-dom-class type) #js {"ref" c-ref
                                             "key" key
                                             "binding" binding
