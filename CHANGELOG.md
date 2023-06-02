@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.0]
+
+- Event handler names. Potentially breaking change:
+
+  DOM element event handler names must now be like React wants them,
+  i.e. camel-cased: `:onClick`. Other forms like `:onclick` won't
+  work anymore. React prints a warning when it doesn't match.
+  
+  Similarly, in custom elements (i.e. `main.wc/use` and via `dom/h`),
+  the event handler names must now match the event name, except for
+  the third letter, which must be uppercase and is transformed to
+  lowercase. So in order to handle `myEvent` you must use `:onMyEvent`.
+  An assertion is raised if the third letter is not uppercase.
+
 ## [0.11.0]
 
 ### Removed

@@ -540,24 +540,6 @@
       (assoc! replacement (get m key))
       (dissoc! key)))
 
-(def ^:private react-event-handler-name
-  (memoize (fn [k]
-             (let [n (name k)]
-               ;; TODO: drop this? switch to Camelcase - warn if lowercase?
-               (when (str/starts-with? n "on")
-                 (let [res (keyword (str "on" (str/upper-case (subs n 2 3)) (subs n 3)))]
-                   (when (not= res k)
-                     res)))))))
-
-(defn- adjust-react-event-handler-names [m]
-  ;; TODO: drop this? switch to Camelcase - warn if lowercase?
-  (when m (persistent! (reduce-kv (fn [m k v]
-                                    (if-let [a (react-event-handler-name k)]
-                                      (rename-key! m k a)
-                                      m))
-                                  (transient m)
-                                  m))))
-
 (defn- react-dom-attrs [attrs]
   ;; Note: only needed for non-custom dom elements.
   (when (some? attrs)
@@ -665,7 +647,7 @@
                                       (native-dom type
                                                   binding
                                                   (merge (react-dom-attrs attrs)
-                                                         (adjust-react-event-handler-names (events/get-bound-event-handlers (.-state this))))
+                                                         (events/get-bound-event-handlers (.-state this)))
                                                   d-ref
                                                   children)))
 

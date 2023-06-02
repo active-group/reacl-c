@@ -46,10 +46,17 @@
 
 (defn custom-event-name [n]
   ;; :onFooBar => "fooBar"
-  ;; TODO: we used to do all-lowercase here, but although event names should be all lowercase, they are case-sensitive and can be mixed.
+  ;; Note: this means "MyEvent" cannot be handled via attributes; workaround would be to use add/removeEventListener directly then.
   (let [s (name n)]
-    #_(str (str/lower-case (subs s 2 3)) (subs s 3))
-    (str/lower-case (subs s 2))))
+    (if (<= (count s) 2)
+      (do (assert (> (count s) 2))
+          ;; probably not an event name that can exist, though.
+          "")
+      (let [thrd (subs s 2 3)
+            rst (subs s 3)]
+        ;; Note: we could allow lowercase :onfoo, but in order to have some consistency with React, we enforce :onFoo
+        (assert (= thrd (str/upper-case thrd)) (str "Event attribute must have an uppercase third letter: " s))
+        (str (str/lower-case (subs s 2 3)) (subs s 3))))))
 
 (defn update-custom-event-listeners! [^js/Element elem prev-handlers new-handlers]
   ;; TODO: ...Capture events?

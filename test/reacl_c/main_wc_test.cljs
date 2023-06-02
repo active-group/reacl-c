@@ -154,8 +154,7 @@
   (testing "attributes and events"
     (let [event-res (atom nil)
           wc (-> (fn [attrs]
-                   ;; TODO: event name should be "fooBar"
-                   (c/init (c/return :action (wc/dispatch (wc/event "foobar" {:detail (:x attrs)})))))
+                   (c/init (c/return :action (wc/dispatch (wc/event "fooBar" {:detail (:x attrs)})))))
                  (wc/attribute :x))]
       (async done
              (rendering-async

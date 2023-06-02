@@ -34,7 +34,7 @@
   (testing "event handler binding"
     (dom/defn-dom defn-dom-test-2 [attrs]
       (c/local-state "foo"
-                     (dom/div (dom/button {:onclick (:onClick attrs)
+                     (dom/div (dom/button {:onClick (:onClick attrs)
                                            :class "bar"})
                               (dom/button {:onClick (fn [st ev]
                                                       (assert (= (c/return :action (c/call-handler (:onX attrs) 42))
