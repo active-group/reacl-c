@@ -843,3 +843,20 @@
   
   (let [n (renders-as (recursive-item-test-1 2))]
     (is (= "21" (text n)))))
+
+(deftest dynamic-non-dynamic-test
+  ;; regression for too hard/wrong optimization of 'removing' unused state.
+  (let [tested (atom false)]
+    (render (c/focus (fn
+                       ([x]
+                        ;; should either not be called, but if then with the correct state.
+                        (is (integer? x))
+                        x)
+                       ([x y]
+                        (is false "should be called")
+                        (is (integer? x))
+                        (is (integer? y))
+                        y))
+                     ;; even though nil doesn't use state itself, focus must still see the right thing (or not be called)
+                     nil)
+            42)))

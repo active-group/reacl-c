@@ -105,12 +105,12 @@
 (defprotocol ^:private IReact
   (-instantiate-react [this binding ref key] "Returns a React element"))
 
-(defn- static-binding [binding]
+(defn- void-binding [binding]
   (assoc binding
          :state nil
          :store stores/void-store))
 
-(defn- static-binding? [binding]
+(defn- void-binding? [binding]
   (= (:store binding) stores/void-store))
 
 ;; Note: strings, nil and fragments can't have refs. We don't really
@@ -139,10 +139,10 @@
     :else
     (do (if (or (not dev-mode?) (satisfies? IReact item))
           ;; Note: is-dynamic? can be a deep recursion, so try to avoid it.
-          ;; Note: with this, the bindin in Static is already a static binding.
-          (let [binding (if (and (not (static-binding? binding))
+          ;; Note: with this, the binding in Static is already a static binding.
+          (let [binding (if (and (not (void-binding? binding))
                                  (not (base/is-dynamic? item)))
-                          (static-binding binding)
+                          (void-binding binding)
                           binding)]
             (-instantiate-react item binding ref key))
           (if (base/item? item)
@@ -293,12 +293,19 @@
 (extend-type base/Focus
   IReact
   (-instantiate-react [{item :e lens :lens} binding ref key]
-    (render item
-            (assoc binding
-                   :state (lens/yank (:state binding) lens)
-                   :store (stores/focus-store (:store binding) lens))
-            ref
-            key)))
+    (if (void-binding? binding)
+      (do (assert (not (base/is-dynamic? item)))
+          ;; item isn't looking at the state, and it is already replaced by a void-store.
+          ;; So don't yank on it (lens might not work on nil)
+          (render item binding
+                  ref key))
+      
+      (render item
+              (assoc binding
+                     :state (lens/yank (:state binding) lens)
+                     :store (stores/focus-store (:store binding) lens))
+              ref
+              key))))
 
 (defn- make-new-state! [^js this init]
   (let [store (stores/make-resettable-store!
@@ -521,7 +528,7 @@
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (statical name-id) static)
-             #js {"binding" (if (static-binding? binding) binding (static-binding binding))
+             #js {"binding" (if (void-binding? binding) binding (void-binding binding))
                   "key" key
                   "c_ref" ref
                   "f" f
