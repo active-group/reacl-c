@@ -17,7 +17,7 @@
   state changes (`:set-state!`) are controlled by the corrensponding options.
 
   Toplevel actions and effects are passed to the optional
-  `:handler-action!` function. To have effects being executed
+  `:handle-action!` function. To have effects being executed
   implicitly, use [[reacl-c.main/execute-effects]]. Messages can be
   sent to the item via [[send-message!]]. A `:key` and a `:ref` can also
   be set in the options."
