@@ -92,7 +92,6 @@
                             events)
                  children))]
   (defn ^:no-doc fn-dom-wrapper [f]
-    ;; possible optimization: if all event handlers are already 'bound', we don't need with-bind.
     (fn [& args]
       (let [[attrs & children] (analyze-dom-args args)
             [attrs-ne events] (split-events attrs)]
