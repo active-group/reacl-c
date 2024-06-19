@@ -394,7 +394,18 @@
 
   (is (= :bar (changes-state (c/handle-action (c/init (c/return :action :bar))
                                               (fn [st a]
-                                                a))))))
+                                                a)))))
+
+  ;; state changes are processes before actions / action handlers see new state
+  (is (= [[:start-state :new-state] :other-action]
+         (changes-state (c/handle-action (c/local-state :foo
+                                                        (c/handle-action (c/init (c/return :state [:start-state :foo]
+                                                                                           :action :bar))
+                                                                         (fn [st a]
+                                                                           (c/return :state [[(first st) :new-state] (second st)]
+                                                                                     :action :other-action))))
+                                         (fn [st a]
+                                           (c/return :state [st a])))))))
 
 (deftest try-catch-test
   (is (passes-actions (fn [x] (c/try-catch x c/empty))))
