@@ -40,7 +40,6 @@
                                    (reset! connected? true)
                                    state))
                    (wc/disconnected (fn [state]
-                                      (println "disconnecting")
                                       (reset! connected? false)
                                       state)))
                (fn [e]
