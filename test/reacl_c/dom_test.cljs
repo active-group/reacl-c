@@ -39,7 +39,7 @@
                               (dom/button {:onClick (fn [st ev]
                                                       (assert (= (c/return :action (c/call-handler (:onX attrs) 42))
                                                                  (c/call (:onX attrs) 42)))
-                                                      (c/call (:onX attrs) 42))
+                                                      (c/return :action (c/call-handler (:onX attrs) 42)))
                                            :class "baz"}))))
     
     (let [[item last-state]
@@ -61,7 +61,7 @@
   (testing "event handler binding in static"
     (dom/defn-dom defn-dom-test-3 :static [attrs]
       (dom/button {:onClick (fn [st ev]
-                              (c/call (:onClick attrs) st))
+                              (c/return :action (c/call-handler (:onClick attrs) st)))
                    :data-testid "bar"}))
     
     (let [[item last-state]
@@ -71,7 +71,22 @@
       (react-tu/Simulate.click n)
       (is (not= [[]] @last-state))
       (is (= [nil] @last-state))))
-  )
+
+  (testing "event handler binding over two steps"
+    (dom/defn-dom defn-dom-test-4 [attrs]
+      (c/with-state-as [_ foo :local :foo]
+        (dom/button attrs #_{:onClick (fn [st ev]
+                                        (c/return :action (c/call-handler (:onClick attrs) ev)))})))
+    (dom/defn-dom defn-dom-test-5 [attrs]
+      (c/with-state-as [_ bar :local :bar]
+        (defn-dom-test-4 attrs)))
+    
+    (let [[item last-state]
+          (bt/capture-last-state-of (defn-dom-test-5 {:onClick (fn [st v] (conj st :done))}))
+          n (bt/renders-as item [])]
+
+      (react-tu/Simulate.click n)
+      (is (= [:done] @last-state)))))
 
 (deftest def-dom-test
   (dom/def-dom foo dom/div)
