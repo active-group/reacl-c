@@ -98,6 +98,7 @@
   (let [store (:store binding)
         [new-state callback] (apply call-event-handler*! (:action-target binding)
                                     handler (stores/store-get store) args)]
+    ;; store state first, then process actions and messages.
     (stores/store-set! store new-state)
     (when callback (callback))))
 

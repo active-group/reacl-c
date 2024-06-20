@@ -488,7 +488,7 @@ be specified multiple times.
   evaluted for side effects. Note that this is only called when the
   item changes its state 'by itself', not if the state was changed
   somewhere upwards in the item tree an is only passed down to the
-  resulting item." ;; TODO: change 'side effect' to an effect?
+  returned item."
     [item f & args]
     {:pre [(base/item? item)
            (ifn? f)]}
@@ -1151,7 +1151,7 @@ Note that the state of the inner item (the `div` in this case), will
   should return an item then. The `bind` function can then be used, to
   bind an event handler function to operate on the state of the
   returned item, even if it is used on a dom element with a different
-  state, or it can also be triggered directly via [[call]] from a
+  state, or it can also be triggered directly via [[call-handler]] from a
   handler function with a different state.
 
   Note: [[reacl-c.dom/defn-dom]] does this binding automatically, so
