@@ -86,7 +86,24 @@
           n (bt/renders-as item [])]
 
       (react-tu/Simulate.click n)
-      (is (= [:done] @last-state)))))
+      (is (= [:done] @last-state))))
+
+  (testing "bound event handler sees state change"
+    (dom/defn-dom defn-dom-test-6 [attrs]
+      (c/local-state :local
+                     (dom/button {:onClick (fn [st ev]
+                                             (c/return :state [(conj (first st) :new-state) :new-local]
+                                                       :action (c/call-handler (:onClick attrs) ev)))})))
+
+    (dom/defn-dom defn-dom-test-7 [attrs]
+      (defn-dom-test-6 attrs))
+
+    (let [[item last-state]
+          (bt/capture-last-state-of (defn-dom-test-7 {:onClick (fn [st v] (conj st :done))}))
+          n (bt/renders-as item [])]
+
+      (react-tu/Simulate.click n)
+      (is (= [:new-state :done] @last-state)))))
 
 (deftest def-dom-test
   (dom/def-dom foo dom/div)
