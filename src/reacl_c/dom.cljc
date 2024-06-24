@@ -250,6 +250,7 @@
 (m/defdom del)
 (m/defdom details)
 (m/defdom dfn)
+(m/defdom dialog)
 (m/defdom div)
 (m/defdom dl)
 (m/defdom dt)
