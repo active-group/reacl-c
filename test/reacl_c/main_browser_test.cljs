@@ -871,3 +871,14 @@
                      ;; even though nil doesn't use state itself, focus must still see the right thing (or not be called)
                      nil)
             42)))
+
+(deftest recursion-test
+  ;; regression for 'recursive items', where fns and arities got mixed up.
+  (c/defn-item recursion-test-1 [a y]
+    (c/with-state-as x
+      (dom/div (when (> a 0)
+                 (recursion-test-1 (dec a) x)))))
+  (render (recursion-test-1 5 nil))
+  (is true) ;; ok if it does not throw
+  )
+
