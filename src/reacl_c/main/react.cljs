@@ -23,6 +23,9 @@
   be set in the options."
   [item & [options]]
   (assert (base/item? item) item)
+  ;; Note: when processing a state change and an action, it is assumed
+  ;; that the value passed to set-state! will eventually be the one
+  ;; passed down as 'state'.
   (let [{state :state
          set-state! :set-state!
          handle-action! :handle-action!

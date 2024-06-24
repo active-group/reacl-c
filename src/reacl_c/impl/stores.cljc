@@ -19,7 +19,9 @@
     ;; Note: this means only persistent datastructures possible.
     (when (not= v (.-state this))
       ;; nil=callback - TODO: use?
-      ((.-set-state! this) v nil))))
+      ((.-set-state! this) v nil)
+      ;; Note: until 'reset-delegate-store!' is called; this must take over the state change.
+      (set! (.-state this) v))))
 
 (defn make-delegate-store! [state set-state!]
   (DelegateStore. state set-state!))

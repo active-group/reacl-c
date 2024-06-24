@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [0.12.0]
 
+- `reacl-c.main.react/embed` now assumes that state changes (if allowed)
+  take effect eventually. Previously toplevel action handlers didn't
+  see the new state, if state was changes and action emitted
+  simultanously. This might break some usages that relied on the
+  previous behaviour.
+
 - Event handler names. Potentially breaking change:
 
   DOM element event handler names must now be like React wants them,
