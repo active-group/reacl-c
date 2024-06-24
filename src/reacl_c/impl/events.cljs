@@ -12,12 +12,31 @@
   (aset state "bound_handlers" {})
   (aset state "previous_events" nil))
 
+(defn map-diff [a b]
+  ;; going from a -> b, what is removed, added and unchanged?
+  (let [[removed unchanged] (reduce-kv (fn [res k v]
+                                         (if (= v (get b k ::not-found))
+                                           (assoc-in res [1 k] v) ;; unchanged
+                                           (assoc-in res [0 k] v) ;; removed
+                                           ))
+                                       [{} {}]
+                                       a)
+        added (if (= (count unchanged) (count b))
+                {}
+                (reduce-kv (fn [res k v]
+                             (if (= v (get a k ::not-found))
+                               res
+                               (assoc res k v)))
+                           {}
+                           b))]
+    [removed added unchanged]))
+
 (defn update-bound-event-handlers
   "Returns an update to state, or nil."
   [events call-handler! state]
   (let [events (into {} (remove (comp nil? second) events)) ;; nil is like non existant (OPT: don't create new map for that?)
-        [removed new unchanged] (data/diff (aget state "previous_events")
-                                           events)]
+        [removed new unchanged] (map-diff (aget state "previous_events")
+                                          events)]
     (if (or (not-empty new)
             (not-empty removed))
       ;; Note: keep bound fn as stable as possible
@@ -62,7 +81,7 @@
   ;; TODO: ...Capture events?
   
   ;; Note: handlers must be Fns - i.e. bound
-  (let [[removed new unchanged] (data/diff prev-handlers new-handlers)]
+  (let [[removed new unchanged] (map-diff prev-handlers new-handlers)]
     (doseq [[name handler] removed]
       (.removeEventListener elem (custom-event-name name) handler))
     (doseq [[name handler] new]
