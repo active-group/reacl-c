@@ -4,15 +4,14 @@
             [reacl-c.main-browser-test :as btest]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
-            ["react" :as react]
-            ["react-dom" :as react-dom]
+            [reacl-c.impl.react0 :as r0]
             ["react-dom/test-utils" :as react-tu]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 (deftest embed-test
   (let [e (main/embed (dom/div "Hello World"))
         host (js/document.createElement "div")]
-    (react-dom/render e host)
+    (r0/render-component e host)
     (let [n (first (array-seq (.-childNodes host)))]
       (is (= (.-nodeName n) "DIV"))
       (is (= "Hello World" (.-textContent n))))))
@@ -24,7 +23,7 @@
                                                          (c/dynamic (fn [st]
                                                                       (dom/div st))))))
         host (js/document.createElement "div")]
-    (react-dom/render e host)
+    (r0/render-component e host)
     (main/send-message! e "bar")
     (let [n (first (array-seq (.-childNodes host)))]
       (is (= (.-nodeName n) "DIV"))
@@ -40,7 +39,7 @@
                          :set-state! (fn [st]
                                        (reset! state st))})
           host (js/document.createElement "div")]
-      (react-dom/render e host)
+      (r0/render-component e host)
       (let [btn (first (array-seq (.-childNodes host)))]
         (react-tu/Simulate.click btn)
         (is (= [:click] @state)))))
@@ -59,7 +58,7 @@
                          :set-state! (fn [st]
                                        (reset! state st))})
           host (js/document.createElement "div")]
-      (react-dom/render e host)
+      (r0/render-component e host)
       (let [btn (first (array-seq (.-childNodes host)))]
         (react-tu/Simulate.click btn)
         (is (= [:click :action] @state))))))

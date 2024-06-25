@@ -13,10 +13,13 @@
 ;; catching and testing for error doesn't work properly in karma/compiled mode of shadow
 (def karma? (not= (aget js/window "__karma__") js/undefined))
 
+(defn main-run [dom item & [options]]
+  (main/run dom item options))
+
 (deftest app-send-message-test
   (let [e (js/document.createElement "div")
         received (atom nil)
-        app (main/run e
+        app (main-run e
               (c/handle-message (fn [state msg]
                                   (reset! received msg)
                                   (c/return))
@@ -25,7 +28,7 @@
     (is (= ::hello @received))))
 
 (defn run-in [host item & [state handle-action!]]
-  (main/run host item {:initial-state state
+  (main-run host item {:initial-state state
                        :handle-action! handle-action!}))
 
 (defn render [item & [state handle-action!]]
@@ -138,10 +141,10 @@
 
 (deftest run-test
   (let [host (js/document.createElement "div")]
-    (main/run host (c/dynamic str) {:initial-state "foo"})
+    (main-run host (c/dynamic str) {:initial-state "foo"})
     (is (= "foo" (text (.-firstChild host))))
 
-    (main/run host (c/dynamic str) {:initial-state "bar"})
+    (main-run host (c/dynamic str) {:initial-state "bar"})
     (is (= "bar" (text (.-firstChild host))))))
 
 (deftest effect-test
@@ -166,7 +169,7 @@
       (is @executed)))
 
   (testing "effects returning actions"
-    ;; Note: these cannot be handled by handle-action, but by the handle-action! option of main/run
+    ;; Note: these cannot be handled by handle-action, but by the handle-action! option of main-run
     (let [received (atom nil)
           eff (c/effect (fn []
                           (c/return :action :foo)))
@@ -592,7 +595,7 @@
                                  (dom/div {:onClick (fn [state ev]
                                                       (conj state :new-local-1))}))))
         host (js/document.createElement "div")
-        cc (main/run host c1 {:initial-state []})]
+        cc (main-run host c1 {:initial-state []})]
     
     (let [inner-div (.-firstChild (.-firstChild host))]
       (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))
