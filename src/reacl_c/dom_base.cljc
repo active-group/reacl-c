@@ -23,4 +23,6 @@
 
 ;; TODO: add marker records? like {(capture "onChange") ...}, {(passive "onClick") ...} or {(attribute "ontology") ...}
 (defn event-attribute? [n]
+  ;; Note: should also match on :onfoo - even though we discourage it for React dom and custom elements,
+  ;; we should pass them through unchanged for special pseudo-events via defn-dom.
   (str/starts-with? (name n) "on"))

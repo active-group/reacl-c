@@ -1135,8 +1135,11 @@ Note that the state of the inner item (the `div` in this case), will
 (let [bound (fn [id h inner-state & args]
               (return :action (CallHandler. id h args)))
       binder (fn [id h]
-               (when (and (some? h) (not (bound-handler? h)))
-                 (bound-handler?! (f/partial bound id h))))
+               (if (and (some? h) (not (bound-handler? h)))
+                 (bound-handler?! (f/partial bound id h))
+                 ;; TODO: why nil otherwise? and not 'h'?
+                 nil #_h
+                 ))
       handler (fn [id state a]
                 (if (and (instance? CallHandler a)
                          (= id (:id a)))
