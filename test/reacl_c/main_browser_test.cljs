@@ -7,7 +7,6 @@
             [active.clojure.lens :as lens]
             [schema.core :as s :include-macros true]
             [active.clojure.functions :as f]
-            ["react-dom/test-utils" :as react-tu]
             [reacl-c.dom-testing :as dt]
             [cljs-async.core :as async :include-macros true]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
@@ -114,7 +113,7 @@
             (reset! ret f)
             (let [n (first (array-seq (.getElementsByClassName host class)))]
               (assert (some? n) "injector item not found")
-              (react-tu/Simulate.click n))
+              (dt/fire-event n :click))
             (reset! ret nil))]))
 
 (defn throws-like? [thunk message]
@@ -232,7 +231,7 @@
       (fn [n]
         (is (= "0" (text (.-firstChild n))))
 
-        (react-tu/Simulate.click n)
+        (dt/fire-event n :click)
         (is (= "1" (text (.-firstChild n))))))))
 
   (testing "dom capture events"
@@ -251,7 +250,7 @@
        :state []
        (check-node
         (fn [n]
-          (react-tu/Simulate.click (.-firstChild n))
+          (dt/fire-event (.-firstChild n) :click)
           (is (= [:capture :clickc :clickp] @res))))))))
 
 (deftest defn-dom-test
@@ -672,7 +671,8 @@
      :state []
      (fn [env]
        (let [inner-div (.-firstChild (.-firstChild (dt/container env)))]
-         (react-tu/Simulate.click inner-div (js/Event. "click" #js {:bubbles true :cancelable true})))
+         (dt/fire-event inner-div :click
+                        {:bubbles true :cancelable true}))
 
        (is (= [:new-local-1 :new-local-2] @last-c1-local))))))
 
@@ -896,7 +896,7 @@
     (fn [n]
       (is (= "0" (text n)))
 
-      (react-tu/Simulate.click n)
+      (dt/fire-event n :click)
       (is (= "1" (text n)))))))
 
 (deftest finish-state-test
@@ -916,8 +916,8 @@
      (check-node
       (fn [n]
         (is (= "true" (text n)))
-    
-        (react-tu/Simulate.click n)
+
+        (dt/fire-event n :click)
         (is (= "false" (text n)))
         (is (= [false "foo"] @finished)))))))
 

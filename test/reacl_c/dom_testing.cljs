@@ -1,6 +1,7 @@
 (ns reacl-c.dom-testing
   "Reduced and simplified version of reacl-c.test-util.dom-testing"
   (:require [reacl-c.main :as main]
+            ["react-dom/test-utils" :as react-tu]
             [cljs-async.core :as async :include-macros true]))
 
 (defrecord ^:private Env [app node])
@@ -27,3 +28,10 @@
   "Sends a message to the item running in the given rendering environment."
   [env msg]
   (main/send-message! (app env) msg))
+
+(defn fire-event
+  [node event & [event-properties]]
+  (assert (= :click event) "only clicks for now")
+  (if event-properties
+    (react-tu/Simulate.click node (js/Event. "click" (clj->js event-properties)))
+    (react-tu/Simulate.click node)))

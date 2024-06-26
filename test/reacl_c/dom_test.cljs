@@ -4,7 +4,6 @@
             [reacl-c.test-util.core-testing :as ct]
             [reacl-c.main-browser-test :as bt]
             [reacl-c.dom-testing :as dt]
-            ["react-dom/test-utils" :as react-tu]
             [schema.core :as s]
             [cljs.test :refer (is deftest testing) :include-macros true]))
 
@@ -56,10 +55,10 @@
                            (assert (not (empty? x)) s)
                            (first x)))]
            (is (some? n))
-           (react-tu/Simulate.click (get-btn "bar"))
+           (dt/fire-event (get-btn "bar") :click)
            (is (= 1 @last-state))
 
-           (react-tu/Simulate.click (get-btn "baz"))
+           (dt/fire-event (get-btn "baz") :click)
            (is (= 43 @last-state)))))))
 
   (testing "event handler binding in static"
@@ -74,7 +73,7 @@
        item
        :state []
        (fn [env]
-         (react-tu/Simulate.click (.-firstChild (dt/container env)))
+         (dt/fire-event (.-firstChild (dt/container env)) :click)
          (is (not= [[]] @last-state))
          (is (= [nil] @last-state))))))
 
@@ -93,7 +92,7 @@
        item
        :state []
        (fn [env]
-         (react-tu/Simulate.click (.-firstChild (dt/container env)))
+         (dt/fire-event (.-firstChild (dt/container env)) :click)
          (is (= [:done] @last-state))))))
 
   (testing "bound event handler sees state change"
@@ -112,7 +111,7 @@
        item
        :state []
        (fn [env]
-         (react-tu/Simulate.click (.-firstChild (dt/container env)))
+         (dt/fire-event (.-firstChild (dt/container env)) :click)
          (is (= [:new-state :done] @last-state))))))
   )
 

@@ -4,7 +4,7 @@
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
             [reacl-c.impl.react0 :as r0]
-            ["react-dom/test-utils" :as react-tu]
+            [reacl-c.dom-testing :as dt]
             [cljs.test :refer (is deftest testing async) :include-macros true]))
 
 (deftest embed-test
@@ -40,7 +40,7 @@
           host (js/document.createElement "div")]
       (r0/render-component e host)
       (let [btn (first (array-seq (.-childNodes host)))]
-        (react-tu/Simulate.click btn)
+        (dt/fire-event btn :click)
         (is (= [:click] @state)))))
 
   (testing "action handlers see simultanous state changes"
@@ -59,5 +59,5 @@
           host (js/document.createElement "div")]
       (r0/render-component e host)
       (let [btn (first (array-seq (.-childNodes host)))]
-        (react-tu/Simulate.click btn)
+        (dt/fire-event btn :click)
         (is (= [:click :action] @state))))))
