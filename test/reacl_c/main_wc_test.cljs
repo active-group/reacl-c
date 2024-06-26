@@ -1,7 +1,6 @@
 (ns reacl-c.main-wc-test
   "Test interop with Web Components"
   (:require [reacl-c.main.wc :as wc]
-            [reacl-c.main-browser-test :as btest]
             [reacl-c.main :as main]
             [reacl-c.core :as c]
             [reacl-c.dom :as dom]
