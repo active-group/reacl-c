@@ -1,14 +1,12 @@
-name: Tests
-
+name: ci
 on: [push]
 
 jobs:
-  build:
-
+  test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
+    - uses: ./.github/actions/install-leiningen
     - name: Install dependencies
       run: |
         lein deps
@@ -18,5 +16,17 @@ jobs:
         lein build-test
         npx karma start --single-run
     - name: Run Clojure tests
-      run: |
-        lein test
+      run: lein test
+
+  notify-test-failures:
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: failure() && github.ref == 'refs/heads/main'
+    steps:
+      - env:
+          SECRET: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
+          CHANNEL: "reacl"
+          USERNAME: "GitHub"
+        run: |
+          URL=https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}
+          curl -i --data-urlencode "payload={\"channel\":\"${CHANNEL}\", \"username\":\"${USERNAME}\",\"text\":\"CI failure: ${URL}\"}" ${SECRET}
