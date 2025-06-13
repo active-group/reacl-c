@@ -31,7 +31,7 @@ library.
 
 ## License
 
-Copyright © 2020-2022 Active Group GmbH
+Copyright © 2020-2025 Active Group GmbH
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
