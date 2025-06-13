@@ -172,11 +172,23 @@
     (when dev-mode?
       (throw (ex-info (str "Can't send a message to a " elem " item: " (pr-str msg) ".") {:item-type elem :message msg})))))
 
+(defrecord RRef [ref]
+  base/Ref
+  (-deref-ref [_] (r0/current-ref ref)))
+
+(defn native-ref "Get the native react ref from a Ref" [v]
+  (when (some? v)
+    (do (assert (instance? RRef v) v)
+        (:ref v))))
+
+(defn native-deref "Deref a Ref to the native element." [v]
+  (base/-deref-ref v))
+
 (r0/defclass toplevel
   "getInitialState"
   (fn [^js this]
     (let-obj [{state "state" onchange "onchange"} (.-props this)]
-      #js {"ref" (r0/create-ref)
+      #js {"s_ref" (RRef. (r0/create-ref))
            "this_store" (stores/make-delegate-store! state onchange)
            "action_target" (atom nil)}))
 
@@ -194,7 +206,7 @@
   "render"
   (fn [^js this]
     (let-obj [{state "state" item "item"} (.-props this)
-              {store "this_store" target "action_target" ref "ref"} (.-state this)]
+              {store "this_store" target "action_target" ref "s_ref"} (.-state this)]
       (render item
               (Binding. state store target)
               ref
@@ -202,16 +214,16 @@
   
   $handle-message
   (fn [^js this msg]
-    (send-message-react-ref! (aget (.-state this) "ref") msg)))
+    (send-message-react-ref! (native-ref (aget (.-state this) "s_ref")) msg)))
 
-(defn react-run [item state onchange onaction ref key]
+(defn react-run [item state onchange onaction native-ref key]
   ;; Note: must have a ref for react-send-message to work.
   (r0/elem toplevel #js {"state" state
                          "item" item
                          "onchange" onchange
                          "onaction" onaction
                          "key" key
-                         "ref" (or ref (r0/create-ref))}))
+                         "ref" (or native-ref (r0/create-ref))}))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
@@ -252,20 +264,6 @@
     (let [handle (r0/render-component (react-run item state onchange onaction callback-ref nil)
                                       dom)]
       (ReactApplication. handle current-comp message-queue))))
-
-(defrecord RRef [ref]
-  base/Ref
-  (-deref-ref [_] (r0/current-ref ref)))
-
-(defn native-ref [v]
-  (if (instance? RRef v)
-    (:ref v)
-    v))
-
-(defn native-deref [v]
-  (if (satisfies? base/Ref v)
-    (base/-deref-ref v)
-    (r0/current-ref v)))
 
 ;; items
 
@@ -444,12 +442,12 @@
   IReact
   (-instantiate-react [{init :init finish :finish} binding ref key]
     (if (some? finish)
-      (r0/elem lifecycle #js {"ref" ref
+      (r0/elem lifecycle #js {"ref" (native-ref ref)
                               "key" key
                               "binding" binding
                               "init" init
                               "finish" finish})
-      (r0/elem lifecycle-h #js {"ref" ref
+      (r0/elem lifecycle-h #js {"ref" (native-ref ref)
                                 "key" key
                                 "binding" binding
                                 "init" init}))))
@@ -478,7 +476,7 @@
 (extend-type base/HandleMessage
   IReact
   (-instantiate-react [{e :e f :f} binding ref key]
-    (r0/elem handle-message #js {"ref" ref
+    (r0/elem handle-message #js {"ref" (native-ref ref)
                                  "key" key
                                  "binding" binding
                                  "item" e
@@ -537,7 +535,6 @@
                   "args" args})))
 
 (defn- native-dom [type binding attrs ref children]
-  ;; Note: because we sometimes set a ref directly in the dom attributes (see c/refer), the ref may still be a RRef object here - not very clean :-/
   (apply r0/dom-elem type (assoc attrs
                                  :ref (native-ref ref))
          (map #(render-child % binding) children)))
@@ -674,7 +671,7 @@
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       (dom0/custom-type? type)
-      (r0/elem (custom-dom-class type) #js {"ref" c-ref
+      (r0/elem (custom-dom-class type) #js {"ref" (native-ref c-ref)
                                             "key" key
                                             "binding" binding
                                             "attrs" attrs
@@ -684,7 +681,7 @@
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
-      (r0/elem (dom-class type) #js {"ref" c-ref
+      (r0/elem (dom-class type) #js {"ref" (native-ref c-ref)
                                      "key" key
                                      "binding" binding
                                      "attrs" attrs
@@ -713,7 +710,7 @@
   (-instantiate-react [{children :children} binding ref key]
     ;; Note: React fragments can't have a ref. We don't really need them, except to make better error messages - do that only in dev-mode:
     (if (and dev-mode? (some? ref))
-      (r0/elem fragment #js {"ref" ref
+      (r0/elem fragment #js {"ref" (native-ref ref)
                              "key" key
                              "binding" binding
                              "contents" children})
@@ -755,13 +752,13 @@
 (r0/defclass refer
   $handle-message (fn [^js this msg]
                     (let [^RRef ref (aget (.-props this) "c_ref")]
-                      (send-message-react-ref! (:ref ref) msg)))
+                      (send-message-react-ref! (native-ref ref) msg)))
   
   "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
 
   "render" (fn [^js this]
              (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
-               (render item binding (:ref c-ref) nil))))
+               (render item binding c-ref nil))))
 
 (extend-type base/Refer
   IReact
@@ -769,11 +766,11 @@
     (if (some? ref2)
       ;; Note: this'll usually mean a (refer (refer ...)) was created. (is there a way to compose refs instead?)
       (r0/elem refer #js {"key" key
-                          "ref" ref2
+                          "ref" (native-ref ref2)
                           "binding" binding
                           "item" e
                           "c_ref" ref})
-      (render e binding (:ref ref) key))))
+      (render e binding ref key))))
 
 (r0/defclass ^:private on-mount
   "render" (fn [this] (r0/fragment nil))
