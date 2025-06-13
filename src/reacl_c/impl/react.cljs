@@ -576,6 +576,8 @@
 
                          "getInitialState"
                          (fn [^js this]
+                           ;; Note: a_ref is a stable fallback ref, in case the user doesn't set
+                           ;; one (because we always need one for the events here)
                            (doto #js {"a_ref" (RRef. (r0/create-ref))}
                              (events/init-state!)))
 
@@ -664,9 +666,9 @@
 
 (extend-type dom-base/Element
   IReact
-  (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref key]
-    ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
-    ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
+  (-instantiate-react [{type :type attrs :attrs events :events attr-ref :ref children :children} binding c-ref key]
+    ;; Note: attrs-ref, ie `(:ref attrs)` should always deref to the dom element (passed as d_ref prop to the wrapper classes)
+    ;; c-ref (passed down from `refer` items) should refer to the class (an invalid message target though)... (we could change that, as it is futile anyway)
 
     ;; Note: both :key in attrs, and (keyed) should always key the class (outermost element)
     (cond
@@ -678,7 +680,7 @@
                                             "binding" binding
                                             "attrs" (dissoc attrs :key)
                                             "contents" children
-                                            "d_ref" ref
+                                            "d_ref" attr-ref
                                             "events" events})
 
       (or (not (empty? events))
@@ -688,7 +690,7 @@
                                      "binding" binding
                                      "attrs" (dissoc attrs :key)
                                      "contents" children
-                                     "d_ref" ref
+                                     "d_ref" attr-ref
                                      "events" events})
 
       ;; no events: no extra wrapper class 
@@ -696,7 +698,7 @@
                         ;; (keyed) overrides :key
                         (cond-> (react-dom-attrs attrs)
                           (some? key) (assoc :key key))
-                        ref children))))
+                        attr-ref children))))
 
 (r0/defclass fragment
   $handle-message (message-deadend "fragment")
