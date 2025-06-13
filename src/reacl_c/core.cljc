@@ -497,7 +497,7 @@ be specified multiple times.
 ;; Note: low-level feature which is a bit dangerous to use (no check
 ;; if item is mounted); prefer subscriptions.
 (defn ^:no-doc with-async
-  "Returns an item that evaluates `(f g & args) which must return an
+  "Returns an item that evaluates `(f g & args)` which must return an
   item. `g` is a function that can then be called from an asynchronous
   context (i.e. not during the call to `f`), with a handler function
   like `(g (fn [state] (return ...)))`, where `state` will be the
