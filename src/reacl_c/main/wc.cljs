@@ -425,9 +425,12 @@
   (let [wc (get-def ctor)]
     (assert (some? (:item-f wc)) wc)
     (set-app! this
-              (main/run (if-let [init (:shadow-init wc)]
-                          (attach-shadow-root this init)
-                          this)
+              (main/run (let [dom (if-let [init (:shadow-init wc)]
+                                    (attach-shadow-root this init)
+                                    this)]
+                          ;; TODO: this assumes the dom node won't change, which it might do esp. with shadow-dom
+                          (or (get-app this)
+                              dom))
                 (wrap this (:attributes wc) (:item-f wc))
                 {:initial-state (:initial-state wc)}))))
 

@@ -12,7 +12,7 @@
   (let [host (js/document.createElement "div")]
     ;; especially for event, adding it to the document can be necessary.
     (.appendChild js/document.body host)
-    (r0/render-component react-elem host)
+    (dt/flush-sync! #(r0/render-component react-elem host))
     (try
       (f host)
       (finally
@@ -35,7 +35,7 @@
     (react-rendering
      e
      (fn [host]
-       (main/send-message! e "bar")
+       (r0/flush-sync! #(main/send-message! e "bar"))
        (let [n (first (array-seq (.-childNodes host)))]
          (is (= (.-nodeName n) "DIV"))
          (is (= "bar" (.-textContent n))))))))

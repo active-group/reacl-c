@@ -390,7 +390,7 @@
                                                                 x)
                                               (c/refer ref))))))
      (fn [env]
-       (dt/send-message! env :msg)
+       (dt/flush-sync! #(dt/send-message! env :msg))
        (is (= :msg @at))))))
 
 (deftest ref-let-test
@@ -409,10 +409,10 @@
                      (c/return :message [it-2 msg])))
                  (c/fragment x it-1 it-2)))
      (fn [env]
-       (dt/send-message! env 1)
+       (dt/flush-sync! #(dt/send-message! env 1))
        (is (= [:it-1 1] @at))
 
-       (dt/send-message! env 2)
+       (dt/flush-sync! #(dt/send-message! env 2))
        (is (= [:it-2 2] @at))))))
 
 (deftest with-ref-test
@@ -496,10 +496,14 @@
          (dt/rendering
           (dom/div (c/dynamic str)
                    (c/with-async (fn [invoke!]
-                                   (js/window.setTimeout #(invoke! (fn [state]
-                                                                     (if (empty? state)
-                                                                       (c/return :state (conj state :done))
-                                                                       (c/return))))
+                                   (js/window.setTimeout (fn []
+                                                           ;; needs to be sync to see it 1ms later
+                                                           (dt/flush-sync!
+                                                            (fn []
+                                                              (invoke! (fn [state]
+                                                                         (if (empty? state)
+                                                                           (c/return :state (conj state :done))
+                                                                           (c/return)))))))
                                                          0)
                                    c/empty)))
           :state []
@@ -698,7 +702,8 @@
          :state []
          (fn [env]
            (is (= [:sync] @last-state))
-           (@subscribed :async) ;; @subscribed = deliver! fn.
+           ;; Note: because 'capture-last-state' captures the last rendering state only, we need to sync here:
+           (dt/flush-sync! #(@subscribed :async)) ;; @subscribed = deliver! fn.
            (is (= [:sync :async] @last-state))))))
 
     (testing "unsub on unmount"

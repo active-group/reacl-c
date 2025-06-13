@@ -1,10 +1,11 @@
 (ns ^:no-doc reacl-c.impl.react0
   (:require ["create-react-class" :as createReactClass]
             ["react" :as react]
-            #_["react-dom/client" :as react-dom]
-            ["react-dom" :as react-dom]
+            ["react-dom/client" :as react-dom-client]
             [clojure.string :as str]
             goog.object))
+
+(def ^:private react-17 false)
 
 (defn create-ref []
   (react/createRef))
@@ -45,14 +46,23 @@
       (set-statics! static-decls))))
 
 (defn render-component [comp dom]
-  (do (react-dom/render comp dom)
-      dom)
-  #_(doto (react-dom/createRoot dom)
-    (.render comp)))
+  (let [root (react-dom-client/createRoot dom)]
+    (.render root comp)
+    root))
+
+(defn rerender-component! [comp handle]
+  ;; handle is react/root
+  (let [root handle]
+    (.render root comp)))
 
 (defn unmount-component! [handle]
-  (react-dom/unmountComponentAtNode handle)
-  #_(.unmount handle))
+  (.unmount handle))
+
+(defn flush-sync! [thunk]
+  (react-dom/flushSync (or thunk (fn [] nil))))
+
+(defn transition! [thunk]
+  (react/startTransition thunk))
 
 (defn elem
   [class props]

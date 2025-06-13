@@ -60,6 +60,7 @@
   action (including effects); if not specified, and the item does emit
   an action, an error is thrown."
      [dom item & [options]]
+     ;; TODO: document 'dom or app'
      (assert (every? #{:state :set-state! :handle-action!} (keys options)))
      (let [{state :state set-state! :set-state! handle-action! :handle-action!} options]
        (impl/run dom
@@ -80,6 +81,7 @@
   action (excluding effects); if not specified, and the item does emit
   an action, an error is thrown."
      [dom item & [options]]
+     ;; TODO: document 'dom or app'
      (assert (every? #{:handle-action! :initial-state} (keys options)))
      (let [{initial-state :initial-state} options]
        (run-controlled dom
@@ -88,6 +90,14 @@
                            (execute-effects))
                        ;; Note: the item's state is fully local; so toplevel state will never change
                        (dissoc options :initial-state)))))
+
+(defn flush-sync! "Calls thunk and returns its result, and flushes changes to states
+  causing a synchronous rerendering." [thunk]
+  (impl/flush-sync! thunk))
+
+(defn transition! "Calls thunk and returns its result, and changes to states
+  made during this call are handled with lower priority." [thunk]
+  (impl/transition! thunk))
 
 (defn stop!
   "Stops the given application (the value returned by [[run]]
