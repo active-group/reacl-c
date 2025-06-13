@@ -3,10 +3,8 @@
   (:require [reacl-c.base :as base]
             [clojure.set :as set]
             [schema.core :as s]
-            #?(:clj [schema.macros :as sm])
             [active.clojure.lens :as lens]
-            [active.clojure.functions :as f]
-            [cljs.analyzer :as ana])
+            [active.clojure.functions :as f])
   
   (:refer-clojure :exclude [deref empty refer]))
 
