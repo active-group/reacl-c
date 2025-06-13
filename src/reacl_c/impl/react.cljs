@@ -667,14 +667,16 @@
   (-instantiate-react [{type :type attrs :attrs events :events ref :ref children :children} binding c-ref key]
     ;; Note: ref is for refering to the dom element itself (to access the native node); c-ref is for message passing.
     ;; As one cannot send messages to dom elements, the only purpose is to make a better error messages; do that only in dev-mode:
+
+    ;; Note: both :key in attrs, and (keyed) should always key the class (outermost element)
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       (dom0/custom-type? type)
       (r0/elem (custom-dom-class type) #js {"ref" (native-ref c-ref)
-                                            "key" key
+                                            "key" (or key (:key attrs))
                                             "binding" binding
-                                            "attrs" attrs
+                                            "attrs" (dissoc attrs :key)
                                             "contents" children
                                             "d_ref" ref
                                             "events" events})
@@ -682,15 +684,16 @@
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
       (r0/elem (dom-class type) #js {"ref" (native-ref c-ref)
-                                     "key" key
+                                     "key" (or key (:key attrs))
                                      "binding" binding
-                                     "attrs" attrs
+                                     "attrs" (dissoc attrs :key)
                                      "contents" children
                                      "d_ref" ref
                                      "events" events})
 
       ;; no events: no extra wrapper class 
       :else (native-dom type binding
+                        ;; (keyed) overrides :key
                         (cond-> (react-dom-attrs attrs)
                           (some? key) (assoc :key key))
                         ref children))))
@@ -829,7 +832,7 @@
   IReact
   (-instantiate-react [{class :class props :props} binding ref key]
     ;; FIXME: ref + a ref in props? How does that relate?
-    ;; Note: key overrides a key in props (corresponds to (keyed (lift) x))
+    ;; Note: (keyed) overrides key in props
     (react/createElement class (if (some? key)
-                                 (aset props "key" key)
+                                 (js/Object.assign #js {} props #js {"key" key})
                                  props))))

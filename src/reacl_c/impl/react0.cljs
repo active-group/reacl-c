@@ -56,6 +56,7 @@
 
 (defn elem
   [class props]
+  ;; Note: props must always be a fresh object, if it has a key=nil property at least.
   (when (and (= nil (aget props "key")) (goog.object/containsKey props "key"))
     (goog.object/remove props "key"))
   (react/createElement class props))
