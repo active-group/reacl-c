@@ -5,13 +5,13 @@ on Facebook's React. It's highly composable and embraces the functional
 programming paradigm of Clojure.
 
 [![Latest Version](https://img.shields.io/clojars/v/de.active-group/reacl-c.svg)](https://clojars.org/de.active-group/reacl-c)
-[![Tests Status](https://github.com/active-group/reacl-c/workflows/Tests/badge.svg)](https://github.com/active-group/reacl-c/actions)
+[![Tests Status](https://github.com/active-group/reacl-c/workflows/ci/badge.svg)](https://github.com/active-group/reacl-c/actions)
 
 ## Documentation
 
 An introduction to the main concepts can be found [here](doc/intro.md).
 
-The API documentation for the latest release is available [here](https://cljdoc.xyz/d/de.active-group/reacl-c/CURRENT).
+The API documentation for the latest release is available [here](https://cljdoc.org/d/de.active-group/reacl-c/CURRENT).
 
 For an example application take a look at the [Reacl-C TodoMVC](https://github.com/active-group/reacl-c-todomvc) implementation.
 
@@ -31,7 +31,7 @@ library.
 
 ## License
 
-Copyright © 2020-2022 Active Group GmbH
+Copyright © 2020-2025 Active Group GmbH
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.

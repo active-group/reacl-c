@@ -3,10 +3,8 @@
   (:require [reacl-c.base :as base]
             [clojure.set :as set]
             [schema.core :as s]
-            #?(:clj [schema.macros :as sm])
             [active.clojure.lens :as lens]
-            [active.clojure.functions :as f]
-            [cljs.analyzer :as ana])
+            [active.clojure.functions :as f])
   
   (:refer-clojure :exclude [deref empty refer]))
 
@@ -110,8 +108,6 @@
   element backing an item at runtime for example. See [[with-ref]] for
   a description of references."
   [ref]
-  ;; TODO: needs more to access to actually access the native dom; move this to 'main namespace'?
-  ;; TODO: move to dom.cljs? Should at least be clear that it makes only sense for dom elements.
   (base/-deref-ref ref))
 
 (defn dynamic
@@ -403,6 +399,7 @@ be specified multiple times.
   item."
   [item key]
   {:pre [(base/item? item)]}
+  ;; Note: overrides an existing key of item (e.g. set using the :key attribute)
   (base/make-keyed item key))
 
 (defn lifecycle
@@ -497,7 +494,7 @@ be specified multiple times.
 ;; Note: low-level feature which is a bit dangerous to use (no check
 ;; if item is mounted); prefer subscriptions.
 (defn ^:no-doc with-async
-  "Returns an item that evaluates `(f g & args) which must return an
+  "Returns an item that evaluates `(f g & args)` which must return an
   item. `g` is a function that can then be called from an asynchronous
   context (i.e. not during the call to `f`), with a handler function
   like `(g (fn [state] (return ...)))`, where `state` will be the

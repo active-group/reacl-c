@@ -66,6 +66,7 @@
 
 (defn elem
   [class props]
+  ;; Note: props must always be a fresh object, if it has a key=nil property at least.
   (when (and (= nil (aget props "key")) (goog.object/containsKey props "key"))
     (goog.object/remove props "key"))
   (react/createElement class props))
@@ -98,3 +99,18 @@
 
 (defn fragment [key & children]
   (apply react/createElement react/Fragment (if (some? key) #js {"key" key} #js {}) children))
+
+(defn assign-ref! [r value]
+  (if (fn? r)
+    (r value)
+    (set! (.-current r) value)))
+
+(defn merge-refs [r0 r1]
+  ;; Note: starting with react 19, function refs may return a cleanup fn, which has to be called then.
+  (if r1
+    (if r0
+      (fn [value]
+        (assign-ref! r0 value)
+        (assign-ref! r1 value))
+      r1)
+    r0))
