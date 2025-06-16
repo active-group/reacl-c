@@ -436,6 +436,7 @@
   "componentWillUnmount" (lifecycle-f "finish"))
 
 (r0/defclass lifecycle-h
+  ;; 'optimized' version of lifecycle without finish.
   "render" (fn [this] nil)
 
   $handle-message (message-deadend "lifecycle")
@@ -708,28 +709,14 @@
                           (some? key) (assoc :key key))
                         attr-ref children))))
 
-(r0/defclass fragment
-  $handle-message (message-deadend "fragment")
-
-  ;;"shouldComponentUpdate" (r0/update-on ["binding" "contents"]) ;; won't happen in prod either.
-
-  "render" (fn [^js this]
-             (let-obj [{binding "binding" children "contents"} (.-props this)]
-               (apply r0/fragment nil (map #(render-child % binding)
-                                           children)))))
-
 (extend-type base/Fragment
   IReact
   (-instantiate-react [{children :children} binding ref key]
-    ;; Note: React fragments can't have a ref. We don't really need them, except to make better error messages - do that only in dev-mode:
-    (if (and dev-mode? (some? ref))
-      (r0/elem fragment #js {"ref" (native-ref ref)
-                             "key" key
-                             "binding" binding
-                             "contents" children})
-      ;; render directly into a react fragment - no class needed:
-      (apply r0/fragment key (map #(render-child % binding)
-                                  children)))))
+    ;; Note: React fragments can't have a ref. We don't really need them; if ref!=nil here, we could issue a warning, but not more.
+    
+    ;; render directly into a react fragment - no class needed:
+    (apply r0/fragment key (map #(render-child % binding)
+                                children))))
 
 (r0/defclass id
   "shouldComponentUpdate" (r0/update-on ["c_ref" "item" "binding"])
@@ -762,30 +749,13 @@
                                      (c n))
               binding ref key))))
 
-(r0/defclass refer
-  $handle-message (fn [^js this msg]
-                    (let [^RRef ref (aget (.-props this) "c_ref")]
-                      (send-message-react-ref! (native-ref ref) msg)))
-  
-  "shouldComponentUpdate" (r0/update-on ["item" "c_ref" "binding"])
-
-  "render" (fn [^js this]
-             (let-obj [{binding "binding" item "item" ^RRef c-ref "c_ref"} (.-props this)]
-               (render item binding c-ref nil))))
-
 (extend-type base/Refer
   IReact
   (-instantiate-react [{e :e ref :ref} binding ref2 key]
-    (if (some? ref2)
-      ;; Note: this'll usually mean a (refer (refer ...)) was created. (is there a way to compose refs instead?)
-      (r0/elem refer #js {"key" key
-                          "ref" (native-ref ref2)
-                          "binding" binding
-                          "item" e
-                          "c_ref" ref})
-      (render e binding ref key))))
+    ;; Note: ref is this one; ref2 is one from further outside; i.e. (refer (refer ...))
+    (render e binding (merge-refs ref2 ref) key)))
 
-(r0/defclass ^:private on-mount
+(r0/defclass ^:private on-mount ;; handle-error helper class.
   "render" (fn [this] (r0/fragment nil))
   
   "shouldComponentUpdate" (constantly false)
