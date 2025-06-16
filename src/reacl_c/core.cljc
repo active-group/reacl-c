@@ -108,8 +108,6 @@
   element backing an item at runtime for example. See [[with-ref]] for
   a description of references."
   [ref]
-  ;; TODO: needs more to access to actually access the native dom; move this to 'main namespace'?
-  ;; TODO: move to dom.cljs? Should at least be clear that it makes only sense for dom elements.
   (base/-deref-ref ref))
 
 (defn dynamic
@@ -401,6 +399,7 @@ be specified multiple times.
   item."
   [item key]
   {:pre [(base/item? item)]}
+  ;; Note: overrides an existing key of item (e.g. set using the :key attribute)
   (base/make-keyed item key))
 
 (defn lifecycle

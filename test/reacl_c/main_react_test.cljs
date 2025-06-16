@@ -97,11 +97,7 @@
                  (is (test (c/deref @the-ref)))))))]
     (testing "as a dom attrs"
       (f #(dom/div {:ref %}) #(instance? js/Node %)))
-    ;; TODO
-    #_(testing "as a refer item to dom"
+    (testing "as a refer item to dom"
       (f #(c/refer (dom/div) %) #(instance? js/Node %)))
-    #_(testing "as a refer item to component"
-      (f #(c/refer (interop/lift TestRefClass #js{}) %) #(rinstance? TestRefClass %))
-      )
-    )
-  )
+    (testing "as a refer item to component"
+      (f #(c/refer (interop/lift TestRefClass #js{}) %) #(rinstance? TestRefClass %)))))

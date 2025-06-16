@@ -184,6 +184,13 @@
 (defn native-deref "Deref a Ref to the native element." [v]
   (base/-deref-ref v))
 
+(defn- merge-refs [r1 r2]
+  (if (some? r1)
+    (if (some? r2)
+      (RRef. (r0/merge-refs (:ref r1) (:ref r2)))
+      r1)
+    r2))
+
 (r0/defclass toplevel
   "getInitialState"
   (fn [^js this]
@@ -667,30 +674,31 @@
 (extend-type dom-base/Element
   IReact
   (-instantiate-react [{type :type attrs :attrs events :events attr-ref :ref children :children} binding c-ref key]
-    ;; Note: attrs-ref, ie `(:ref attrs)` should always deref to the dom element (passed as d_ref prop to the wrapper classes)
-    ;; c-ref (passed down from `refer` items) should refer to the class (an invalid message target though)... (we could change that, as it is futile anyway)
+    ;; Note: attrs-ref, ie `(:ref attrs)` should always deref to the
+    ;; dom element (passed as d_ref prop to the wrapper classes) We
+    ;; merge that with c-ref (passed down from `refer` items) (sending
+    ;; messages to dom elements is futile anyway; so referencing the
+    ;; wrapper class is never needed)
 
     ;; Note: both :key in attrs, and (keyed) should always key the class (outermost element)
     (cond
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       (dom0/custom-type? type)
-      (r0/elem (custom-dom-class type) #js {"ref" (native-ref c-ref)
-                                            "key" (or key (:key attrs))
+      (r0/elem (custom-dom-class type) #js {"key" (or key (:key attrs))
                                             "binding" binding
                                             "attrs" (dissoc attrs :key)
                                             "contents" children
-                                            "d_ref" attr-ref
+                                            "d_ref" (merge-refs attr-ref c-ref)
                                             "events" events})
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
-      (r0/elem (dom-class type) #js {"ref" (native-ref c-ref)
-                                     "key" (or key (:key attrs))
+      (r0/elem (dom-class type) #js {"key" (or key (:key attrs))
                                      "binding" binding
                                      "attrs" (dissoc attrs :key)
                                      "contents" children
-                                     "d_ref" attr-ref
+                                     "d_ref" (merge-refs attr-ref c-ref)
                                      "events" events})
 
       ;; no events: no extra wrapper class 
@@ -827,14 +835,16 @@
                                "item" e
                                "f" f})))
 
-
 ;; React compat
 
 (extend-type interop/LiftReact
   IReact
   (-instantiate-react [{class :class props :props} binding ref key]
-    ;; FIXME: ref + a ref in props? How does that relate?
     ;; Note: (keyed) overrides key in props
-    (react/createElement class (if (some? key)
-                                 (js/Object.assign #js {} props #js {"key" key})
-                                 props))))
+    ;; Note: "ref" in props must be a native ref, not a reacl-c ref - so (refer) is easier to use.
+    (let [r (r0/merge-refs (native-ref ref) (aget props "ref"))]
+      (r0/elem class (if (some? key)
+                       (js/Object.assign #js {} props #js {"key" key "ref" r})
+                       (if (some? r)
+                         (js/Object.assign #js {} props #js {"ref" r})
+                         props))))))
