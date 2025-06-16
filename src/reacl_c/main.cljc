@@ -46,9 +46,15 @@
   (throw (ex-info (str "Unhandled action at toplevel: " (pr-str a) ".") {:action a})))
 
 #?(:cljs
+   (defn app "Returns an app object, which can [[run]] items underneath the given native dom node."
+     [dom]
+     (impl/run dom nil nil state-error action-error)))
+
+#?(:cljs
    (defn run-controlled
-     "Runs the given item as an application underneath the given
-  native `dom` node. Options are:
+     "Runs the given item underneath the given native `dom` node or [[app]].
+
+  Options are:
 
   `:state`: specifying the state of the item, which defaults to nil.
   
@@ -59,11 +65,10 @@
   `handle-action!`: a function called when the item emits an
   action (including effects); if not specified, and the item does emit
   an action, an error is thrown."
-     [dom item & [options]]
-     ;; TODO: document 'dom or app'
+     [dom-or-app item & [options]]
      (assert (every? #{:state :set-state! :handle-action!} (keys options)))
      (let [{state :state set-state! :set-state! handle-action! :handle-action!} options]
-       (impl/run dom
+       (impl/run dom-or-app
          item
          state
          (or set-state! state-error)
@@ -71,8 +76,9 @@
 
 #?(:cljs
    (defn run
-     "Runs the given item as an application underneath the given
-  native `dom` node, automatically managing its state and executing effect actions.
+     "Runs the given item underneath the given native `dom` node or [[app]],
+  automatically managing its state and executing effect actions.
+  
   Options are:
 
   `:initial-state`: specifying the initial state of the item, which defaults to nil.
@@ -80,11 +86,10 @@
   `:handle-action!`: a function called when the item emits an
   action (excluding effects); if not specified, and the item does emit
   an action, an error is thrown."
-     [dom item & [options]]
-     ;; TODO: document 'dom or app'
+     [dom-or-app item & [options]]
      (assert (every? #{:handle-action! :initial-state} (keys options)))
      (let [{initial-state :initial-state} options]
-       (run-controlled dom
+       (run-controlled dom-or-app
                        (-> (core/local-state initial-state (core/focus lens/second item))
                            ;; should be 'toplevel':
                            (execute-effects))
@@ -100,7 +105,7 @@
   (impl/transition! thunk))
 
 (defn stop!
-  "Stops the given application (the value returned by [[run]]
+  "Stops the given application (the value returned by [[app]], [[run]]
   or [[run-controlled]], removing all DOM nodes rendered by it."
   [app]
   (base/-stop! app))
