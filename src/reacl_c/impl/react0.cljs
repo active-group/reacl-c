@@ -101,17 +101,21 @@
 (defn fragment [key & children]
   (apply react/createElement react/Fragment (if (some? key) #js {"key" key} #js {}) children))
 
-(defn assign-ref! [r value]
+(defn- assign-ref! [r value]
   (if (fn? r)
     (r value)
-    (set! (.-current r) value)))
+    (do (set! (.-current r) value)
+        nil)))
 
 (defn merge-refs [r0 r1]
   ;; Note: starting with react 19, function refs may return a cleanup fn, which has to be called then.
   (if r1
     (if r0
       (fn [value]
-        (assign-ref! r0 value)
-        (assign-ref! r1 value))
+        (let [c0 (assign-ref! r0 value)
+              c1 (assign-ref! r1 value)]
+          (fn []
+            (if (fn? c0) (c0) (assign-ref! r0 nil))
+            (if (fn? c1) (c1) (assign-ref! r1 nil)))))
       r1)
     r0))
