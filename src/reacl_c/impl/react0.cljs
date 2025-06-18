@@ -6,7 +6,8 @@
             [clojure.string :as str]
             goog.object))
 
-(def ^:private react-17 false)
+(def version
+  (js/parseInt (first (.split react/version ".")) 10))
 
 (defn create-ref []
   (react/createRef))
@@ -107,7 +108,7 @@
     (do (set! (.-current r) value)
         nil)))
 
-(defn merge-refs [r0 r1]
+(defn- merge-refs-19 [r0 r1]
   ;; Note: starting with react 19, function refs may return a cleanup fn, which has to be called then.
   (if r1
     (if r0
@@ -119,3 +120,17 @@
             (if (fn? c1) (c1) (assign-ref! r1 nil)))))
       r1)
     r0))
+
+(defn- merge-refs-18 [r0 r1]
+  (if r1
+    (if r0
+      (fn [value]
+        (assign-ref! r0 value)
+        (assign-ref! r1 value))
+      r1)
+    r0))
+
+(def merge-refs
+  (if (>= version 19)
+    merge-refs-19
+    merge-refs-18))
