@@ -59,11 +59,13 @@ item *work* on just a part of the state, or by introducting new state
 that is stored at a lower part in the tree as so called *local state*.
 
 Finally, an item can be run in a browser, underneath a specific DOM
-node, by calling `reacl-c.main/run`, optionally specifying an initial
-state for the given item:
+node, by using `reacl-c.main/root` and `reacl-c.main/run`, optionally
+specifying an initial state for the given item:
 
 ```clojure
-(main/run (js/document.getElementById "app")
+(defonce app (main/root (js/document.getElementById "app")))
+
+(main/run app
           "Hello World"
           {:initial-state nil})
 ```
@@ -578,14 +580,14 @@ from the item tree. Subscription items are the most convenient way.
 ### External control
 
 When using Reacl-c in an outer framework, it is sometimes necessary to
-communicate with a 'running item'. The `run` function from the
+communicate with a 'running item'. The `root` function from the
 `reacl-c.main` namespace mentioned in the beginning of this
 document actually returns an *application handle*:
 
 ```clojure
-(def my-app
-  (main/run (js/document.getElementById "app")
-            my-item))
+(defonce my-app (main/root (js/document.getElementById "app")))
+
+(main/run my-app my-item))
 ```
 
 If `my-item` handles messages sent to it, you can do so with `main/send-message!`:

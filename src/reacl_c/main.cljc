@@ -46,9 +46,17 @@
   (throw (ex-info (str "Unhandled action at toplevel: " (pr-str a) ".") {:action a})))
 
 #?(:cljs
+   (defn root
+     "Sets up the given dom node to render item. Returns an object which can
+be passed to [[run]]."
+     [dom]
+     (impl/run dom nil nil state-error action-error)))
+
+#?(:cljs
    (defn run-controlled
-     "Runs the given item as an application underneath the given
-  native `dom` node. Options are:
+     "Runs the given item underneath the given native `dom` node or [[root]].
+
+  Options are:
 
   `:state`: specifying the state of the item, which defaults to nil.
   
@@ -59,10 +67,10 @@
   `handle-action!`: a function called when the item emits an
   action (including effects); if not specified, and the item does emit
   an action, an error is thrown."
-     [dom item & [options]]
+     [dom-or-root item & [options]]
      (assert (every? #{:state :set-state! :handle-action!} (keys options)))
      (let [{state :state set-state! :set-state! handle-action! :handle-action!} options]
-       (impl/run dom
+       (impl/run dom-or-root
          item
          state
          (or set-state! state-error)
@@ -70,8 +78,9 @@
 
 #?(:cljs
    (defn run
-     "Runs the given item as an application underneath the given
-  native `dom` node, automatically managing its state and executing effect actions.
+     "Runs the given item underneath the given native `dom` node or [[root]],
+  automatically managing its state and executing effect actions.
+  
   Options are:
 
   `:initial-state`: specifying the initial state of the item, which defaults to nil.
@@ -79,18 +88,26 @@
   `:handle-action!`: a function called when the item emits an
   action (excluding effects); if not specified, and the item does emit
   an action, an error is thrown."
-     [dom item & [options]]
+     [dom-or-root item & [options]]
      (assert (every? #{:handle-action! :initial-state} (keys options)))
      (let [{initial-state :initial-state} options]
-       (run-controlled dom
+       (run-controlled dom-or-root
                        (-> (core/local-state initial-state (core/focus lens/second item))
                            ;; should be 'toplevel':
                            (execute-effects))
                        ;; Note: the item's state is fully local; so toplevel state will never change
                        (dissoc options :initial-state)))))
 
+(defn flush-sync! "Calls thunk and returns its result, and flushes changes to states
+  causing a synchronous rerendering." [thunk]
+  (impl/flush-sync! thunk))
+
+(defn transition! "Calls thunk and returns its result, and changes to states
+  made during this call are handled with lower priority." [thunk]
+  (impl/transition! thunk))
+
 (defn stop!
-  "Stops the given application (the value returned by [[run]]
+  "Stops the given application (the value returned by [[root]], [[run]]
   or [[run-controlled]], removing all DOM nodes rendered by it."
   [app]
   (base/-stop! app))

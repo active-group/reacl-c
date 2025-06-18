@@ -7,6 +7,9 @@
 
 (defrecord ^:private Env [app node])
 
+(defn flush-sync! [thunk]
+  (main/flush-sync! thunk))
+
 (defn rendering [item & args]
   (let [f (last args)
         options (apply hash-map (drop-last args))]
@@ -15,9 +18,9 @@
       (when new-container?
         ;; Note: especially native dispatchEvents don't work if not mounted to the document. (react-tu does work around that)
         (.appendChild js/document.body e))
-      (let [app (main/run e item {:initial-state (:state options)
-                                  :handle-action! (:handle-action! options)})]
-        #_(react-dom/flushSync (fn [] nil)) ;; react > 17
+      (let [app (flush-sync! (fn []
+                               (main/run e item {:initial-state (:state options)
+                                                 :handle-action! (:handle-action! options)})))]
         (async/try-finally (fn []
                              (f (Env. app e)))
                            (fn []
@@ -41,7 +44,10 @@
   (assert (= :click event) "only clicks for now")
   (let [default-props {:bubbles true
                        :cancelable false}]
-    (.dispatchEvent node (new js/PointerEvent "click" (clj->js (merge default-props event-properties))))))
+    (flush-sync!
+     (fn []
+       (.dispatchEvent node (new js/PointerEvent "click" (clj->js (merge default-props event-properties))))))))
+
 
 #_(defn fire-event [node event & [event-properties]]
   (assert (= :click event) "only clicks for now")

@@ -266,11 +266,20 @@
                        (when-let [msgs (and (some? current)
                                             (not-empty @message-queue))]
                          (doseq [[msg callback] msgs]
-                           (send-message! current msg callback))))]
-    ;; 
-    (let [handle (r0/render-component (react-run item state onchange onaction callback-ref nil)
-                                      dom)]
-      (ReactApplication. handle current-comp message-queue))))
+                           (send-message! current msg callback))))
+        react-comp (react-run item state onchange onaction callback-ref nil)]
+    (if (instance? ReactApplication dom)
+      (let [app dom]
+        (r0/rerender-component! react-comp (:handle app))
+        app)
+      (let [handle (r0/render-component react-comp dom)]
+        (ReactApplication. handle current-comp message-queue)))))
+
+(defn flush-sync! [thunk]
+  (r0/flush-sync! thunk))
+
+(defn transition! [thunk]
+  (r0/transition! thunk))
 
 ;; items
 

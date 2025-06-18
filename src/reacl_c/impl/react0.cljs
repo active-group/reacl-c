@@ -1,8 +1,8 @@
 (ns ^:no-doc reacl-c.impl.react0
   (:require ["./create-react-class-wrapper.js" :refer [createReactClass]]
             ["react" :as react]
-            #_["react-dom/client" :as react-dom]
             ["react-dom" :as react-dom]
+            ["react-dom/client" :as react-dom-client]
             [clojure.string :as str]
             goog.object))
 
@@ -11,6 +11,9 @@
 ;; problems when shadow-cljs' :js-provier :external and external
 ;; bundlers (like bun) are used. The wrapper is meant to work around
 ;; that.
+
+(def version
+  (js/parseInt (first (.split react/version ".")) 10))
 
 (defn create-ref []
   (react/createRef))
@@ -51,14 +54,23 @@
       (set-statics! static-decls))))
 
 (defn render-component [comp dom]
-  (do (react-dom/render comp dom)
-      dom)
-  #_(doto (react-dom/createRoot dom)
-    (.render comp)))
+  (let [root (react-dom-client/createRoot dom)]
+    (.render root comp)
+    root))
+
+(defn rerender-component! [comp handle]
+  ;; handle is react/root
+  (let [root handle]
+    (.render root comp)))
 
 (defn unmount-component! [handle]
-  (react-dom/unmountComponentAtNode handle)
-  #_(.unmount handle))
+  (.unmount handle))
+
+(defn flush-sync! [thunk]
+  (react-dom/flushSync (or thunk (fn [] nil))))
+
+(defn transition! [thunk]
+  (react/startTransition thunk))
 
 (defn elem
   [class props & children]
@@ -96,13 +108,26 @@
 (defn fragment [key & children]
   (apply react/createElement react/Fragment (if (some? key) #js {"key" key} #js {}) children))
 
-(defn assign-ref! [r value]
+(defn- assign-ref! [r value]
   (if (fn? r)
     (r value)
-    (set! (.-current r) value)))
+    (do (set! (.-current r) value)
+        nil)))
 
-(defn merge-refs [r0 r1]
+(defn- merge-refs-19 [r0 r1]
   ;; Note: starting with react 19, function refs may return a cleanup fn, which has to be called then.
+  (if r1
+    (if r0
+      (fn [value]
+        (let [c0 (assign-ref! r0 value)
+              c1 (assign-ref! r1 value)]
+          (fn []
+            (if (fn? c0) (c0) (assign-ref! r0 nil))
+            (if (fn? c1) (c1) (assign-ref! r1 nil)))))
+      r1)
+    r0))
+
+(defn- merge-refs-18 [r0 r1]
   (if r1
     (if r0
       (fn [value]
@@ -110,3 +135,8 @@
         (assign-ref! r1 value))
       r1)
     r0))
+
+(def merge-refs
+  (if (>= version 19)
+    merge-refs-19
+    merge-refs-18))

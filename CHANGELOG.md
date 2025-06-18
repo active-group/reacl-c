@@ -4,9 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [0.12.0]
 
+- Minimum React version is now 18!
+
+- React issues a Warning if `reacl-c.main/run` is called multiple
+  times on the same DOM node. This happens typically with hot code
+  reloading.  To prevent that use the new function `reacl-c.main/root`
+  with a `defonce`, and pass that to `run`, which you can do
+  repeatedly without warning.
+
+- The WebComponent utility (`reacl-c.main.wc`) has been moved to its own
+  separate library [reacl-c-wc](https://github.com/active-group/reacl-c-wc).
+
 - `reacl-c.main.react/embed` now assumes that state changes (if allowed)
   take effect eventually. Previously toplevel action handlers didn't
-  see the new state, if state was changed and action emitted
+  see the new state, if state was changed and an action emitted
   simultanously. This might break some usages that relied on the
   previous behaviour.
 
