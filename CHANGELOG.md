@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 - `reacl-c.main.react/embed` now assumes that state changes (if allowed)
   take effect eventually. Previously toplevel action handlers didn't
-  see the new state, if state was changes and action emitted
+  see the new state, if state was changed and action emitted
   simultanously. This might break some usages that relied on the
   previous behaviour.
 
