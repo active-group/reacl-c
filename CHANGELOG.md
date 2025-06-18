@@ -8,9 +8,9 @@ All notable changes to this project will be documented in this file.
 
 - React issues a Warning if `reacl-c.main/run` is called multiple
   times on the same DOM node. This happens typically with hot code
-  reloading.  To prevent that use the new function `reacl-c.main/app`
-  to `defonce` an app container, and pass that to `run`, which you can
-  do repeatedly without warning.
+  reloading.  To prevent that use the new function `reacl-c.main/root`
+  with a `defonce`, and pass that to `run`, which you can do
+  repeatedly without warning.
 
 - The WebComponent utility (`reacl-c.main.wc`) has been moved to its own
   separate library [reacl-c-wc](https://github.com/active-group/reacl-c-wc).
