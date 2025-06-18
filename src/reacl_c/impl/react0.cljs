@@ -6,6 +6,12 @@
             [clojure.string :as str]
             goog.object))
 
+;; Note on create-react-class-wrapper.js: Because it's an unusual
+;; library in that it exports a function instead of module, it causes
+;; problems when shadow-cljs' :js-provier :external and external
+;; bundlers (like bun) are used. The wrapper is meant to work around
+;; that.
+
 (defn create-ref []
   (react/createRef))
 
