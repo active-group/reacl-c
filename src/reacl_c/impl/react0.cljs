@@ -1,5 +1,5 @@
 (ns ^:no-doc reacl-c.impl.react0
-  (:require ["create-react-class" :as createReactClass]
+  (:require ["./create-react-class-wrapper.js" :refer [createReactClass]]
             ["react" :as react]
             #_["react-dom/client" :as react-dom]
             ["react-dom" :as react-dom]
