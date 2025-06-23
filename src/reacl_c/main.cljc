@@ -31,7 +31,7 @@
   
   Options can be a map with the following settings:
 
-  - `:recursion-limit`  When effects continue to return new effects, and exception is when thrown when this limit is reached (defaults to 1000),
+  - `:recursion-limit`  When effects continue to return new effects, an exception is thrown when this limit is reached (defaults to 1000),
   - `:monitor`  A function called with the effect, its result value and a [[reacl-c.core/return]] value of actions and messages emitted by that effect."
     [item & [options]]
     (core/handle-effect item (f/partial h
