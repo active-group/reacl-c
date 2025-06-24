@@ -204,12 +204,16 @@
               nil))))
 
 (defn react-run [item state onchange onaction key]
-  ;; TODO: if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions); get rid of 'key' before that.
-  (r0/elem toplevel #js {"state" state
-                         "item" item
-                         "onchange" onchange
-                         "onaction" onaction
-                         "key" key}))
+  ;; if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions); get rid of 'key' before that.
+  (if (interop/lift-react? item)
+    (apply r0/elem (interop/lift-react-class item)
+           (js/Object.assign #js{} (interop/lift-react-props item))
+           (interop/lift-react-children item))
+    (r0/elem toplevel #js {"state" state
+                           "item" item
+                           "onchange" onchange
+                           "onaction" onaction
+                           "key" key})))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
