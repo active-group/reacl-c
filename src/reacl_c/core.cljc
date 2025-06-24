@@ -1,6 +1,7 @@
 (ns reacl-c.core
   "Functions, primitive values and some macros to define new items."
   (:require [reacl-c.base :as base]
+            #?(:cljs [reacl-c.impl.react :as impl])
             [clojure.set :as set]
             [schema.core :as s]
             [active.clojure.lens :as lens]
@@ -103,12 +104,16 @@
                (fn [[~@names]]
                  ~@body))))
 
-(defn deref
-  "Returns a runner specific value, which might be a native dom
+#?(:cljs
+   (defn deref
+     "Returns a runner specific value, which might be a native dom
   element backing an item at runtime for example. See [[with-ref]] for
   a description of references."
-  [ref]
-  (base/-deref-ref ref))
+     [ref]
+     ;; Note: to preserve implementation independance, this should/could
+     ;; have an abstract effect, implemented in impl; but that would be
+     ;; inconvenient too.
+     (impl/deref ref)))
 
 (defn dynamic
   "Returns a dynamic item, which looks and behaves like the item
@@ -166,7 +171,6 @@ be specified multiple times.
             (:action) (recur nxt state (conj! actions arg) messages)
             (:message) (let [[target msg] arg]
                          (assert (some? target) "Missing target for message.")
-                         (assert (base/message-target? target) "Target must be a reference created by with-ref or an item created by refer.")
                          (recur nxt state actions (conj! messages [target msg])))
             (do (assert (contains? #{:state :action :message} (first args)) (str "Invalid argument " (first args) " to return."))
                 (recur nxt state actions messages))))))))
@@ -297,8 +301,7 @@ be specified multiple times.
   sent to it by redirecting them to the item specified by the given
   reference."
     [ref item]
-    {:pre [(base/message-target? ref)
-           (base/item? item)]}
+    {:pre [(base/item? item)]}
     (handle-message (f/partial h ref) item)))
 
 (let [h (fn [ref f args]

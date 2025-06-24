@@ -28,11 +28,6 @@
           (let [c (first (filter #(not (item-list-pred %)) cs))]
             (str "Expected only items or strings, but this is neither: " (pr-str c)))))
 
-(defprotocol Ref
-  (-deref-ref [this]))
-(defn ref? [v]
-  (satisfies? Ref v))
-
 (deftype NameId [name])
 
 (defn make-name-id [s]
@@ -193,15 +188,6 @@
    finish lifecycle-finish]
   E
   (-is-dynamic? [_] true))
-
-(defn message-target? [v]
-  (or (ref? v)
-      (refer? v)))
-
-(defn deref-message-target [target]
-  (-deref-ref (if (refer? target)
-                (refer-ref target)
-                target)))
 
 (defrecord KeepState [])
 (def keep-state (KeepState.))

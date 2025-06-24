@@ -6,11 +6,9 @@
             [reacl-c.impl.react :as impl]))
 
 (defn send-message!
-  "Sends a message to the instance of a react element returned
-  by [[embed]], i.e. the current value of reference set on them."
-  [comp msg & [callback]]
-  ;; ...or the component of that element ('this'/'current' of a ref)
-  (impl/react-send-message! comp msg callback))
+  "Sends a message to an embedded item via a ref to it."
+  [ref msg & [callback]]
+  (impl/send-message-to-ref! ref msg callback))
 
 (defn embed
   "Returns a React element embedding the given item. Current `:state` and

@@ -5,7 +5,6 @@
             [reacl-c.impl.utils :as utils]
             [reacl-c.impl.stores :as stores]
             [reacl-c.base :as base]
-            [reacl-c.core :as core :include-macros true]
             [reacl-c.dom-base :as dom-base]
             [reacl-c.impl.dom0 :as dom0]
             [reacl-c.impl.events :as events]
@@ -14,7 +13,7 @@
             [active.clojure.functions :as f]
             [active.clojure.lens :as lens]
             goog.object)
-  (:refer-clojure :exclude [refer]))
+  (:refer-clojure :exclude [refer deref]))
 
 ;; bindings
 
@@ -33,7 +32,7 @@
 (defn- invalid-message-target [target msg]
   (ex-info (str "Invalid target " (pr-str target) " to send message: " (pr-str msg) ".") {:target target :message msg}))
 
-(defn send-message!
+(defn- send-message!
   "Send a message to a React component."
   [comp msg & [callback]]
   ;; TODO: callback non-optional -> handle-message
@@ -41,25 +40,24 @@
     (throw (invalid-message-target comp callback))
     (.call (aget comp $handle-message) comp msg)))
 
-(defn- send-message-react-ref!
-  "Send a message to a React ref."
-  [target msg]
-  (let [comp (r0/current-ref target)]
-    (when (and dev-mode? (nil? comp))
-      (throw (invalid-message-target target msg)))
-    (send-message! comp msg)))
+(defn deref "Deref a ref or refer item." [ref]
+  (let [r (if (base/refer? ref)
+            (base/refer-ref ref)
+            ref)]
+    (r0/current-ref r)))
 
-(defn- send-message-base-ref!
-  "Send a message to a reacl-c ref or referred item."
-  [target msg]
-  (let [comp (base/deref-message-target target)]
+(defn send-message-to-ref!
+  "Send a message to a ref or referred item."
+  [target msg callback]
+  (let [comp (deref target)]
     (when (and dev-mode? (nil? comp))
       (throw (invalid-message-target target msg)))
-    (send-message! comp msg)))
+    (send-message! comp msg callback)))
 
 (defn- process-messages [messages]
   (doseq [[target msg] messages]
-    (send-message-base-ref! target msg)))
+    ;; TODO: (return :message) should probably take some form of callback too (an effect?)
+    (send-message-to-ref! target msg nil)))
 
 (defn- call-event-handler*!
   "Calls (handler state & args) and returns tuple of [new-state
@@ -77,7 +75,7 @@
         messages (when (base/returned? r)
                    (not-empty (base/returned-messages r)))]
     [new-state (when (or actions messages)
-                 (fn []
+                 (fn after-state-callback []
                    ;; Note: defines the order or processing actions and messages
                    (when actions (@action-target actions))
                    (when messages (process-messages messages))))]))
@@ -172,22 +170,10 @@
     (when dev-mode?
       (throw (ex-info (str "Can't send a message to a " elem " item: " (pr-str msg) ".") {:item-type elem :message msg})))))
 
-(defrecord RRef [ref]
-  base/Ref
-  (-deref-ref [_] (r0/current-ref ref)))
-
-(defn native-ref "Get the native react ref from a Ref" [v]
-  (when (some? v)
-    (do (assert (instance? RRef v) v)
-        (:ref v))))
-
-(defn native-deref "Deref a Ref to the native element." [v]
-  (base/-deref-ref v))
-
 (defn- merge-refs [r1 r2]
   (if (some? r1)
     (if (some? r2)
-      (RRef. (r0/merge-refs (:ref r1) (:ref r2)))
+      (r0/merge-refs r1 r2)
       r1)
     r2))
 
@@ -195,7 +181,7 @@
   "getInitialState"
   (fn [^js this]
     (let-obj [{state "state" onchange "onchange"} (.-props this)]
-      #js {"s_ref" (RRef. (r0/create-ref))
+      #js {"s_ref" (r0/create-ref)
            "this_store" (stores/make-delegate-store! state onchange)
            "action_target" (atom nil)}))
 
@@ -217,20 +203,15 @@
       (render item
               (Binding. state store target)
               ref
-              nil)))
-  
-  $handle-message
-  (fn [^js this msg]
-    (send-message-react-ref! (native-ref (aget (.-state this) "s_ref")) msg)))
+              nil))))
 
 (defn react-run [item state onchange onaction key]
-  ;; Note: toplevel must have a ref for react-send-message to work.
+  ;; TODO: if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions); get rid of 'key' before that.
   (r0/elem toplevel #js {"state" state
                          "item" item
                          "onchange" onchange
                          "onaction" onaction
-                         "key" key
-                         "ref" (r0/create-ref)}))
+                         "key" key}))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
@@ -240,15 +221,6 @@
     (if-let [comp @current-comp]
       (send-message! comp msg callback)
       (swap! message-queue conj [msg callback]))))
-
-(defn react-send-message!
-  "Send a message to the component returned by [[react-run]]."
-  [comp msg & [callback]]
-  (if (goog.object/containsKey comp "ref")
-    ;; if comp is the thing returned from createElement:
-    (send-message! (r0/current-ref (.-ref comp)) msg callback)
-    ;; if comp is 'this' inside the code of a class:
-    (send-message! comp msg callback)))
 
 (defn run [dom item state onchange onaction]
   ;; Note: that render-component returns the component is legacy in
@@ -267,7 +239,7 @@
                                             (not-empty @message-queue))]
                          (doseq [[msg callback] msgs]
                            (send-message! current msg callback))))
-        react-comp (react-run (base/make-refer item (RRef. callback-ref)) state onchange onaction nil)]
+        react-comp (react-run (base/make-refer item callback-ref) state onchange onaction nil)]
     (if (instance? ReactApplication dom)
       (let [app dom]
         (r0/rerender-component! react-comp (:handle app))
@@ -459,12 +431,12 @@
   IReact
   (-instantiate-react [{init :init finish :finish} binding ref key]
     (if (some? finish)
-      (r0/elem lifecycle #js {"ref" (native-ref ref)
+      (r0/elem lifecycle #js {"ref" ref
                               "key" key
                               "binding" binding
                               "init" init
                               "finish" finish})
-      (r0/elem lifecycle-h #js {"ref" (native-ref ref)
+      (r0/elem lifecycle-h #js {"ref" ref
                                 "key" key
                                 "binding" binding
                                 "init" init}))))
@@ -475,6 +447,7 @@
     (render item
             (assoc binding
                    :store (stores/intercept-store (:store binding)
+                                                  ;; Note: passes a callback to intercept-store.
                                                   (f/partial call-event-handler*! (:action-target binding) f)))
             ref
             key)))
@@ -493,7 +466,7 @@
 (extend-type base/HandleMessage
   IReact
   (-instantiate-react [{e :e f :f} binding ref key]
-    (r0/elem handle-message #js {"ref" (native-ref ref)
+    (r0/elem handle-message #js {"ref" ref
                                  "key" key
                                  "binding" binding
                                  "item" e
@@ -553,7 +526,7 @@
 
 (defn- native-dom [type binding attrs ref children]
   (apply r0/dom-elem type (assoc attrs
-                                 :ref (native-ref ref))
+                                 :ref ref)
          (map #(render-child % binding) children)))
 
 (defn- rename-key! [m key replacement]
@@ -595,51 +568,30 @@
                          (fn [^js this]
                            ;; Note: a_ref is a stable fallback ref, in case the user doesn't set
                            ;; one (because we always need one for the events here)
-                           (doto #js {"a_ref" (RRef. (r0/create-ref))}
+                           (doto #js {"a_ref" (r0/create-ref)}
                              (events/init-state!)))
 
                          "componentDidMount"
                          (fn [^js this]
-                           (let-obj [{d-ref "d_ref"} (.-props this)
-                                     {a-ref "a_ref"} (.-state this)]
-                             (events/update-custom-event-listeners! (native-deref (or d-ref a-ref))
+                           (let-obj [{a-ref "a_ref"} (.-state this)]
+                             (events/update-custom-event-listeners! (deref a-ref)
                                                                     nil ;; no previous handlers
                                                                     (events/get-bound-event-handlers (.-state this)))))
 
                          "componentDidUpdate"
                          (fn [^js this prev-props prev-state]
-                           (let-obj [{prev-ref "d_ref"} prev-props
-                                     {new-ref "d_ref"} (.-props this)
-
-                                     {prev-a-ref "a_ref"} prev-state
-
-                                     {new-a-ref "a_ref"} (.-state this)]
+                           (let-obj [{a-ref "a_ref"} (.-state this)]
                              (let [prev-handlers (events/get-bound-event-handlers prev-state)
                                    new-handlers (events/get-bound-event-handlers (.-state this))
-                                     
-                                   prev-elem (native-deref (or prev-ref prev-a-ref))
-                                   new-elem (native-deref (or new-ref new-a-ref))]
-
-                               (if (= prev-elem new-elem)
-                                 (events/update-custom-event-listeners! new-elem
-                                                                        prev-handlers
-                                                                        new-handlers)
-                                 (do
-                                   (events/update-custom-event-listeners! prev-elem
-                                                                          prev-handlers
-                                                                          nil ;; no new; remove all
-                                                                          )
-                                   (events/update-custom-event-listeners! new-elem
-                                                                          nil
-                                                                          new-handlers))))))
-
-                         ;; Note: I assume removing event listeners is not needed. (TODO: test if it is?)
-                         ;; "componentWillUnmount"
-                         ;; (fn [this]
-                         ;;   (let [state (.-state this)
-                         ;;         ref (aget (.-props this) "d_ref")
-                         ;;         elem (native-deref (or ref (aget state "a_ref")))]
-                         ;;     (events/update-custom-event-listeners! elem (events/get-bound-event-handlers state) nil)))
+                                   elem (deref a-ref)]
+                               ;; Note: elem might be the same, or a new one since last render. Can we do better than remove/add all each time?
+                               (events/update-custom-event-listeners! elem
+                                                                      prev-handlers
+                                                                      nil ;; no new; remove all
+                                                                      )
+                               (events/update-custom-event-listeners! elem
+                                                                      nil
+                                                                      new-handlers))))
 
                          [:static "getDerivedStateFromProps"] get-derived-state-from-props
                          
@@ -651,7 +603,7 @@
                                       (native-dom type
                                                   binding
                                                   attrs ;; Note: no events added here
-                                                  (or d-ref a-ref)
+                                                  (merge-refs d-ref a-ref)
                                                   children)))))))
   
   (def dom-class
@@ -742,7 +694,7 @@
 
 
 (defn- create-refs [n]
-  (doall (repeatedly n (comp #(RRef. %) r0/create-ref))))
+  (doall (repeatedly n r0/create-ref)))
 
 (let [g (fn [state f & args]
           (base/make-focus (apply f (second state) args)
@@ -820,8 +772,7 @@
   IReact
   (-instantiate-react [{class :class-or-fn props :props children :children} binding ref key]
     ;; Note: (keyed) overrides key in props
-    ;; Note: "ref" in props must be a native ref, not a reacl-c ref - so (refer) is easier to use.
-    (let [r (r0/merge-refs (native-ref ref) (when props (aget props "ref")))]
+    (let [r (r0/merge-refs ref (when props (aget props "ref")))]
       (apply r0/elem class
              (if (some? key)
                (js/Object.assign #js {} props #js {"key" key "ref" r})

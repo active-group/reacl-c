@@ -28,15 +28,21 @@
        (is (= "Hello World" (.-textContent n)))))))
 
 (deftest send-message-test
-  (let [e (main/embed (c/isolate-state "foo"
-                                       (c/handle-message (fn [st msg]
-                                                           msg)
-                                                         (c/dynamic (fn [st]
-                                                                      (dom/div st))))))]
+  (let [the-ref (atom nil)
+        e (main/embed (c/isolate-state "foo"
+                                       (c/with-ref
+                                         (fn [ref]
+                                           (do (reset! the-ref ref)
+                                               (c/refer (c/handle-message (fn [st msg]
+                                                                            msg)
+                                                                          (c/dynamic (fn [st]
+                                                                                       (dom/div st))))
+                                                        ref))))))]
     (react-rendering
      e
      (fn [host]
-       (r0/flush-sync! #(main/send-message! e "bar"))
+       (is (some? @the-ref))
+       (r0/flush-sync! #(main/send-message! @the-ref "bar"))
        (let [n (first (array-seq (.-childNodes host)))]
          (is (= (.-nodeName n) "DIV"))
          (is (= "bar" (.-textContent n))))))))

@@ -6,8 +6,7 @@
             [reacl-c.base :as base]
             cljs.test))
 
-(def ^:private dummy-ref (reify base/Ref
-                           (-deref-ref [this] (throw (ex-info "References must only be dereferenced in handlers, not during rendering." {})))))
+(def ^:private dummy-ref #js {:current nil})
 
 (defn- dummy-async! [v]
   (throw (ex-info "Asynchronous injection must only be done asynchronously, not during rendering." {:value v})))

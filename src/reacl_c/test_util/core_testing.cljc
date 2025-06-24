@@ -93,8 +93,7 @@
   (ex-info (str "Unknown item: " (pr-str item)) {:item item}))
 
 (defn- make-dummy-ref []
-  (reify base/Ref
-    (-deref-ref [this] (throw (ex-info "Cannot derefence in a test environment." {})))))
+  #js {:current nil})
 
 (defn- dummy-async [r]
   (throw (ex-info "Cannot do an async injection in a test environment." {})))

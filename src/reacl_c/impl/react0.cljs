@@ -136,7 +136,7 @@
       r1)
     r0))
 
-(def merge-refs
+(def ^{:doc "Note that this returns a forward ref. Those cannot be 'deref'ed."} merge-refs
   (if (>= version 19)
     merge-refs-19
     merge-refs-18))
