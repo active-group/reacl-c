@@ -401,7 +401,8 @@ be specified multiple times.
   to optimize rendering of it in a list of children of a container
   item."
   [item key]
-  {:pre [(base/item? item)]}
+  {:pre [(base/item? item)
+         (some? key)]}
   ;; Note: overrides an existing key of item (e.g. set using the :key attribute)
   (base/make-keyed item key))
 
