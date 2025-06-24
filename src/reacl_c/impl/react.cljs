@@ -216,11 +216,17 @@
               nil))))
 
 (defn react-run [item state onchange onaction]
-  ;; if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions)
-  (if (interop/lift-react? item)
-    (apply r0/elem (interop/lift-react-class item)
-           (interop/lift-react-props item)
-           (interop/lift-react-children item))
+  (cond
+    ;; for LiftReact, we don't need a toplevel nor a binding (it cannot have state, or emit actions); same for LiftReactElement
+    (or (interop/lift-react? item)
+        (interop/lift-react-element? item))
+    (render item nil nil nil)
+
+    ;; this would make the action target unstable; not sure if that would be a problem.
+    ;; (not (base/is-dynamic? item))
+    ;; (render item (Binding. state stores/void-store (atom (f/partial toplevel-actions onaction))) nil nil)
+    
+    :else
     ;; Note: because we add an extra class, a keyed item can only be effective if the key is moved to the toplevel element
     (let [[key item] (if (base/keyed? item)
                        [(base/keyed-key item) (base/keyed-e item)]
@@ -795,3 +801,14 @@
                  (js/Object.assign #js {} props #js {"ref" r})
                  props))
              children))))
+
+(extend-type interop/LiftReactElement
+  IReact
+  (-instantiate-react [it binding ref key]
+    (assert (nil? ref) "Cannot refer to a lifted react element. Set they ref prop when constructing the element.")
+    (if (some? key) ;; one shouldn't do this either, but if you really have to we can add a wrapper class:
+      (r0/elem id #js {"key" key
+                       "item" it
+                       "c_ref" nil
+                       "binding" binding})
+      (interop/lift-react-element-element it))))

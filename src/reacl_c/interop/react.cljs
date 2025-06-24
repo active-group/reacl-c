@@ -12,6 +12,13 @@
   base/E
   (-is-dynamic? [this] dynamic?))
 
+(r/define-record-type ^:no-doc LiftReactElement
+  (make-lift-react-element element)
+  lift-react-element?
+  [element lift-react-element-element]
+  base/E
+  (-is-dynamic? [this] false))
+
 (defn ^:no-doc lift* [class props dynamic? & children]
   ;; Note: this is used in reacl-c-reacl.
   ;; Note: I thought, lifted Reacl class with app-state should be considered 'dynamic'; but somehow it does not make any difference (yet)
@@ -28,3 +35,10 @@ component and props. Note that children must be React element or
   ;; issues a warning when the children don't have keys. Otherwise
   ;; it's equivalent.
   (apply lift* class props false children))
+
+(defn element
+  "Return an item that renders as the given React element. Note that this
+   means the item can only be used once in an item tree, unlike other
+   items. Prefer using [[lift]] if you can."
+  [element]
+  (make-lift-react-element element))
