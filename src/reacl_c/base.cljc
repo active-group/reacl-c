@@ -263,7 +263,7 @@
   (or (simple-effect? v)
       (composed-effect? v)))
 
-(defn run-composed-effect! [eff run-recur!]
+(defn- run-composed-effect! [eff run-recur!]
   (reduce (fn [[value ret] next-f]
             (let [next-eff (next-f value)
                   [value2 ret2] (run-recur! next-eff)]
