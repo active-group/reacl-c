@@ -225,7 +225,7 @@
 
 (defprotocol Application
   (-stop! [this])
-  (-send-message! [this msg callback]))
+  (-send-message! [this msg]))
 
 (r/define-record-type Effect
   (make-effect f args)

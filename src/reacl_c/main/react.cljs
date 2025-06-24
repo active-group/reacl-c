@@ -7,8 +7,8 @@
 
 (defn send-message!
   "Sends a message to an embedded item via a ref to it."
-  [ref msg & [callback]]
-  (impl/send-message-to-ref! ref msg callback))
+  [ref msg]
+  (impl/send-message-to-ref! ref msg))
 
 (defn embed
   "Returns a React element embedding the given item. Current `:state` and

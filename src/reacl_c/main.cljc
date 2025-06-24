@@ -39,10 +39,9 @@
                                         (:monitor options)))))
 
 (defn ^:no-doc state-error [st]
-  ;; TODO: no callback arg?
   (throw (ex-info (str "Unhandled state change at toplevel: " (pr-str st) ".") {:state st})))
 
-(defn ^:no-doc action-error [a] ;; TODO: no callback arg?
+(defn ^:no-doc action-error [a]
   (throw (ex-info (str "Unhandled action at toplevel: " (pr-str a) ".") {:action a})))
 
 #?(:cljs
@@ -117,7 +116,6 @@ be passed to [[run]]."
   returned from [[run]] or [[run-controlled]]. This can be used together
   with [[reacl-c.core/handle-message]] in situations where the
   application is not running standalone, but integrated in a different
-  framework. The optional callback is invoked when any update
-  triggered by the message is completed."
-  [app msg & [callback]]
-  (base/-send-message! app msg callback))
+  framework."
+  [app msg]
+  (base/-send-message! app msg))

@@ -34,10 +34,9 @@
 
 (defn- send-message!
   "Send a message to a React component."
-  [comp msg & [callback]]
-  ;; TODO: callback non-optional -> handle-message
+  [comp msg]
   (if (and dev-mode? (or (nil? comp) (nil? (aget comp $handle-message))))
-    (throw (invalid-message-target comp callback))
+    (throw (invalid-message-target comp msg))
     (.call (aget comp $handle-message) comp msg)))
 
 (defn deref "Deref a ref or refer item." [ref]
@@ -48,16 +47,15 @@
 
 (defn send-message-to-ref!
   "Send a message to a ref or referred item."
-  [target msg callback]
+  [target msg]
   (let [comp (deref target)]
     (when (and dev-mode? (nil? comp))
       (throw (invalid-message-target target msg)))
-    (send-message! comp msg callback)))
+    (send-message! comp msg)))
 
 (defn- process-messages [messages]
   (doseq [[target msg] messages]
-    ;; TODO: (return :message) should probably take some form of callback too (an effect?)
-    (send-message-to-ref! target msg nil)))
+    (send-message-to-ref! target msg)))
 
 (defn- call-event-handler*!
   "Calls (handler state & args) and returns tuple of [new-state
@@ -65,7 +63,7 @@
   state."
   [action-target handler state & args]
   (let [r (apply handler state args)
-        new-state (if (base/returned? r) ;; TODO: core/lift-returned?
+        new-state (if (base/returned? r)
                     (let [s (base/returned-state r)]
                       (if (= base/keep-state s) state s))
                     r)
@@ -217,10 +215,10 @@
   base/Application
   (-stop! [this]
     (r0/unmount-component! handle))
-  (-send-message! [this msg callback]
+  (-send-message! [this msg]
     (if-let [comp @current-comp]
-      (send-message! comp msg callback)
-      (swap! message-queue conj [msg callback]))))
+      (send-message! comp msg)
+      (swap! message-queue conj msg))))
 
 (defn run [dom item state onchange onaction]
   ;; Note: that render-component returns the component is legacy in
@@ -235,10 +233,9 @@
         current-comp (atom nil)
         callback-ref (fn [current]
                        (reset! current-comp current)
-                       (when-let [msgs (and (some? current)
-                                            (not-empty @message-queue))]
-                         (doseq [[msg callback] msgs]
-                           (send-message! current msg callback))))
+                       (doseq [msg (when (some? current)
+                                     (not-empty @message-queue))]
+                         (send-message! current msg)))
         react-comp (react-run (base/make-refer item callback-ref) state onchange onaction nil)]
     (if (instance? ReactApplication dom)
       (let [app dom]
@@ -381,7 +378,6 @@
                                 "pred" pred})))
 
 (let [invoke! (fn [binding handler]
-                ;; TODO: take a callback fn (optionally?)
                 (call-event-handler! binding handler))]
   (extend-type base/WithAsync
     IReact
