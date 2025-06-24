@@ -3,9 +3,9 @@
             [active.clojure.cljs.record :as r :include-macros true]))
 
 (r/define-record-type ^:no-doc LiftReact
-  (make-lift-react class props children dynamic?)
+  (make-lift-react class-or-fn props children dynamic?)
   lift-react?
-  [class lift-react-class
+  [class-or-fn lift-react-class
    props lift-react-props
    children lift-react-children
    dynamic? lift-react-dynamic?]

@@ -818,7 +818,7 @@
 
 (extend-type interop/LiftReact
   IReact
-  (-instantiate-react [{class :class props :props children :children} binding ref key]
+  (-instantiate-react [{class :class-or-fn props :props children :children} binding ref key]
     ;; Note: (keyed) overrides key in props
     ;; Note: "ref" in props must be a native ref, not a reacl-c ref - so (refer) is easier to use.
     (let [r (r0/merge-refs (native-ref ref) (when props (aget props "ref")))]
