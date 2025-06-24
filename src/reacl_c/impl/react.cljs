@@ -111,6 +111,12 @@
 (defn- void-binding? [binding]
   (= (:store binding) stores/void-store))
 
+(defn- resolve-keys [outer-key inner-key]
+  ;; outer wins if not nil
+  (if (some? outer-key)
+    outer-key
+    inner-key))
+
 ;; Note: strings, nil and fragments can't have refs. We don't really
 ;; need them, but using a class can make better error
 ;; messages. That's done for fragments in dev-mode:
@@ -203,17 +209,21 @@
               ref
               nil))))
 
-(defn react-run [item state onchange onaction key]
-  ;; if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions); get rid of 'key' before that.
+(defn react-run [item state onchange onaction]
+  ;; if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions)
   (if (interop/lift-react? item)
     (apply r0/elem (interop/lift-react-class item)
            (js/Object.assign #js{} (interop/lift-react-props item))
            (interop/lift-react-children item))
-    (r0/elem toplevel #js {"state" state
-                           "item" item
-                           "onchange" onchange
-                           "onaction" onaction
-                           "key" key})))
+    ;; Note: because we add an extra class, a keyed item can only be effective if the key is moved to the toplevel element
+    (let [[key item] (if (base/keyed? item)
+                       [(base/keyed-key item) (base/keyed-e item)]
+                       [nil item])]
+      (r0/elem toplevel #js {"state" state
+                             "item" item
+                             "onchange" onchange
+                             "onaction" onaction
+                             "key" key}))))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
@@ -240,7 +250,7 @@
                        (doseq [msg (when (some? current)
                                      (not-empty @message-queue))]
                          (send-message! current msg)))
-        react-comp (react-run (base/make-refer item callback-ref) state onchange onaction nil)]
+        react-comp (react-run (base/make-refer item callback-ref) state onchange onaction)]
     (if (instance? ReactApplication dom)
       (let [app dom]
         (r0/rerender-component! react-comp (:handle app))
@@ -647,7 +657,7 @@
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       (dom0/custom-type? type)
-      (r0/elem (custom-dom-class type) #js {"key" (or key (:key attrs))
+      (r0/elem (custom-dom-class type) #js {"key" (resolve-keys key (:key attrs))
                                             "binding" binding
                                             "attrs" (dissoc attrs :key)
                                             "contents" children
@@ -656,7 +666,7 @@
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
-      (r0/elem (dom-class type) #js {"key" (or key (:key attrs))
+      (r0/elem (dom-class type) #js {"key" (resolve-keys key (:key attrs))
                                      "binding" binding
                                      "attrs" (dissoc attrs :key)
                                      "contents" children
@@ -665,7 +675,7 @@
 
       ;; no events: no extra wrapper class 
       :else (native-dom type binding
-                        ;; (keyed) overrides :key
+                        ;; (keyed) overrides :key (see resolve-keys)
                         (cond-> (react-dom-attrs attrs)
                           (some? key) (assoc :key key))
                         attr-ref children))))
@@ -689,8 +699,7 @@
 (extend-type base/Keyed
   IReact
   (-instantiate-react [{item :e inner-key :key} binding ref outer-key]
-    ;; Note: (keyed (keyed ... inner) outer) - outer wins
-    (render item binding ref (if (some? outer-key) outer-key inner-key))))
+    (render item binding ref (resolve-keys outer-key inner-key))))
 
 
 (defn- create-refs [n]
@@ -771,7 +780,7 @@
 (extend-type interop/LiftReact
   IReact
   (-instantiate-react [{class :class-or-fn props :props children :children} binding ref key]
-    ;; Note: (keyed) overrides key in props
+    ;; Note: (keyed) overrides key in props - see resolve-keys
     (let [r (r0/merge-refs ref (when props (aget props "ref")))]
       (apply r0/elem class
              (if (some? key)
