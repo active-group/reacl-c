@@ -23,18 +23,17 @@
   be set in the options."
   [item & [options]]
   (assert (base/item? item) item)
+  ;; TODO: extract key from item within react-run
+  (assert (every? #{:state :set-state! :handle-action! :key} (keys options)))
   ;; Note: when processing a state change and an action, it is assumed
   ;; that the value passed to set-state! will eventually be the one
   ;; passed down as 'state'.
   (let [{state :state
          set-state! :set-state!
          handle-action! :handle-action!
-         ref :ref
          key :key} options]
     (impl/react-run item
                     state
                     (or set-state! main/state-error)
                     (or handle-action! main/action-error)
-                    ref
                     key)))
-

@@ -223,14 +223,14 @@
   (fn [^js this msg]
     (send-message-react-ref! (native-ref (aget (.-state this) "s_ref")) msg)))
 
-(defn react-run [item state onchange onaction native-ref key]
-  ;; Note: must have a ref for react-send-message to work.
+(defn react-run [item state onchange onaction key]
+  ;; Note: toplevel must have a ref for react-send-message to work.
   (r0/elem toplevel #js {"state" state
                          "item" item
                          "onchange" onchange
                          "onaction" onaction
                          "key" key
-                         "ref" (or native-ref (r0/create-ref))}))
+                         "ref" (r0/create-ref)}))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
@@ -267,7 +267,7 @@
                                             (not-empty @message-queue))]
                          (doseq [[msg callback] msgs]
                            (send-message! current msg callback))))
-        react-comp (react-run item state onchange onaction callback-ref nil)]
+        react-comp (react-run (base/make-refer item (RRef. callback-ref)) state onchange onaction nil)]
     (if (instance? ReactApplication dom)
       (let [app dom]
         (r0/rerender-component! react-comp (:handle app))
