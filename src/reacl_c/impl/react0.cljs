@@ -74,9 +74,6 @@
 
 (defn elem
   [class props & children]
-  ;; Note: props must always be a fresh object, if it has a key=nil property at least.
-  (when (and (= nil (aget props "key")) (goog.object/containsKey props "key"))
-    (goog.object/remove props "key"))
   (apply react/createElement class props children))
 
 (defn- camelize

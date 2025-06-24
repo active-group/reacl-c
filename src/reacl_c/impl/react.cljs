@@ -117,6 +117,12 @@
     outer-key
     inner-key))
 
+(defn- set-key! [props key]
+  (if (some? key)
+    (do (aset props "key" key)
+        props)
+    props))
+
 ;; Note: strings, nil and fragments can't have refs. We don't really
 ;; need them, but using a class can make better error
 ;; messages. That's done for fragments in dev-mode:
@@ -213,17 +219,17 @@
   ;; if item is LiftReact, we don't need a toplevel (it cannot have state, or emit actions)
   (if (interop/lift-react? item)
     (apply r0/elem (interop/lift-react-class item)
-           (js/Object.assign #js{} (interop/lift-react-props item))
+           (interop/lift-react-props item)
            (interop/lift-react-children item))
     ;; Note: because we add an extra class, a keyed item can only be effective if the key is moved to the toplevel element
     (let [[key item] (if (base/keyed? item)
                        [(base/keyed-key item) (base/keyed-e item)]
                        [nil item])]
-      (r0/elem toplevel #js {"state" state
-                             "item" item
-                             "onchange" onchange
-                             "onaction" onaction
-                             "key" key}))))
+      (r0/elem toplevel (-> #js {"state" state
+                                 "item" item
+                                 "onchange" onchange
+                                 "onaction" onaction}
+                            (set-key! key))))))
 
 (defrecord ^:private ReactApplication [handle current-comp message-queue]
   base/Application
@@ -282,11 +288,11 @@
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (if name-id
       (r0/elem (dynamical name-id)
-               #js {"key" key
-                    "binding" binding
-                    "c_ref" ref
-                    "f" f
-                    "args" args})
+               (-> #js {"binding" binding
+                        "c_ref" ref
+                        "f" f
+                        "args" args}
+                   (set-key! key)))
       (render (apply f (:state binding) args) binding ref key))))
 
 (extend-type base/Focus
@@ -343,11 +349,11 @@
 (extend-type base/LocalState
   IReact
   (-instantiate-react [{e :e initial :initial} binding ref key]
-    (r0/elem local-state #js {"key" key
-                              "binding" binding
-                              "c_ref" ref
-                              "item" e
-                              "initial" initial})))
+    (r0/elem local-state (-> #js {"binding" binding
+                                  "c_ref" ref
+                                  "item" e
+                                  "initial" initial}
+                             (set-key! key)))))
 
 (let [h (fn [binding f pred actions]
           (let [{handle true pass false} (group-by pred actions)]
@@ -384,12 +390,12 @@
   IReact
   (-instantiate-react [{e :e f :f pred :pred} binding ref key]
     ;; Note: by using a class, the item does not have to rerender when 'f' changes (is a lambda)
-    (r0/elem handle-action #js {"key" key
-                                "binding" binding
-                                "c_ref" ref
-                                "item" e
-                                "f" f
-                                "pred" pred})))
+    (r0/elem handle-action (-> #js {"binding" binding
+                                    "c_ref" ref
+                                    "item" e
+                                    "f" f
+                                    "pred" pred}
+                               (set-key! key)))))
 
 (let [invoke! (fn [binding handler]
                 (call-event-handler! binding handler))]
@@ -441,15 +447,15 @@
   IReact
   (-instantiate-react [{init :init finish :finish} binding ref key]
     (if (some? finish)
-      (r0/elem lifecycle #js {"ref" ref
-                              "key" key
-                              "binding" binding
-                              "init" init
-                              "finish" finish})
-      (r0/elem lifecycle-h #js {"ref" ref
-                                "key" key
-                                "binding" binding
-                                "init" init}))))
+      (r0/elem lifecycle (-> #js {"ref" ref
+                                  "binding" binding
+                                  "init" init
+                                  "finish" finish}
+                             (set-key! key)))
+      (r0/elem lifecycle-h (-> #js {"ref" ref
+                                    "binding" binding
+                                    "init" init}
+                               (set-key! key))))))
 
 (extend-type base/HandleStateChange
   IReact
@@ -476,11 +482,11 @@
 (extend-type base/HandleMessage
   IReact
   (-instantiate-react [{e :e f :f} binding ref key]
-    (r0/elem handle-message #js {"ref" ref
-                                 "key" key
-                                 "binding" binding
-                                 "item" e
-                                 "f" f})))
+    (r0/elem handle-message (-> #js {"ref" ref
+                                     "binding" binding
+                                     "item" e
+                                     "f" f}
+                                (set-key! key)))))
 
 (defn- gen-named [name]
   (r0/class name
@@ -505,11 +511,11 @@
 (extend-type base/Named
   IReact
   (-instantiate-react [{e :e name-id :name-id validate-state! :validate-state!} binding ref key]
-    (r0/elem (named name-id) #js {"binding" binding
-                                  "key" key
-                                  "c_ref" ref
-                                  "item" e
-                                  "validate" validate-state!})))
+    (r0/elem (named name-id) (-> #js {"binding" binding
+                                      "c_ref" ref
+                                      "item" e
+                                      "validate" validate-state!}
+                                 (set-key! key)))))
 
 (defn- gen-static [name]
   (r0/class name
@@ -528,11 +534,11 @@
   IReact
   (-instantiate-react [{f :f args :args name-id :name-id} binding ref key]
     (r0/elem (if name-id (statical name-id) static)
-             #js {"binding" (if (void-binding? binding) binding (void-binding binding))
-                  "key" key
-                  "c_ref" ref
-                  "f" f
-                  "args" args})))
+             (-> #js {"binding" (if (void-binding? binding) binding (void-binding binding))
+                      "c_ref" ref
+                      "f" f
+                      "args" args}
+                 (set-key! key)))))
 
 (defn- native-dom [type binding attrs ref children]
   (apply r0/dom-elem type (assoc attrs
@@ -657,21 +663,21 @@
       ;; Note: for custom elements (web components), React does not do message handling via 'onX' props,
       ;; so events need special code for them:
       (dom0/custom-type? type)
-      (r0/elem (custom-dom-class type) #js {"key" (resolve-keys key (:key attrs))
-                                            "binding" binding
-                                            "attrs" (dissoc attrs :key)
-                                            "contents" children
-                                            "d_ref" (merge-refs attr-ref c-ref)
-                                            "events" events})
+      (r0/elem (custom-dom-class type) (-> #js {"binding" binding
+                                                "attrs" (dissoc attrs :key)
+                                                "contents" children
+                                                "d_ref" (merge-refs attr-ref c-ref)
+                                                "events" events}
+                                           (set-key! (resolve-keys key (:key attrs)))))
 
       (or (not (empty? events))
           (and dev-mode? (some? c-ref)))
-      (r0/elem (dom-class type) #js {"key" (resolve-keys key (:key attrs))
-                                     "binding" binding
-                                     "attrs" (dissoc attrs :key)
-                                     "contents" children
-                                     "d_ref" (merge-refs attr-ref c-ref)
-                                     "events" events})
+      (r0/elem (dom-class type) (-> #js {"binding" binding
+                                         "attrs" (dissoc attrs :key)
+                                         "contents" children
+                                         "d_ref" (merge-refs attr-ref c-ref)
+                                         "events" events}
+                                    (set-key! (resolve-keys key (:key attrs)))))
 
       ;; no events: no extra wrapper class 
       :else (native-dom type binding
@@ -769,11 +775,11 @@
 (extend-type base/HandleError
   IReact
   (-instantiate-react [{e :e f :f} binding ref key]
-    (r0/elem handle-error #js {"key" key
-                               "binding" binding
-                               "c_ref" ref
-                               "item" e
-                               "f" f})))
+    (r0/elem handle-error (-> #js {"binding" binding
+                                   "c_ref" ref
+                                   "item" e
+                                   "f" f}
+                              (set-key! key)))))
 
 ;; React compat
 
