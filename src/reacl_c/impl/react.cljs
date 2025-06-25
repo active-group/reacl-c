@@ -684,7 +684,8 @@
                         ;; (keyed) overrides :key (see resolve-keys)
                         (cond-> (react-dom-attrs attrs)
                           (some? key) (assoc :key key))
-                        attr-ref children))))
+                        (merge-refs attr-ref c-ref)
+                        children))))
 
 (extend-type base/Fragment
   IReact

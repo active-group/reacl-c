@@ -93,17 +93,19 @@
       (= class (.-constructor p)))))
 
 (deftest refs-to-native-test
-  (let [f (fn [variant test]
+  (let [f (fn [variant]
             (let [the-ref (atom nil)]
               (react-rendering
                (main/embed (c/with-ref (fn [ref]
                                          (reset! the-ref ref)
                                          (variant ref))))
                (fn [host]
-                 (is (test (c/deref @the-ref)))))))]
+                 (c/deref @the-ref)))))]
     (testing "as a dom attrs"
-      (f #(dom/div {:ref %}) #(instance? js/Node %)))
-    (testing "as a refer item to dom"
-      (f #(c/refer (dom/div) %) #(instance? js/Node %)))
-    (testing "as a refer item to component"
-      (f #(c/refer (interop/lift TestRefClass #js{}) %) #(rinstance? TestRefClass %)))))
+      (is (instance? js/Node (f #(dom/div {:ref %})))))
+    (testing "as a refer item to (static) dom"
+      (is (instance? js/Node (f #(c/refer (dom/div) %)))))
+    (testing "as a refer item to (dynamic) dom"
+      (is (instance? js/Node (f #(c/refer (dom/div {:onClick (fn [_ _] nil)}) %)))))
+    (testing "as a refer item to a lifted component"
+      (is (rinstance? TestRefClass (f #(c/refer (interop/lift TestRefClass #js{}) %)))))))
