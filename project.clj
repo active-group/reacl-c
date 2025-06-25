@@ -25,7 +25,7 @@
   :clean-targets ^{:protect false} [:target-path]
 
   :aliases {"fig" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "watch" "test"]
-            "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "compile" "ci"]
+            "build-test" ["with-profile" "shadow" "run" "-m" "shadow.cljs.devtools.cli" "release" "ci"]
             ;; then run tests with: npx karma start --single-run
             }
   )
