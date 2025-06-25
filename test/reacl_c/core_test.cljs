@@ -5,7 +5,11 @@
             [schema.core :as s :include-macros true]
             [clojure.string :as str]
             [reacl-c.test-util.perf :as perf]
-            [cljs.test :refer (is deftest testing) :include-macros true]))
+            [reacl-c.impl.react :as impl]
+            [cljs.test :refer (is deftest testing use-fixtures) :include-macros true]))
+
+;; Note: it seems schema validation is always off in prod builds; even with set-fn-validation! or :always-validate
+(def schema-validation? impl/dev-mode?)
 
 (deftest item-equality-test
   ;; items should be referentially equal
@@ -49,9 +53,10 @@
     (is (= (defn-subscription-test-1 :arg)
            (defn-subscription-test-1 :arg))))
 
-  (testing "argument schema validation"
-    (is (throws-like? #(defn-subscription-test-1 "foo")
-                      "Input to defn-subscription-test-1 does not match schema"))))
+  (when schema-validation?
+    (testing "argument schema validation"
+      (is (throws-like? #(defn-subscription-test-1 "foo")
+                        "Input to defn-subscription-test-1 does not match schema")))))
 
 (deftest subscription-test
   (let [ff (fn [deliver! a] (fn [] nil))]
@@ -95,12 +100,13 @@
     (is (= (c/effect (f/constantly nil))
            (c/effect (f/constantly nil)))))
 
-  (testing "argument schema validation"
-    (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
-      "err")
+  (when schema-validation?
+    (testing "argument schema validation"
+      (c/defn-effect ^:always-validate effect-test-2 :- s/Int [foo :- s/Keyword]
+        "err")
   
-    (is (throws-like? #(effect-test-2 "foo")
-                      "Input to effect-test-2 does not match schema"))))
+      (is (throws-like? #(effect-test-2 "foo")
+                        "Input to effect-test-2 does not match schema")))))
 
 (deftest defn-item-parser-test
   (is (= ['test false nil nil '[a] 'body] (c/parse-defn-item-args 'test '[a] 'body)))
