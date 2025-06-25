@@ -39,16 +39,10 @@
     (throw (invalid-message-target comp msg))
     (.call (aget comp $handle-message) comp msg)))
 
-(defn deref "Deref a ref or refer item." [ref]
-  (let [r (if (base/refer? ref)
-            (base/refer-ref ref)
-            ref)]
-    (r0/current-ref r)))
-
 (defn send-message-to-ref!
   "Send a message to a ref or referred item."
   [target msg]
-  (let [comp (deref target)]
+  (let [comp (base/deref-ref target)]
     (when (and dev-mode? (nil? comp))
       (throw (invalid-message-target target msg)))
     (send-message! comp msg)))
@@ -596,7 +590,7 @@
                          "componentDidMount"
                          (fn [^js this]
                            (let-obj [{a-ref "a_ref"} (.-state this)]
-                             (events/update-custom-event-listeners! (deref a-ref)
+                             (events/update-custom-event-listeners! (r0/current-ref a-ref)
                                                                     nil ;; no previous handlers
                                                                     (events/get-bound-event-handlers (.-state this)))))
 
@@ -605,7 +599,7 @@
                            (let-obj [{a-ref "a_ref"} (.-state this)]
                              (let [prev-handlers (events/get-bound-event-handlers prev-state)
                                    new-handlers (events/get-bound-event-handlers (.-state this))
-                                   elem (deref a-ref)]
+                                   elem (r0/current-ref a-ref)]
                                ;; Note: elem might be the same, or a new one since last render. Can we do better than remove/add all each time?
                                (events/update-custom-event-listeners! elem
                                                                       prev-handlers
@@ -715,7 +709,7 @@
 
 
 (defn- create-refs [n]
-  (doall (repeatedly n r0/create-ref)))
+  (doall (repeatedly n base/make-ref)))
 
 (let [g (fn [state f & args]
           (base/make-focus (apply f (second state) args)

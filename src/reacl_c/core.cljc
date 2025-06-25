@@ -1,7 +1,6 @@
 (ns reacl-c.core
   "Functions, primitive values and some macros to define new items."
   (:require [reacl-c.base :as base]
-            #?(:cljs [reacl-c.impl.react :as impl])
             [clojure.set :as set]
             [schema.core :as s]
             [active.clojure.lens :as lens]
@@ -108,12 +107,10 @@
    (defn deref
      "Returns a runner specific value, which might be a native dom
   element backing an item at runtime for example. See [[with-ref]] for
-  a description of references."
+  a description of references. This also works on [[refer]] items,
+  e.g. bound by [[ref-let]]."
      [ref]
-     ;; Note: to preserve implementation independance, this should/could
-     ;; have an abstract effect, implemented in impl; but that would be
-     ;; inconvenient too.
-     (impl/deref ref)))
+     (base/deref-ref ref)))
 
 (defn dynamic
   "Returns a dynamic item, which looks and behaves like the item

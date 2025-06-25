@@ -28,6 +28,13 @@
           (let [c (first (filter #(not (item-list-pred %)) cs))]
             (str "Expected only items or strings, but this is neither: " (pr-str c)))))
 
+;; Note: These refs have to be compatible with react/createRef (it's
+;; mostly here to avoid too much namespace dependeny)
+(deftype ^:priviate Ref [^:mutable current])
+
+(defn make-ref []
+  (Ref. nil))
+
 (deftype NameId [name])
 
 (defn make-name-id [s]
@@ -139,6 +146,12 @@
    ref refer-ref]
   E
   (-is-dynamic? [{e :e}] (is-dynamic? e)))
+
+(defn deref-ref [r]
+  (let [r (if (refer? r)
+            (refer-ref r)
+            r)]
+    (.-current r)))
 
 (r/define-record-type HandleStateChange
   (make-handle-state-change e f)
