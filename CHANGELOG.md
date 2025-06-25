@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.12.1]
+
+- Some breaking changes in React interop (`reacl-c.main.react`).
+
 ## [0.12.0]
 
 - Minimum React version is now 18!
