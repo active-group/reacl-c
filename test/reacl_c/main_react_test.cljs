@@ -1,7 +1,7 @@
 (ns reacl-c.main-react-test
   "Test interop with React"
   (:require [reacl-c.main.react :as main]
-            [reacl-c.core :as c]
+            [reacl-c.core :as c :include-macros true]
             [reacl-c.dom :as dom]
             [reacl-c.impl.react0 :as r0 :include-macros true]
             [reacl-c.dom-testing :as dt]
@@ -26,6 +26,28 @@
      (let [n (first (array-seq (.-childNodes host)))]
        (is (= (.-nodeName n) "DIV"))
        (is (= "Hello World" (.-textContent n)))))))
+
+(deftest with-embed-test
+  (let [action (atom nil)]
+    (react-rendering
+     (main/embed
+      (c/isolate-state
+       "X"
+       (-> (main/with-embed
+             (fn [embed]
+               (interop/lift "div" #{} (embed (c/fragment
+                                               (c/once (fn [state]
+                                                         (c/return :action :foo
+                                                                   :state (if (= "X" state)
+                                                                            "Hello World"
+                                                                            state))))
+                                               (c/dynamic str))))))
+           (c/handle-action (fn [st a]
+                              (reset! action a)
+                              st)))))
+     (fn [host]
+       (is (= "Hello World" (.-textContent (.-firstChild host))))
+       (is (= :foo @action))))))
 
 (deftest send-message-test
   (let [the-ref (atom nil)

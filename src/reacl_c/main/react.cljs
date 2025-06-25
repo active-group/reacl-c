@@ -2,7 +2,9 @@
   "Functions for using reacl-c within a React application or library."
   (:require [reacl-c.main :as main]
             [reacl-c.base :as base]
+            [reacl-c.core :as c :include-macros true]
             [active.clojure.lens :as lens]
+            [active.clojure.functions :as f]
             [reacl-c.impl.react :as impl]))
 
 (defn send-message!
@@ -31,3 +33,28 @@
                     state
                     (or set-state! main/state-error)
                     (or handle-action! main/action-error))))
+
+(let [h2 (fn [state return! f]
+           (f (fn embed-item [item]
+                (embed item {:state state
+                             :set-state! (f/comp return! f/constantly)
+                             :handle-action! (f/comp return! f/constantly (f/partial c/return :action))}))))
+      h (fn [return! f]
+          (c/dynamic h2 return! f))]
+  (defn with-embed
+    "Returns an item, that calls `f` with a function like [[embed]], which
+     takes items and embeds them with the state of the returned
+     item. Also, actions emitted by the embedded items are emitted
+     from the returned item.
+
+     This can be handy for adding items as children for lifted React container classes:
+
+     ```clojure
+     (defn my-container [& items]
+       (with-embed
+         (fn [embed]
+           (apply reacl-c.interop.react/lift MyReactContainer #js {}
+                  (map embed items))
+      ```"
+    [f]
+    (c/with-async h f)))
