@@ -38,23 +38,29 @@
            (f (fn embed-item [item]
                 (embed item {:state state
                              :set-state! (f/comp return! f/constantly)
-                             :handle-action! (f/comp return! f/constantly (f/partial c/return :action))}))))
+                             :handle-action! (f/comp return! f/constantly (f/partial c/return :action))}))
+              (fn embed-event-handler [f]
+                (when f
+                  (fn [ev]
+                    (return! (fn [state]
+                               (f state ev))))))))
       h (fn [return! f]
           (c/dynamic h2 return! f))]
   (defn with-embed
     "Returns an item, that calls `f` with a function like [[embed]], which
      takes items and embeds them with the state of the returned
      item. Also, actions emitted by the embedded items are emitted
-     from the returned item.
+     from the returned item. A second argument to `f` is a function to
+     embed React-C event handlers as a React event handler.
 
      This can be handy for adding items as children for lifted React container classes:
 
      ```clojure
-     (defn my-container [& items]
+     (defn my-container [on-clik & items]
        (with-embed
-         (fn [embed]
-           (apply reacl-c.interop.react/lift MyReactContainer #js {}
-                  (map embed items))
+         (fn [embed-item embed-event-handler]
+           (apply reacl-c.interop.react/lift MyReactContainer #js {:onClick (embed-event-handler on-click}
+                  (map embed-item items))
       ```"
     [f]
     (c/with-async h f)))
