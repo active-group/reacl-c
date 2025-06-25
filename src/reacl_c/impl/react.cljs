@@ -208,7 +208,9 @@
   (cond
     ;; for LiftReact, we don't need a toplevel nor a binding (it cannot have state, or emit actions); same for LiftReactElement
     (or (interop/lift-react? item)
-        (interop/lift-react-element? item))
+        (interop/lift-react-element? item)
+        (string? item)
+        (nil? item))
     (render item nil nil nil)
 
     ;; this would make the action target unstable; not sure if that would be a problem.
