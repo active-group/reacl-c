@@ -169,11 +169,6 @@
         (onaction action))
       (recur (rest actions)))))
 
-(defn- message-deadend [elem]
-  (fn [this msg]
-    (when dev-mode?
-      (throw (ex-info (str "Can't send a message to a " elem " item: " (pr-str msg) ".") {:item-type elem :message msg})))))
-
 (defn- merge-refs [r1 r2]
   (if (some? r1)
     (if (some? r2)
@@ -416,8 +411,6 @@
 (r0/defclass lifecycle
   "render" (fn [this] nil)
 
-  $handle-message (message-deadend "lifecycle")
-  
   ;; Note: no update needed when only the finish fn changes
   "shouldComponentUpdate" (r0/update-on ["binding" "init"])
 
@@ -436,8 +429,6 @@
   ;; 'optimized' version of lifecycle without finish.
   "render" (fn [this] nil)
 
-  $handle-message (message-deadend "lifecycle")
-  
   "shouldComponentUpdate" (r0/update-on ["binding" "init"])
 
   "componentDidMount" (lifecycle-f "init")
@@ -578,8 +569,6 @@
   (def custom-dom-class
     (memoize (fn [type]
                (r0/class (str "reacl-c.custom-dom/" type)
-                         $handle-message (message-deadend type)
-
                          "getInitialState"
                          (fn [^js this]
                            ;; Note: a_ref is a stable fallback ref, in case the user doesn't set
@@ -625,8 +614,6 @@
   (def dom-class
     (memoize (fn [type]
                (r0/class (str "reacl-c.dom/" type)
-                         $handle-message (message-deadend type)
-                         
                          "getInitialState"
                          (fn [^js this]
                            (doto #js {}
