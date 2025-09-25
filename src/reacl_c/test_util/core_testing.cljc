@@ -93,7 +93,8 @@
   (ex-info (str "Unknown item: " (pr-str item)) {:item item}))
 
 (defn- make-dummy-ref []
-  #js {:current nil})
+  #?(:clj {}
+     :cljs #js {:current nil}))
 
 (defn- dummy-async [r]
   (throw (ex-info "Cannot do an async injection in a test environment." {})))
