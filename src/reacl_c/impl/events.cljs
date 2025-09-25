@@ -1,4 +1,4 @@
-(ns reacl-c.impl.events
+(ns ^:no-doc reacl-c.impl.events
   (:require [clojure.data :as data]
             [clojure.string :as str]
             [active.clojure.functions :as f]))
