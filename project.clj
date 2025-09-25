@@ -1,4 +1,4 @@
-(defproject de.active-group/reacl-c "0.12.1"
+(defproject de.active-group/reacl-c "0.12.2"
   :description "Compositional and declarative user interface library for Clojure and Clojurescript."
   :url "http://github.com/active-group/reacl-c"
   :scm {:name "git" :url "https://github.com/active-group/reacl-c.git"} 
