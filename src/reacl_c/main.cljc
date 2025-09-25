@@ -97,13 +97,15 @@ be passed to [[run]]."
                        ;; Note: the item's state is fully local; so toplevel state will never change
                        (dissoc options :initial-state)))))
 
-(defn flush-sync! "Calls thunk and returns its result, and flushes changes to states
+#?(:cljs
+   (defn flush-sync! "Calls thunk and returns its result, and flushes changes to states
   causing a synchronous rerendering." [thunk]
-  (impl/flush-sync! thunk))
+     (impl/flush-sync! thunk)))
 
-(defn transition! "Calls thunk and returns its result, and changes to states
+#?(:cljs
+   (defn transition! "Calls thunk and returns its result, and changes to states
   made during this call are handled with lower priority." [thunk]
-  (impl/transition! thunk))
+     (impl/transition! thunk)))
 
 (defn stop!
   "Stops the given application (the value returned by [[root]], [[run]]
